@@ -6,6 +6,8 @@ Shared infrastructure for external binaries that implement the
 The SDK is intended to centralize the parts every terminal provider needs:
 
 - versioned request/response and launch-event types;
+- expressive, versioned Session and Agent DSLs;
+- bounded live-stream and infrastructure-evidence contracts;
 - JSON/NDJSON process transport;
 - subprocess containment, custody, cancellation, and durable state helpers;
 - a provider-profile DSL with capability negotiation and validation;
@@ -16,11 +18,24 @@ Terminal-specific behavior remains in provider repositories. OpenCode, Pi,
 Codex, and Claude Code adapters continue to own their native command lines,
 authentication, account/config roots, quota APIs, and session formats.
 
+Agent Runner remains the authority for logical agent/session ancestry,
+scheduling, admission, pause/resume policy, mailbox delivery, and incident
+classification. Agent Bash remains the generic detached-process supervisor and
+output capture owner. The SDK supplies shared contracts and conformance tests; it
+does not create a second runtime registry or session database.
+
 ## Status
 
 Bootstrap phase. The first work units pin the current external-provider
 contract, add conformance fixtures, and establish a process-tree memory baseline
 before reusable modules are extracted from `agent-runner-opencode`.
+
+The session runtime and infrastructure control-plane direction is documented in
+[`docs/architecture/session-runtime-control-plane.md`](docs/architecture/session-runtime-control-plane.md).
+Its implementation is tracked by APV-28 through APV-36 in the existing Agent
+Provider SDK and Provider Runtime and Memory projects. Live output is deliberately
+active-only and bounded; completed turns remain canonical in normal session
+storage.
 
 ## Provider memory harness
 
