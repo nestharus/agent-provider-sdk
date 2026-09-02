@@ -1,0 +1,21 @@
+{
+  "describe_request_wrong_contract": {
+    "contract": "oulipoly.provider/v0",
+    "request_id": "req-describe",
+    "provider_instance_id": "acct-primary",
+    "host": {"app": "oulipoly-agent-runner"},
+    "params": {}
+  },
+  "describe_response_wrong_ok": {
+    "contract": "oulipoly.provider/v1",
+    "request_id": "req-describe",
+    "ok": false,
+    "result": {
+      "provider": "example",
+      "provider_version": "1.2.3",
+      "contract_versions": ["oulipoly.provider/v1"],
+      "capabilities": [],
+      "settings_schema_ids": []
+    }
+  }
+}

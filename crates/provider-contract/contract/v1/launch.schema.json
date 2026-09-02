@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "launch.schema.json",
+  "title": "Oulipoly Provider Launch Contract",
+  "$comment": "intrinsic_surface_declarations:\n  - component: contract/v1/launch.schema.json\n    role: intrinsic-surface\n    Domain: oulipoly-provider-launch-contract\n    Owns:\n      - LaunchParams schema\n      - LaunchSession schema\n      - launch request, event, and result schemas\n      - common.schema.json references used by provider launch contract envelopes",
+  "type": "object",
+  "$defs": {
+    "LaunchParams": {
+      "type": "object",
+      "properties": {
+        "settings_id": { "type": "string", "minLength": 1 },
+        "mode": { "type": "string", "minLength": 1 },
+        "model": { "$ref": "common.schema.json#/$defs/ProviderModelRequest" },
+        "argv": { "type": "array", "items": { "type": "string" } },
+        "working_directory": { "type": "string", "minLength": 1 },
+        "env": { "$ref": "common.schema.json#/$defs/StringMap" },
+        "stdin": { "$ref": "common.schema.json#/$defs/BytePayload" },
+        "session": { "$ref": "#/$defs/LaunchSession" }
+      },
+      "required": ["settings_id", "mode", "model", "argv", "working_directory"],
+      "additionalProperties": false
+    },
+    "LaunchSession": {
+      "type": "object",
+      "description": "Host-supplied launch session intent. known_provider_session_id identifies the provider session id; start_mode=create means start a new provider session using that id, while start_mode=resume means continue an existing provider session with that id. Omit both fields when no known provider session id is supplied.",
+      "properties": {
+        "known_provider_session_id": { "type": "string", "minLength": 1 },
+        "start_mode": { "enum": ["create", "resume"] }
+      },
+      "dependentRequired": {
+        "known_provider_session_id": ["start_mode"],
+        "start_mode": ["known_provider_session_id"]
+      },
+      "additionalProperties": true
+    },
+    "LaunchRequest": {
+      "allOf": [
+        { "$ref": "common.schema.json#/$defs/RequestEnvelope" },
+        { "type": "object", "properties": { "params": { "$ref": "#/$defs/LaunchParams" } } }
+      ]
+    },
+    "LaunchStdoutEvent": {
+      "type": "object",
+      "properties": {
+        "contract": { "$ref": "common.schema.json#/$defs/ContractVersion" },
+        "request_id": { "$ref": "common.schema.json#/$defs/RequestId" },
+        "seq": { "type": "integer", "minimum": 1 },
+        "time_unix_ms": { "$ref": "common.schema.json#/$defs/UnixMilliseconds" },
+        "kind": { "const": "stdout" },
+        "data_base64": { "type": "string" }
+      },
+      "required": ["contract", "request_id", "seq", "time_unix_ms", "kind", "data_base64"],
+      "additionalProperties": false
+    },
+    "LaunchStderrEvent": {
+      "type": "object",
+      "properties": {
+        "contract": { "$ref": "common.schema.json#/$defs/ContractVersion" },
+        "request_id": { "$ref": "common.schema.json#/$defs/RequestId" },
+        "seq": { "type": "integer", "minimum": 1 },
+        "time_unix_ms": { "$ref": "common.schema.json#/$defs/UnixMilliseconds" },
+        "kind": { "const": "stderr" },
+        "data_base64": { "type": "string" }
+      },
+      "required": ["contract", "request_id", "seq", "time_unix_ms", "kind", "data_base64"],
+      "additionalProperties": false
+    },
+    "LaunchMarkerEvent": {
+      "type": "object",
+      "properties": {
+        "contract": { "$ref": "common.schema.json#/$defs/ContractVersion" },
+        "request_id": { "$ref": "common.schema.json#/$defs/RequestId" },
+        "seq": { "type": "integer", "minimum": 1 },
+        "time_unix_ms": { "$ref": "common.schema.json#/$defs/UnixMilliseconds" },
+        "kind": { "const": "marker" },
+        "name": { "type": "string", "minLength": 1 },
+        "value": true
+      },
+      "required": ["contract", "request_id", "seq", "time_unix_ms", "kind", "name", "value"],
+      "additionalProperties": false
+    },
+    "LaunchHeartbeatEvent": {
+      "type": "object",
+      "properties": {
+        "contract": { "$ref": "common.schema.json#/$defs/ContractVersion" },
+        "request_id": { "$ref": "common.schema.json#/$defs/RequestId" },
+        "seq": { "type": "integer", "minimum": 1 },
+        "time_unix_ms": { "$ref": "common.schema.json#/$defs/UnixMilliseconds" },
+        "kind": { "const": "heartbeat" },
+        "detail": { "type": "string" }
+      },
+      "required": ["contract", "request_id", "seq", "time_unix_ms", "kind"],
+      "additionalProperties": false
+    },
+    "LaunchExitEvent": {
+      "type": "object",
+      "properties": {
+        "contract": { "$ref": "common.schema.json#/$defs/ContractVersion" },
+        "request_id": { "$ref": "common.schema.json#/$defs/RequestId" },
+        "seq": { "type": "integer", "minimum": 1 },
+        "time_unix_ms": { "$ref": "common.schema.json#/$defs/UnixMilliseconds" },
+        "kind": { "const": "exit" },
+        "status": { "$ref": "common.schema.json#/$defs/ProcessStatus" },
+        "terminal_signal": { "$ref": "common.schema.json#/$defs/TerminalSignal" },
+        "session": { "type": "object", "additionalProperties": true }
+      },
+      "required": [
+        "contract",
+        "request_id",
+        "seq",
+        "time_unix_ms",
+        "kind",
+        "status",
+        "terminal_signal"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

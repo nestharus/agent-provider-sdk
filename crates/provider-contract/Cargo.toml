@@ -1,0 +1,19 @@
+[package]
+name = "agent-provider-contract"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license = "MIT"
+
+[features]
+contract-test-fixtures = []
+
+[dependencies]
+base64.workspace = true
+jsonschema.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+sha2.workspace = true
