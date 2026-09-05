@@ -91,6 +91,16 @@ Provider SDK and Provider Runtime and Memory projects. Live output is deliberate
 active-only and bounded; completed turns remain canonical in normal session
 storage.
 
+The independently versioned
+[`terminal-unavailable/v1` extension](crates/provider-contract/contract/extensions/terminal-unavailable/README.md)
+adds an explicitly selected `provider_unavailable` terminal result for temporary
+model-service unavailability, distinct from account quota and rate limiting.
+The `terminal_unavailable` module exposes its DTO, standalone schema, and
+selection-aware payload admission. The pinned base snapshot and base admission
+APIs remain unchanged. Existing routes can adopt this complete extension without
+importing unrelated base-contract revisions; this does not change the
+matched-snapshot requirements for a base-contract upgrade.
+
 ## Provider memory harness
 
 `provider-memory` measures a complete Linux process tree using

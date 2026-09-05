@@ -10,6 +10,7 @@ pub mod generated;
 pub mod launch_stream;
 pub mod operations;
 pub mod schemas;
+pub mod terminal_unavailable;
 
 #[cfg(feature = "contract-test-fixtures")]
 pub mod fixtures {
