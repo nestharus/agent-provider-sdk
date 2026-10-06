@@ -6,7 +6,9 @@
 //! provider process: process-group custody behind an effect gate, bounded
 //! launch-output delivery, request custody with durable launch state and an
 //! exactly replayable event journal, provider/v1 launch-event framing, and
-//! durable filesystem and encoding helpers.
+//! durable filesystem and encoding helpers. [`lifecycle`] composes them into
+//! the shared one-shot launch lifecycle that adapters plug native behavior
+//! into.
 //!
 //! Native argv, authentication, account and config roots, model aliases, tool
 //! restrictions, session formats, and native event translation stay in
@@ -15,9 +17,11 @@
 //! a resident runtime: termination handling is process-scoped and the custody
 //! types assume the caller owns one launch at a time.
 //!
-//! The caller enforces lifecycle ordering, validates events/state, holds request
-//! custody, and unwinds child custody on errors. See [`custody`] and [`framing`]
-//! for error/seal obligations. Delivery bounds apply to FIFO/socket progress,
+//! Callers of the individual modules, rather than [`lifecycle::run_launch`],
+//! enforce lifecycle ordering, hold request custody, and unwind child custody
+//! on errors. Neither path validates events or state against the contract
+//! schema; see [`lifecycle::LaunchAdapter`] for adapter obligations and
+//! [`custody`] and [`framing`] for error/seal obligations. Delivery bounds apply to FIFO/socket progress,
 //! and incarnation checks do not make signalling atomic; see [`delivery`] and
 //! [`process`].
 
@@ -29,4 +33,6 @@ pub mod delivery;
 pub mod durable_fs;
 pub mod encoding;
 pub mod framing;
+#[cfg(unix)]
+pub mod lifecycle;
 pub mod process;

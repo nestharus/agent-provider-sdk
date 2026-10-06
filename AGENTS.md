@@ -62,9 +62,12 @@ the task worktree and branch when the work is complete.
 Current integration uses fixed-v1 validation and capability agreement. General
 supported-version selection and automatic refreshed Runner agreement after
 replacement remain unfinished; do not advertise a second wire version before
-the host can select a common supported version. The shared lifecycle foundation
-and cross-build replay/update qualification are separate unfinished work. These
-rules state requirements, not a claim that those mechanisms are implemented.
+the host can select a common supported version. The shared one-shot launch
+lifecycle lives in `agent-provider-execution::lifecycle`; adapters plug native
+behavior into it rather than reimplementing its ordering. Cross-build
+replay/update qualification and resident shared runtimes are separate unfinished
+work. These rules state requirements, not a claim that those mechanisms are
+implemented.
 
 ## Compatibility and tests
 

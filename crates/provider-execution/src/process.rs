@@ -14,6 +14,17 @@
 //! The provider binary chooses its gate argument and descriptor variable and
 //! dispatches the gate before any other argument handling, through
 //! [`run_effect_gate`].
+//!
+//! The gate descriptor also carries the native start outcome back to the
+//! caller. The gate marks it close-on-exec before `exec`, so a successful
+//! `exec` closes it without data; a failed `exec` writes the native `errno`
+//! to it before the gate exits 126. [`ExecStart`] reports which one the
+//! caller observed. This is the actual exec boundary, not a prediction from
+//! `PATH` or permission bits, and it does not interpret native exit statuses:
+//! a native program that runs and exits 126 reports no start failure. A gate
+//! from a build without this report closes the descriptor before `exec`, and a
+//! caller that drops the observer makes the report undeliverable; both reduce
+//! to the earlier behavior of a gate exit status with a stderr diagnostic.
 //! The caller retains a cleanup guard, terminates/reaps the child on errors,
 //! and owns durable recovery/reconciliation if its in-process owner is lost.
 
@@ -58,6 +69,27 @@ pub struct ExecGate {
     #[cfg(unix)]
     writer: UnixStream,
 }
+
+/// Caller side of the gate after release, which receives the native start
+/// outcome from [`run_effect_gate`].
+pub struct ExecObserver {
+    #[cfg(unix)]
+    reader: UnixStream,
+    #[cfg(unix)]
+    report: Vec<u8>,
+}
+
+/// Native start outcome observed at the gate's `exec`.
+#[derive(Debug)]
+pub enum ExecStart {
+    /// The gate descriptor closed without a report: `exec` replaced the gate,
+    /// or the gate ended before attempting it (for example, it was killed).
+    NoFailureReported,
+    /// `exec` failed with this error, so the native program never ran.
+    Failed(io::Error),
+}
+
+const EXEC_REPORT_LEN: usize = std::mem::size_of::<i32>();
 
 /// A native command wrapped by the provider's effect gate and configured to lead
 /// its own process group.
@@ -158,22 +190,77 @@ impl GatedCommand {
 }
 
 impl ExecGate {
+    /// Lets the gate `exec` the native program. Keep the returned observer to
+    /// learn whether `exec` failed; dropping it discards that report.
     #[cfg(unix)]
-    pub fn release(mut self) -> io::Result<()> {
+    pub fn release(mut self) -> io::Result<ExecObserver> {
         self.writer.write_all(&[1])?;
-        self.writer.flush()
+        self.writer.flush()?;
+        Ok(ExecObserver {
+            reader: self.writer,
+            report: Vec::with_capacity(EXEC_REPORT_LEN),
+        })
     }
 
     #[cfg(not(unix))]
-    pub fn release(self) -> io::Result<()> {
-        Ok(())
+    pub fn release(self) -> io::Result<ExecObserver> {
+        Ok(ExecObserver {})
+    }
+}
+
+impl ExecObserver {
+    /// Waits up to `timeout` for the native start outcome; `None` means the
+    /// gate has neither executed nor reported a failure yet.
+    #[cfg(unix)]
+    pub fn wait(&mut self, timeout: Duration) -> io::Result<Option<ExecStart>> {
+        self.reader
+            .set_read_timeout(Some(timeout.max(Duration::from_millis(1))))?;
+        let mut buffer = [0_u8; EXEC_REPORT_LEN];
+        loop {
+            let wanted = EXEC_REPORT_LEN - self.report.len();
+            match self.reader.read(&mut buffer[..wanted]) {
+                Ok(0) if self.report.is_empty() => return Ok(Some(ExecStart::NoFailureReported)),
+                Ok(0) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "native effect gate sent a truncated start report",
+                    ))
+                }
+                Ok(count) => {
+                    self.report.extend_from_slice(&buffer[..count]);
+                    if self.report.len() == EXEC_REPORT_LEN {
+                        let errno = i32::from_ne_bytes(
+                            self.report[..].try_into().expect("complete start report"),
+                        );
+                        return Ok(Some(ExecStart::Failed(io::Error::from_raw_os_error(errno))));
+                    }
+                }
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+                    ) =>
+                {
+                    return Ok(None)
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    #[cfg(not(unix))]
+    pub fn wait(&mut self, _timeout: std::time::Duration) -> io::Result<Option<ExecStart>> {
+        Ok(Some(ExecStart::NoFailureReported))
     }
 }
 
 /// Runs the effect gate inside the provider binary. `args` is the provider's
 /// complete argv: `[provider, gate argument, native program, native args...]`.
-/// Returns 126 when the gate cannot release; otherwise the process image is
-/// replaced by the native program.
+/// Returns 126 when the gate cannot release or `exec` fails; otherwise the
+/// process image is replaced by the native program. A failed `exec` is
+/// reported through the gate descriptor (see [`ExecObserver`]) and also
+/// written to stderr as a diagnostic.
 #[cfg(unix)]
 pub fn run_effect_gate(args: &[String], descriptor_env: &str) -> i32 {
     use std::fs::File;
@@ -205,9 +292,32 @@ pub fn run_effect_gate(args: &[String], descriptor_env: &str) -> i32 {
         eprintln!("native effect gate received an invalid release token");
         return 126;
     }
-    drop(gate);
+    // Keep the descriptor across the attempt: close-on-exec closes it when
+    // `exec` succeeds, and it carries the error back when `exec` fails.
+    let flags = unsafe { libc::fcntl(gate_fd, libc::F_GETFD) };
+    if flags == -1 || unsafe { libc::fcntl(gate_fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } == -1
+    {
+        eprintln!(
+            "native effect gate could not protect its descriptor: {}",
+            io::Error::last_os_error()
+        );
+        return 126;
+    }
     std::env::remove_var(descriptor_env);
     let error = Command::new(program).args(program_args).exec();
+    let report = error.raw_os_error().unwrap_or(libc::EIO).to_ne_bytes();
+    // `exec` restored the default `SIGPIPE` disposition before failing, and a
+    // caller that dropped its observer has closed the other end: report
+    // without raising `SIGPIPE` so the gate still exits 126 below.
+    unsafe {
+        libc::send(
+            gate_fd,
+            report.as_ptr().cast(),
+            report.len(),
+            libc::MSG_NOSIGNAL,
+        );
+    }
+    drop(gate);
     eprintln!("native effect gate could not execute native command: {error}");
     126
 }

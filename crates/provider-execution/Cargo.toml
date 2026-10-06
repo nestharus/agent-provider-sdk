@@ -21,3 +21,7 @@ harness = false
 [[test]]
 name = "process_actor"
 harness = false
+
+[[test]]
+name = "lifecycle"
+harness = false
