@@ -30,8 +30,8 @@
 //!   starts. Turns of one session run one at a time in arrival order. The
 //!   prompt is answered only when the native turn reports that it consumed
 //!   the input (`oulipoly.submitted_user_turn` marker): that is the insertion
-//!   acknowledgement, recorded durably before it is sent, followed by
-//!   `user_message` and `state_update: running`. It is not turn completion.
+//!   acknowledgement, recorded durably before `user_message`, then the ACK and
+//!   `state_update: running`. It is not turn completion.
 //!   A turn that ends without that evidence answers a JSON-RPC error and
 //!   records the input as not inserted.
 //! * Each native `stdout` data event of a consumed turn becomes one
@@ -45,17 +45,18 @@
 //! * A prompt whose [`MESSAGE_KEY_META`] key this session already recorded
 //!   inserts nothing: it answers the original `messageId` with
 //!   [`DUPLICATE_META`] `true` once insertion is known, and an input whose
-//!   turn already ended gets its recorded tagged idle again (outputs are not
+//!   turn already ended gets its recorded tagged idle again. Key identity does
+//!   not attest the resubmission's bytes (outputs are not
 //!   re-sent). This memory lasts as long as the session's durable record.
 //! * `session/cancel` stops the running turn's native process group through
 //!   its lifecycle stop flag and refuses inputs queued before it; a consumed
 //!   turn still ends with its tagged idle (`cancelled`). `session/close`
-//!   cancels, settles the running turn and then answers.
+//!   cancels, settles the running turn, releases ownership and then answers.
 //! * `session/resume` opens a recorded session in this process (its working
 //!   directory must match) and first settles inputs an earlier process left
-//!   unfinished, by rerunning their exact launch request: a complete journal
+//!   unfinished without native readmission: a complete equal-request journal
 //!   replays without native effects, while an interrupted one has its
-//!   recorded process group discharged and is reported as
+//!   recorded process group discharged before adapter validation and is reported as
 //!   `_oulipoly_reconciliation_required`, never run again. An input whose
 //!   consumption is unknown is refused rather than rerun.
 //!
@@ -219,7 +220,6 @@ where
         wire: wire.clone(),
         initialized: false,
         sessions: HashMap::new(),
-        closing: Vec::new(),
     };
     let end = loop {
         if let Some(signal) = cancellation::termination_signal() {
@@ -389,14 +389,12 @@ struct Endpoint<T: ResidentTurns> {
     wire: Wire,
     initialized: bool,
     sessions: HashMap<String, OpenSession>,
-    /// Closed sessions whose workers answer the close after settling.
-    closing: Vec<OpenSession>,
 }
 
 struct OpenSession {
     shared: Arc<SessionShared>,
     jobs: Option<mpsc::Sender<Job>>,
-    worker: Option<JoinHandle<()>>,
+    worker: Option<JoinHandle<bool>>,
 }
 
 /// State shared by the connection thread and one session's turn worker.
@@ -412,7 +410,7 @@ struct SessionShared {
     /// refused.
     cancel_epoch: AtomicU64,
     closed: AtomicBool,
-    _lock: File,
+    lock: Mutex<Option<File>>,
 }
 
 #[derive(Default)]
@@ -428,7 +426,7 @@ struct SessionInputs {
 
 enum Job {
     Turn { message_id: String, epoch: u64 },
-    Close { reply: Value },
+    Close,
 }
 
 impl<T: ResidentTurns> Endpoint<T> {
@@ -569,6 +567,9 @@ impl<T: ResidentTurns> Endpoint<T> {
         }
         let shared = self.open(id, dir, cwd, record, inputs, lock);
         settle_unfinished(&*self.turns, &shared);
+        if has_unsettled_custody(&shared) {
+            return Err((SESSION_UNAVAILABLE, "native custody is not settled".into()));
+        }
         Ok(json!({}))
     }
 
@@ -590,7 +591,7 @@ impl<T: ResidentTurns> Endpoint<T> {
             stop: AtomicBool::new(false),
             cancel_epoch: AtomicU64::new(0),
             closed: AtomicBool::new(false),
-            _lock: lock,
+            lock: Mutex::new(Some(lock)),
         });
         let (jobs, receive) = mpsc::channel();
         let worker = {
@@ -665,6 +666,7 @@ impl<T: ResidentTurns> Endpoint<T> {
             "native_session_id":native["native_session_id"],
             "create_native_session_id": if native["native_session_id"].is_null() {
                 native["create_native_session_id"].clone() } else { Value::Null },
+            "dispatched":false,
             "phase":phase::ACCEPTED,"accepted_unix_ms":now_unix_ms()});
         // Durable before any native effect of this input.
         publish_json(
@@ -691,7 +693,7 @@ impl<T: ResidentTurns> Endpoint<T> {
 
     fn close_session(
         &mut self,
-        id: &Value,
+        _id: &Value,
         params: &Value,
     ) -> Result<Option<Value>, (i64, String)> {
         let session_id = params
@@ -705,11 +707,20 @@ impl<T: ResidentTurns> Endpoint<T> {
         session.shared.closed.store(true, Ordering::SeqCst);
         cancel(&session.shared);
         if let Some(jobs) = session.jobs.take() {
-            let _ = jobs.send(Job::Close { reply: id.clone() });
+            let _ = jobs.send(Job::Close);
         }
-        // The worker answers after settling; it is joined at shutdown.
-        self.closing.push(session);
-        Ok(None)
+        // The worker answers after settlement and releases the lock. Join and
+        // drop all remaining live session resources before reading another RPC.
+        let settled = session
+            .worker
+            .take()
+            .is_some_and(|worker| worker.join().unwrap_or(false));
+        drop(session);
+        if settled {
+            Ok(Some(json!({})))
+        } else {
+            Err((SESSION_UNAVAILABLE, "native custody is not settled".into()))
+        }
     }
 
     fn list_sessions(&self, params: &Value) -> Value {
@@ -737,7 +748,7 @@ impl<T: ResidentTurns> Endpoint<T> {
             cancel(&session.shared);
             session.jobs.take();
         }
-        for session in self.sessions.values_mut().chain(self.closing.iter_mut()) {
+        for session in self.sessions.values_mut() {
             if let Some(worker) = session.worker.take() {
                 let _ = worker.join();
             }
@@ -838,7 +849,7 @@ fn work<T: ResidentTurns>(
     shared: &SessionShared,
     wire: &Wire,
     jobs: mpsc::Receiver<Job>,
-) {
+) -> bool {
     while let Ok(job) = jobs.recv() {
         match job {
             Job::Turn { message_id, epoch } => {
@@ -863,9 +874,30 @@ fn work<T: ResidentTurns>(
                     );
                     continue;
                 }
+                if has_unsettled_custody(shared) {
+                    settle_unfinished(turns, shared);
+                    if has_unsettled_custody(shared) {
+                        refuse(
+                            shared,
+                            wire,
+                            &message_id,
+                            "previous native custody remains unsettled",
+                        );
+                        continue;
+                    }
+                }
                 run(turns, shared, Some(wire), &message_id);
+                if has_unsettled_custody(shared) {
+                    settle_unfinished(turns, shared);
+                    let inputs = shared.inputs.lock().unwrap_or_else(|e| e.into_inner());
+                    if let Some(input) = inputs.by_id.get(&message_id) {
+                        if input.phase() == phase::ENDED {
+                            wire.update(&shared.id, idle_update(input));
+                        }
+                    }
+                }
             }
-            Job::Close { reply } => {
+            Job::Close => {
                 while let Ok(Job::Turn { message_id, .. }) = jobs.try_recv() {
                     refuse(
                         shared,
@@ -874,11 +906,16 @@ fn work<T: ResidentTurns>(
                         "session closed before the input was inserted",
                     );
                 }
-                wire.result(&reply, json!({}));
-                return;
+                settle_unfinished(turns, shared);
+                if has_unsettled_custody(shared) {
+                    return false;
+                }
+                shared.lock.lock().unwrap_or_else(|e| e.into_inner()).take();
+                return true;
             }
         }
     }
+    settle_unfinished(turns, shared);
     // Connection end: refuse what is still queued.
     while let Ok(Job::Turn { message_id, .. }) = jobs.try_recv() {
         refuse(
@@ -888,6 +925,7 @@ fn work<T: ResidentTurns>(
             "connection ended before the input was inserted",
         );
     }
+    !has_unsettled_custody(shared)
 }
 
 fn refuse(shared: &SessionShared, wire: &Wire, message_id: &str, reason: &str) {
@@ -912,15 +950,32 @@ fn refuse(shared: &SessionShared, wire: &Wire, message_id: &str, reason: &str) {
     }
 }
 
-/// Settles inputs an earlier process left unfinished by rerunning their exact
-/// launch request without a client: replay or reconciliation only.
+/// Settles unfinished inputs without a client: replay or reconciliation only.
+/// Dispatch-bound native selection is reused; current template changes cannot
+/// prevent physical actor discharge or authorize a new native attempt.
+fn has_unsettled_custody(shared: &SessionShared) -> bool {
+    shared
+        .inputs
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .by_id
+        .values()
+        .any(|input| input.value["native_turn"]["custody"] == json!("incomplete"))
+}
+
 fn settle_unfinished<T: ResidentTurns>(turns: &T, shared: &SessionShared) {
     let unfinished: Vec<String> = {
         let inputs = shared.inputs.lock().unwrap_or_else(|e| e.into_inner());
         let mut ids: Vec<String> = inputs
             .by_id
             .values()
-            .filter(|input| matches!(input.phase(), phase::ACCEPTED | phase::INSERTED))
+            .filter(|input| {
+                !inputs.live.contains(input.message_id())
+                    && (matches!(
+                        input.phase(),
+                        phase::ACCEPTED | phase::INSERTED | phase::UNCERTAIN
+                    ) || input.value["native_turn"]["custody"] == json!("incomplete"))
+            })
             .map(|input| input.message_id().to_owned())
             .collect();
         ids.sort();
@@ -971,6 +1026,36 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
     else {
         return;
     };
+    if input.value["dispatched"] == json!(false) {
+        let record = shared.record.lock().unwrap_or_else(|e| e.into_inner());
+        input.value["native_session_id"] = record["native_session_id"].clone();
+        input.value["create_native_session_id"] = if record["native_session_id"].is_null() {
+            record["create_native_session_id"].clone()
+        } else {
+            Value::Null
+        };
+        input.value["dispatched"] = json!(true);
+        drop(record);
+        if let Err(error) = store(shared, &mut input) {
+            if let Some(wire) = wire {
+                refuse(
+                    shared,
+                    wire,
+                    message_id,
+                    &format!("cannot record dispatch: {error}"),
+                );
+            } else {
+                not_started(shared, message_id);
+            }
+            return;
+        }
+        shared
+            .inputs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .by_id
+            .insert(message_id.to_owned(), input.clone());
+    }
     let request = TurnRequest {
         session_id: shared.id.clone(),
         message_id: message_id.to_owned(),
@@ -997,12 +1082,37 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
         key: input.key().map(str::to_owned),
         buffer: Vec::new(),
         consumed: previously_inserted,
+        consumption_seen: previously_inserted || input.value["consumption_seen"] == json!(true),
+        record_error: None,
         held: Vec::new(),
         exit: None,
         output: None,
         markers_only: false,
     };
-    let result = turns.run_turn(&request, &shared.stop, &mut sink);
+    // Recovery settles the recorded actor before calling any adapter admission
+    // logic. Adapters may validate current policy before entering the lifecycle.
+    let mut result = if wire.is_none() {
+        match crate::lifecycle::reconcile_interrupted_launch(
+            &request.state_root,
+            None,
+            &request.request_id,
+        ) {
+            Ok(true) => Err(TurnFailure {
+                kind: TurnFailureKind::ReconciliationRequired,
+                code: "reconciliation_required".into(),
+                message: "the recorded incomplete native actor was discharged; input is not rerun"
+                    .into(),
+            }),
+            Ok(false) => turns.run_turn(&request, &shared.stop, &mut sink),
+            Err(error) => Err(TurnFailure {
+                kind: TurnFailureKind::Failed,
+                code: "custody_recovery_failed".into(),
+                message: error.to_string(),
+            }),
+        }
+    } else {
+        turns.run_turn(&request, &shared.stop, &mut sink)
+    };
     sink.drain_line();
     if matches!(&result, Err(failure) if failure.kind == TurnFailureKind::ReconciliationRequired) {
         // The interrupted launch's journal precedes its delivery, so its
@@ -1019,7 +1129,15 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
             sink.drain_line();
         }
     }
+    if let Some(error) = &sink.record_error {
+        result = Err(TurnFailure {
+            kind: TurnFailureKind::Failed,
+            code: "native_session_record_failed".into(),
+            message: error.clone(),
+        });
+    }
     let consumed = sink.consumed;
+    let consumption_seen = sink.consumption_seen;
     let exit = sink.exit.take();
     let output = sink.output.take();
     // Refresh: the sink may have recorded insertion.
@@ -1040,6 +1158,18 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
             custody::request_key(None, &request.request_id)
         ))
         .is_file();
+    let launch_complete = read_json(
+        &request.state_root.join(format!(
+            "{}.json",
+            custody::request_key(None, &request.request_id)
+        )),
+        custody::LAUNCH_STATE_MAX_BYTES,
+    )
+    .is_ok_and(|state| {
+        state["phase"] == json!(custody::PHASE_COMPLETE)
+            && state["actor_id"].is_null()
+            && state["incarnation"].is_null()
+    });
     let mut native_turn = json!({"request_id":request.request_id});
     let stop_reason = match (&result, &exit) {
         (Ok(_), Some(exit)) => {
@@ -1074,6 +1204,10 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
                     native_turn["custody"] = json!("not_admitted");
                     "_oulipoly_turn_failed"
                 }
+                TurnFailureKind::Failed if launch_complete => {
+                    native_turn["custody"] = json!("complete_without_exit");
+                    "_oulipoly_turn_failed"
+                }
                 TurnFailureKind::Failed => {
                     native_turn["custody"] = json!("incomplete");
                     "_oulipoly_turn_failed"
@@ -1081,12 +1215,15 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
             }
         }
     };
-    let not_consumed_but_known = !consumed
+    let settled = native_turn["custody"] != json!("incomplete");
+    let not_consumed_but_known = !consumption_seen
         && match &result {
             Ok(_) => exit.is_some(),
             Err(failure) => failure.kind == TurnFailureKind::Cancelled || !launch_recorded,
         };
-    let phase = if consumed {
+    let phase = if consumed && !settled {
+        phase::INSERTED
+    } else if consumed {
         phase::ENDED
     } else if not_consumed_but_known {
         phase::NOT_INSERTED
@@ -1096,7 +1233,12 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
     input.value["phase"] = json!(phase);
     input.value["stop_reason"] = json!(stop_reason);
     input.value["native_turn"] = native_turn.clone();
-    input.value["ended_unix_ms"] = json!(now_unix_ms());
+    input.value["consumption_seen"] = json!(consumption_seen);
+    if settled {
+        input.value["ended_unix_ms"] = json!(now_unix_ms());
+    } else {
+        input.value.as_object_mut().unwrap().remove("ended_unix_ms");
+    }
     let stored = store(shared, &mut input);
     let waiters = {
         let mut inputs = shared.inputs.lock().unwrap_or_else(|e| e.into_inner());
@@ -1108,7 +1250,9 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
         return;
     };
     if consumed {
-        wire.update(&shared.id, idle_update(&input));
+        if settled {
+            wire.update(&shared.id, idle_update(&input));
+        }
         if let Err(error) = stored {
             wire.update(
                 &shared.id,
@@ -1153,6 +1297,8 @@ struct TurnSink<'a> {
     key: Option<String>,
     buffer: Vec<u8>,
     consumed: bool,
+    consumption_seen: bool,
+    record_error: Option<String>,
     /// Agent messages that arrived before consumption.
     held: Vec<String>,
     exit: Option<Value>,
@@ -1214,14 +1360,21 @@ impl TurnSink<'_> {
         if record["native_session_id"].as_str() == Some(native) {
             return;
         }
-        record["native_session_id"] = json!(native);
-        record["create_native_session_id"] = Value::Null;
-        let _ = publish_json(&self.shared.dir, "session.json", &record);
+        let mut updated = record.clone();
+        updated["native_session_id"] = json!(native);
+        updated["create_native_session_id"] = Value::Null;
+        match publish_json(&self.shared.dir, "session.json", &updated) {
+            Ok(()) => *record = updated,
+            Err(error) => {
+                self.record_error = Some(format!("cannot publish native session: {error}"))
+            }
+        }
     }
 
     /// Consumption learned from evidence of an interrupted turn: recorded,
     /// and acknowledged only to a later duplicate.
     fn record_consumed(&mut self) {
+        self.consumption_seen = true;
         if self.consumed {
             return;
         }
@@ -1236,7 +1389,8 @@ impl TurnSink<'_> {
     }
 
     fn consume(&mut self) {
-        if self.consumed {
+        self.consumption_seen = true;
+        if self.consumed || self.record_error.is_some() {
             return;
         }
         let waiters = {
@@ -1303,6 +1457,9 @@ impl Write for TurnSink<'_> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         self.buffer.extend_from_slice(bytes);
         self.drain_line();
+        if let Some(error) = &self.record_error {
+            return Err(io::Error::other(error.clone()));
+        }
         Ok(bytes.len())
     }
 

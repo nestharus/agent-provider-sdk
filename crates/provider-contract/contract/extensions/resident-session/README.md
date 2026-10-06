@@ -12,8 +12,9 @@ A host offers version 1 in a `describe` request with
 that supports it answers `capabilities.resident_session_v1: true`; otherwise it
 omits the property. A host offers every version it supports with its own
 selector and uses the highest one advertised; a provider never advertises a
-version the request did not offer, so a closed v1 describe schema never
-receives an unknown capability. The `resident.prepare` request must carry the
+version the request did not offer. Describe validation tolerates unknown future
+advertisements for chooser intersection; selected v1 payload validation stays
+strict. The `resident.prepare` request must carry the
 same selector.
 
 ## `resident.prepare`
@@ -42,7 +43,13 @@ SDK's `agent_provider_execution::resident` documents the served semantics:
 insertion acknowledgement on native consumption, `oulipoly.ai/parentMessageId`
 and `oulipoly.ai/lastUserMessageId` attribution, the message-key dedup
 contract, session-scoped cancel, settlement on close/connection end, and
-resume-time reconciliation of interrupted turns. `ResidentSessionMeta`,
+resume-time reconciliation of interrupted turns. Native session selection is
+bound at dispatch, after prior turns settle. Interrupted actor discharge is
+independent of current template equality and never readmits the old input.
+Unsettled custody cannot produce an ended record or successful close; close
+releases its session lock and worker. Consumption evidence with a failed
+insertion store is unknown (`-32011`), without a consumption ACK. Duplicate ACKs
+attest the original key's insertion only, not the resubmission's bytes. `ResidentSessionMeta`,
 `TurnStopReason` and `NativeTurnMeta` define the `_meta` payloads it emits.
 
 Logical session identity, ancestry, admission, scheduling and delivery policy

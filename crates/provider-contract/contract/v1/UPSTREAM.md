@@ -18,13 +18,27 @@ describe capabilities and their selectors, the launch `prompt_acceptance` and
 `oulipoly.session_turn_pages/v1` `session.read_turns` pages, and the
 `provider_storage_contention` and `provider_unavailable` terminal-signal kinds.
 This release imports all 13 schema files from `nestharus/agent-runner` commit
-`5d025b82784556fe47521b1419c8eee574ddf13a` byte-for-byte, then adds exactly
-one SDK change in two files:
+`5d025b82784556fe47521b1419c8eee574ddf13a` byte-for-byte, then applies SDK changes in two files:
 
 - `describe.schema.json`: the optional host-selected
-  `capabilities.resident_session_v1` boolean;
+  `capabilities.resident_session_v1` boolean, open unknown capability
+  advertisements, and numeric advertised contract versions;
 - `common.schema.json`: the `host.env` description naming its selector
   `OULIPOLY_HOST_RESIDENT_SESSION_V1=1`.
+
+This is a semantic v1 snapshot realignment under the fresh migration / no
+legacy scope, not a compatible evolution of the old SDK snapshot. The former
+`session.read_turns` request/result fixtures are replaced by bounded pages and
+are rejected by this snapshot. Rust 0.2.0 versions the source API, not a wire
+major. Other hosts have not been qualified. Structurally admitted
+`provider_unavailable` / `provider_storage_contention` kinds still require
+per-request extension selection before a consumer acts on them.
+
+Advertisement tolerance does not widen selected v1 envelopes or payloads.
+Known capabilities remain boolean. `SchemaRegistry` admission and the contract
+chooser additionally enforce that `preferred_contract` belongs to the declared
+list; this cross-field invariant is not expressible in standard JSON Schema.
+Schema-only consumers must enforce it during selection.
 
 Every other file is byte-identical to that Runner commit. The added capability
 is omitted unless selected, so an unselecting v1 host never receives it; a host
@@ -72,7 +86,7 @@ SHA-256 identities:
 
 ```text
 a6760352a585883708d0eb538c1dd2cd7572995b8288c440ba2635fa7f7b2866  common.schema.json
-f23f45f5c0e76395acf00abef738b33042c962491b4ebe86a4828153d51af926  describe.schema.json
+a501bc9a83b602d47e8dde7c3b12f7e0d4a8296bed73e3da882749ab596da8e8  describe.schema.json
 c39d0c97e3f74b102e08bff14bb28baefdfa23f2fef7fa7fb67c308af05b049b  discovery.schema.json
 b04462a3bd7020d2c3886f554f67cbf0941a638c6a6ce135be3edbb06a9a5840  launch.schema.json
 25144a109c8dd4d56c6268d0e89f562b8dca1b3bb8cc5ce1e0f9ef09ac80433d  migration.schema.json

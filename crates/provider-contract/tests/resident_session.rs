@@ -76,37 +76,59 @@ fn hosts_select_the_highest_common_resident_version() {
     }
 }
 
-/// The closed v1 describe schema admits the selected v1 capability and refuses
-/// an unselected newer one, which is why providers advertise offered versions only.
 #[test]
-fn describe_schema_admits_selected_v1_and_refuses_unoffered_versions() {
+fn describe_advertisements_decode_and_select_while_v1_payload_stays_strict() {
+    use agent_provider_contract::operations::Describe;
     let registry = SchemaRegistry::new();
     let mut response = json!({
-        "contract": "oulipoly.provider/v1", "request_id": "describe", "ok": true,
-        "result": {
-            "provider_id": "fixture", "display_name": "Fixture",
-            "contract_versions": ["oulipoly.provider/v1"],
-            "preferred_contract": "oulipoly.provider/v1",
-            "capabilities": {"launch": true, "policy": true, "quota": false, "session": true,
-                "terminal": true, "rotation": false, "discovery": false, "settings": false,
-                "setup_brain": false, "setup": false, "migration": false,
-                "launch_output_v1": true, "session_turn_pages_v1": true,
-                "resident_session_v1": true}
-        }
+        "contract":"oulipoly.provider/v1", "request_id":"describe", "ok":true,
+        "result": {"provider_id":"fixture", "display_name":"Fixture",
+            "contract_versions":["oulipoly.provider/v2", "oulipoly.provider/v1"],
+            "preferred_contract":"oulipoly.provider/v2",
+            "capabilities":{"launch":true,"policy":true,"quota":false,"session":true,
+                "terminal":true,"rotation":false,"discovery":false,"settings":false,
+                "setup_brain":false,"setup":false,"migration":false,
+                "resident_session_v1":true,"resident_session_v2":true,
+                "future_capability":{"new_shape":42}}}
     });
-    registry.validate_response("describe", &response).unwrap();
-    response["result"]["capabilities"]["resident_session_v2"] = json!(true);
+    let decoded = registry
+        .decode_response::<Describe>(&serde_json::to_vec(&response).unwrap())
+        .unwrap();
+    let result = &decoded.value().result;
+    assert_eq!(
+        select_contract_version(
+            &["oulipoly.provider/v1"],
+            &result.contract_versions,
+            &result.preferred_contract
+        ),
+        Ok("oulipoly.provider/v1".into())
+    );
+    let capabilities = serde_json::to_value(&result.capabilities).unwrap();
+    assert_eq!(select(&[1], capabilities.as_object().unwrap()), Ok(1));
+    assert_eq!(
+        capabilities["future_capability"],
+        response["result"]["capabilities"]["future_capability"]
+    );
+    response["result"]["preferred_contract"] = json!("oulipoly.provider/v3");
     assert!(registry.validate_response("describe", &response).is_err());
-    response["result"]["capabilities"]
+    assert!(select_contract_version(
+        &["oulipoly.provider/v1"],
+        &result.contract_versions,
+        "oulipoly.provider/v3"
+    )
+    .is_err());
+    response["result"]["preferred_contract"] = json!("oulipoly.provider/v2");
+    response["result"]["capabilities"]["resident_session_v1"] = json!("true");
+    assert!(registry.validate_response("describe", &response).is_err());
+    response["result"]["capabilities"]["resident_session_v1"] = json!(true);
+    response["result"]["unknown_selected_payload_field"] = json!(true);
+    assert!(registry.validate_response("describe", &response).is_err());
+    response["result"]
         .as_object_mut()
         .unwrap()
-        .remove("resident_session_v2");
-    response["result"]["contract_versions"] =
-        json!(["oulipoly.provider/v1", "oulipoly.provider/v2"]);
-    assert!(
-        registry.validate_response("describe", &response).is_err(),
-        "a v1 host refuses a second advertised contract version"
-    );
+        .remove("unknown_selected_payload_field");
+    response["contract"] = json!("oulipoly.provider/v2");
+    assert!(registry.validate_response("describe", &response).is_err());
 }
 
 #[test]

@@ -40,6 +40,10 @@ prompt=$(cat)
 set -- $prompt
 case "$1" in
   reply) shift; echo CONSUMED; [ -z "$NATIVE_SESSION" ] && echo "SESSION native-$$"; echo "TEXT $*"; exit 0 ;;
+  barrier) echo $$ > "$2/ready"
+        while [ ! -f "$2/release" ]; do sleep 0.02; done
+        [ -z "$NATIVE_SESSION" ] && echo "SESSION native-$$"
+        echo CONSUMED; echo "TEXT barrier done"; exit 0 ;;
   whoami) echo CONSUMED; echo "TEXT native=$NATIVE_SESSION"; exit 0 ;;
   hang) echo CONSUMED; [ -z "$NATIVE_SESSION" ] && echo "SESSION native-$$"
         sleep 300 & echo $! > "$2/descendant.pid"; echo $$ > "$2/leader.pid"
@@ -57,7 +61,7 @@ fn main() {
         Some("--resident") => std::process::exit(serve(&args[2])),
         _ => {}
     }
-    let tests: [(&str, fn()); 13] = [
+    let tests: [(&str, fn()); 18] = [
         (
             "initialize_serves_only_v2_with_dedup_and_resident_contract",
             initialize_serves_only_v2_with_dedup_and_resident_contract,
@@ -104,6 +108,26 @@ fn main() {
         ),
         ("cancel_is_session_scoped", cancel_is_session_scoped),
         (
+            "recovery_precedes_current_adapter_admission",
+            recovery_precedes_current_adapter_admission,
+        ),
+        (
+            "queued_turn_selects_settled_native_session",
+            queued_turn_selects_settled_native_session,
+        ),
+        (
+            "consumption_store_failure_is_unknown",
+            consumption_store_failure_is_unknown,
+        ),
+        (
+            "close_releases_session_ownership",
+            close_releases_session_ownership,
+        ),
+        (
+            "native_session_publish_failure_keeps_custody_unsettled",
+            native_session_publish_failure_keeps_custody_unsettled,
+        ),
+        (
             "refused_preparation_is_not_an_insertion",
             refused_preparation_is_not_an_insertion,
         ),
@@ -143,6 +167,19 @@ impl ResidentTurns for FixtureTurns {
         stop: &AtomicBool,
         events: &mut dyn Write,
     ) -> Result<i32, TurnFailure> {
+        if self
+            .runs
+            .parent()
+            .unwrap()
+            .join("refuse-current-policy")
+            .exists()
+        {
+            return Err(TurnFailure {
+                kind: TurnFailureKind::Failed,
+                code: "current_policy_refused".into(),
+                message: "changed policy refused before lifecycle".into(),
+            });
+        }
         let spec = LaunchSpec {
             contract: "oulipoly.provider/v1",
             request_id: &turn.request_id,
@@ -301,7 +338,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let dir = tempfile::Builder::new()
-            .prefix("u92-resident-")
+            .prefix("u92-correction-resident-")
             .tempdir_in("/tmp")
             .unwrap();
         std::fs::create_dir(dir.path().join("work")).unwrap();
@@ -900,4 +937,206 @@ fn refused_preparation_is_not_an_insertion() {
     let next = client.prompt(&session, "reply fine", None);
     let next = message_id(&client.response(next));
     assert_eq!(client.idle_for(&next)["stopReason"], json!("end_turn"));
+}
+
+fn barrier(fixture: &Fixture, client: &mut Client, session: &str) -> (u64, PathBuf) {
+    let marks = fixture.dir.path().join("barrier");
+    std::fs::create_dir(&marks).unwrap();
+    let pending = client.prompt(
+        session,
+        &format!("barrier {}", marks.display()),
+        Some("barrier"),
+    );
+    wait_for(&marks.join("ready"));
+    (pending, marks)
+}
+
+fn queued_turn_selects_settled_native_session() {
+    let fixture = Fixture::new();
+    let mut client = fixture.start();
+    let session = client.open(&fixture.cwd());
+    let (first, marks) = barrier(&fixture, &mut client, &session);
+    let second = client.prompt(&session, "whoami", None);
+    client.call("session/list", json!({})); // input-dispatch barrier
+    std::fs::write(marks.join("release"), "release").unwrap();
+    let first = message_id(&client.response(first));
+    client.idle_for(&first);
+    let second = message_id(&client.response(second));
+    let text = client.update("queued native session", |u| {
+        u["sessionUpdate"] == json!("agent_message")
+            && u["_meta"]["oulipoly.ai/parentMessageId"] == json!(second)
+    });
+    let record: Value = serde_json::from_slice(
+        &std::fs::read(
+            fixture
+                .state()
+                .join("sessions")
+                .join(&session)
+                .join("session.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        text["update"]["content"][0]["text"],
+        json!(format!(
+            "native={}",
+            record["native_session_id"].as_str().unwrap()
+        ))
+    );
+    client.idle_for(&second);
+    assert_eq!(fixture.runs(), 2);
+}
+
+fn consumption_store_failure_is_unknown() {
+    let fixture = Fixture::new();
+    let mut client = fixture.start();
+    let session = client.open(&fixture.cwd());
+    let (pending, marks) = barrier(&fixture, &mut client, &session);
+    let dir = fixture.state().join("sessions").join(&session);
+    std::fs::rename(dir.join("inputs"), dir.join("inputs-held")).unwrap();
+    std::fs::write(dir.join("inputs"), "ENOTDIR").unwrap();
+    std::fs::write(marks.join("release"), "release").unwrap();
+    let response = client.response(pending);
+    assert_eq!(response["error"]["code"], json!(-32011), "{response}");
+    assert_eq!(
+        response["error"]["data"]["nativeTurn"]["status"],
+        json!({"kind":"exited","code":0})
+    );
+    let duplicate = client.prompt(&session, "different bytes", Some("barrier"));
+    assert_eq!(client.response(duplicate)["error"]["code"], json!(-32011));
+    client.assert_silent(200, |m| {
+        m["params"]["update"]["sessionUpdate"] == json!("user_message")
+            || m["params"]["update"]["sessionUpdate"] == json!("agent_message")
+    });
+    assert_eq!(fixture.runs(), 1);
+    // Restore storage: a later reopen can recover the complete journal, with no new native call.
+    std::fs::remove_file(dir.join("inputs")).unwrap();
+    std::fs::rename(dir.join("inputs-held"), dir.join("inputs")).unwrap();
+    assert!(client.end().success());
+    let mut reopened = fixture.start();
+    reopened.call("initialize", json!({"protocolVersion":2}));
+    assert_eq!(
+        reopened.call(
+            "session/resume",
+            json!({"sessionId":session,"cwd":fixture.cwd()})
+        )["result"],
+        json!({})
+    );
+    let duplicate = reopened.prompt(&session, "different bytes", Some("barrier"));
+    let duplicate = reopened.response(duplicate);
+    assert_eq!(
+        duplicate["result"]["_meta"]["oulipoly.ai/duplicate"],
+        json!(true)
+    );
+    assert_eq!(fixture.runs(), 1);
+}
+
+fn close_releases_session_ownership() {
+    let fixture = Fixture::new();
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    assert_eq!(
+        first.call("session/close", json!({"sessionId":session}))["result"],
+        json!({})
+    );
+    assert_eq!(
+        first.call(
+            "session/resume",
+            json!({"sessionId":session,"cwd":fixture.cwd()})
+        )["result"],
+        json!({})
+    );
+    assert_eq!(
+        first.call("session/close", json!({"sessionId":session}))["result"],
+        json!({})
+    );
+    let mut second = fixture.start();
+    second.call("initialize", json!({"protocolVersion":2}));
+    assert_eq!(
+        second.call(
+            "session/resume",
+            json!({"sessionId":session,"cwd":fixture.cwd()})
+        )["result"],
+        json!({}),
+        "first connection remains open"
+    );
+}
+
+fn native_session_publish_failure_keeps_custody_unsettled() {
+    let fixture = Fixture::new();
+    let mut client = fixture.start();
+    let session = client.open(&fixture.cwd());
+    let (pending, marks) = barrier(&fixture, &mut client, &session);
+    let dir = fixture.state().join("sessions").join(&session);
+    std::fs::rename(dir.join("session.json"), dir.join("session-held.json")).unwrap();
+    std::fs::create_dir(dir.join("session.json")).unwrap();
+    std::fs::write(marks.join("release"), "release").unwrap();
+    assert_eq!(client.response(pending)["error"]["code"], json!(-32011));
+    let close = client.call("session/close", json!({"sessionId":session}));
+    assert_eq!(close["error"]["code"], json!(-32012), "{close}");
+    let input: Value = serde_json::from_slice(
+        &std::fs::read(
+            std::fs::read_dir(dir.join("inputs"))
+                .unwrap()
+                .next()
+                .unwrap()
+                .unwrap()
+                .path(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(input["native_turn"]["custody"], json!("incomplete"));
+    assert_ne!(input["phase"], json!("ended"));
+    assert!(input.get("ended_unix_ms").is_none());
+    std::fs::remove_dir(dir.join("session.json")).unwrap();
+    std::fs::rename(dir.join("session-held.json"), dir.join("session.json")).unwrap();
+    assert!(client.end().success());
+    let mut reopened = fixture.start();
+    reopened.call("initialize", json!({"protocolVersion":2}));
+    assert_eq!(
+        reopened.call(
+            "session/resume",
+            json!({"sessionId":session,"cwd":fixture.cwd()})
+        )["result"],
+        json!({})
+    );
+    assert_eq!(
+        reopened.call("session/close", json!({"sessionId":session}))["result"],
+        json!({})
+    );
+    assert_eq!(fixture.runs(), 1);
+}
+
+fn recovery_precedes_current_adapter_admission() {
+    let fixture = Fixture::new();
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    let marks = fixture.dir.path().join("lost");
+    std::fs::create_dir(&marks).unwrap();
+    let req = first.prompt(&session, &format!("hang {}", marks.display()), Some("lost"));
+    let id = message_id(&first.response(req));
+    let descendant = wait_for(&marks.join("descendant.pid"));
+    first.child.kill().unwrap();
+    first.child.wait().unwrap();
+    assert!(alive(descendant));
+    std::fs::write(fixture.state().join("refuse-current-policy"), "changed").unwrap();
+    let mut next = fixture.start();
+    next.call("initialize", json!({"protocolVersion":2}));
+    assert_eq!(
+        next.call(
+            "session/resume",
+            json!({"sessionId":session,"cwd":fixture.cwd()})
+        )["result"],
+        json!({})
+    );
+    assert_dies(descendant);
+    let duplicate = next.prompt(&session, "changed bytes", Some("lost"));
+    assert_eq!(message_id(&next.response(duplicate)), id);
+    assert_eq!(
+        next.idle_for(&id)["_meta"]["oulipoly.ai/nativeTurn"]["custody"],
+        json!("reconciled")
+    );
+    assert_eq!(fixture.runs(), 1);
 }

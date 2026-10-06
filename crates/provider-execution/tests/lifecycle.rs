@@ -591,7 +591,9 @@ fn lost_provider_leaves_an_actor_that_retry_discharges_before_reconciliation() {
     assert_eq!(state.phase, "running");
     assert!(state.actor_id.unwrap() > 1);
 
-    let retry = fixture.run(&config);
+    let mut changed = config.clone();
+    changed["digest"] = json!("changed-after-loss");
+    let retry = fixture.run(&changed);
     assert_eq!(lifecycle_error(&retry), "reconciliation_required");
     assert!(retry.stdout.is_empty());
     assert_dies(descendant);

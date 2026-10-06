@@ -108,14 +108,18 @@ The v1 snapshot now carries Agent Runner's current host-selected v1 extensions
 (`prompt_acceptance_v1`, `launch_output_v1`, `session_turn_pages_v1` and their
 launch, marker and `session.read_turns` shapes, and the
 `provider_storage_contention`/`provider_unavailable` terminal kinds), imported
-from Runner commit `5d025b82` byte-for-byte, plus one SDK addition: the
-host-selected `capabilities.resident_session_v1`. `UPSTREAM.md` records the
+from Runner commit `5d025b82` byte-for-byte, plus the host-selected
+`capabilities.resident_session_v1` and advertisement-only tolerance for future
+contract versions and capability keys. `UPSTREAM.md` records the
 exact provenance. The DTO projection follows: `DescribeCapabilities` gains four
-optional capability fields, `LaunchParams` gains `prompt_acceptance` and
+optional capability fields and an `additional` map of unknown advertisements, `LaunchParams` gains `prompt_acceptance` and
 `output_delivery`, `TerminalSignalKind` gains two variants, and
 `session.read_turns` uses the bounded page DTOs. These are Rust source-API
 changes (struct literals and exhaustive matches must adjust), so the workspace
-package version is 0.2.0; admitted wire JSON follows the aligned host snapshot.
+package version is 0.2.0. This is semantic v1 snapshot realignment to the host
+snapshot under fresh migration, not compatible evolution of the former SDK
+`session.read_turns` fixtures. The Rust version does not version wire semantics;
+other hosts remain unqualified.
 
 `negotiation` selects common supported versions without identity equality:
 `select_contract_version` uses the provider's preferred `oulipoly.provider/vN`
@@ -124,9 +128,13 @@ versions the host does not know. For host-selected extensions, a host offers
 each supported version with its own `host.env` selector
 (`<PREFIX>_V<n>=1`), a provider advertises `<capability>_v<n>: true` only for
 offered versions it supports, and the host uses the highest offered version the
-provider advertised; no common version is an explicit refusal. Because the v1
-describe schema is closed, a provider never sends a capability its host did not
-offer. Golden cases live in `tests/fixtures/negotiation/` (also exported
+provider advertised; no common version is an explicit refusal. The describe
+schema tolerates future advertisements while known capability types and the
+selected v1 payload/envelope remain strict. `DescribeCapabilities.additional`
+retains unknown keys through typed admission. `SchemaRegistry` and the chooser
+require the preference to belong to the declared version list; schema-only
+consumers must apply the chooser for this cross-field invariant. Providers still
+advertise extension versions only when the request offered them. Golden cases live in `tests/fixtures/negotiation/` (also exported
 through the `contract-test-fixtures` feature).
 
 The [`resident-session/v1` extension](crates/provider-contract/contract/extensions/resident-session/README.md)
@@ -248,6 +256,10 @@ does not change the pinned v1 snapshot.
   group and reports the new `StopCause::Requested` to `finish`. Setting it never
   affects another launch. `StopCause::Requested` is a Rust source-API addition:
   exhaustive matches on `StopCause` must add it; the wire is unchanged.
+- `lifecycle::reconcile_interrupted_launch(state_root, provider_instance_id,
+  request_id)`: discharges an already-recorded incomplete actor under its
+  custody lock, preserving original digest/evidence, without replay or admission.
+  Resident recovery invokes this before adapter policy validation.
 - `resident`: the agent side of the ACP v2 draft subset Agent Runner's root
   supervisor consumes (`schema-v2.0.0-alpha.7`), served by `resident::serve`
   over one newline-delimited JSON-RPC connection. It serves `initialize`
@@ -260,8 +272,10 @@ does not change the pinned v1 snapshot.
   replay and reconciliation are the shared lifecycle's. Turns of a session run
   in arrival order. An input is durably recorded with an ascending `messageId`
   before its turn may start; the prompt is acknowledged only when the turn
-  emits `oulipoly.submitted_user_turn` (recorded first), followed by
-  `user_message` and `state_update: running`. Each `stdout` data event is one
+  emits `oulipoly.submitted_user_turn` and insertion is durably recorded:
+  `user_message` then the ACK then `state_update: running`. Native consumption
+  with an unavailable insertion store yields `-32011` (unknown), without ACK or
+  output delivery; it can never become retryable `-32010`. Each `stdout` data event is one
   `agent_message` tagged `oulipoly.ai/parentMessageId`; the turn ends with one
   idle `state_update` tagged `oulipoly.ai/lastUserMessageId`, a stop reason
   (`end_turn`, `cancelled`, `_oulipoly_native_failed`, `_oulipoly_turn_failed`,
@@ -271,16 +285,25 @@ does not change the pinned v1 snapshot.
   a JSON-RPC error and records the input as not inserted; a failure whose
   consumption is unknown is never rerun. A resent message key inserts nothing:
   it answers the original `messageId` once insertion is known and repeats the
-  ended turn's tagged idle (outputs are not re-sent). `session/cancel` stops
+  ended turn's tagged idle (outputs are not re-sent). This attests key identity
+  only; a duplicate ACK does not accept the current prompt bytes. `session/cancel` stops
   only that session's running turn (process group terminated and drained) and
-  refuses its queued inputs; `session/close` answers after settlement;
+  refuses its queued inputs; `session/close` answers success only after settlement
+  and lock release, with its worker joined and live resources dropped;
   connection end or `SIGTERM`/`SIGINT` stops and settles every running turn.
   `session/resume` (same working directory, one holding process per session
   through an exclusive lock) settles inputs an earlier process left unfinished
-  by rerunning their exact launch request: a complete journal replays without
-  native effects, an interrupted one has its recorded process group discharged,
+  through the lifecycle without readmission: a complete equal-request journal
+  replays without native effects; an interrupted one has its recorded process
+  group discharged before any current-template digest comparison,
   and the interrupted journal's markers recover native session identity and
-  consumption. Limits: no per-turn deadline or silence kill; only text prompt
+  consumption. Native create/resume selection is bound and persisted at
+  dispatch from the preceding settled session state, so queued turns continue
+  it. Native-session publication errors surface as failures; incomplete custody
+  stays unsettled, without an ended record or idle completion. Immediate
+  reconciliation may discharge it; unresolved settlement refuses subsequent
+  native dispatch and successful close/resume. Config content hashes protect
+  private prepare records, not compatibility or recovery admission. Limits: no per-turn deadline or silence kill; only text prompt
   content; outputs are not replayed to a later connection; session records and
   turn journals are never pruned; the provider's own process loss leaves
   descendants outside a PID namespace running until a later resume discharges

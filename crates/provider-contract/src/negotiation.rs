@@ -9,16 +9,14 @@
 //!   version when the host supports it, otherwise the highest common one.
 //!   Versions the host does not know are ignored rather than refused, so a
 //!   provider that also advertises a newer version stays usable through a
-//!   version the host still supports. The v1 describe schema admits only
-//!   `oulipoly.provider/v1`; a provider must therefore not advertise another
-//!   contract version to a v1 host until both sides adopt a schema that
-//!   admits it.
+//!   version the host still supports. Describe admits future advertisements,
+//!   while selected v1 payloads remain strict. The preferred version must be
+//!   declared; both schema admission and this chooser enforce that invariant.
 //! * **Extension versions.** A host offers each version of an extension
 //!   family it supports with its own `host.env` selector
 //!   (`<SELECTOR_PREFIX><n>=1`). A provider advertises the
 //!   `<capability_prefix><n>: true` describe capability only for offered
-//!   versions it supports ([`VersionFamily::advertised`]), so a closed v1
-//!   describe schema never receives a capability the host did not select. The
+//!   versions it supports ([`VersionFamily::advertised`]). The
 //!   host uses the highest offered version the provider advertised
 //!   ([`VersionFamily::select`]); no common version is an explicit refusal.
 
@@ -57,6 +55,12 @@ pub fn select_contract_version(
             && host_supported.contains(&version)
             && advertised.iter().any(|offered| offered == version)
     };
+    if !advertised.iter().any(|version| version == preferred) {
+        return Err(NoCommonVersion {
+            host: host_supported.iter().map(|v| (*v).to_owned()).collect(),
+            peer: advertised.to_vec(),
+        });
+    }
     if common(preferred) {
         return Ok(preferred.to_owned());
     }

@@ -602,6 +602,42 @@ where
     run_launch_until(spec, &NEVER, adapter, writer)
 }
 
+/// Discharges a recorded incomplete launch under its request custody lock.
+///
+/// Returns `true` only for an incomplete record whose actor was discharged.
+/// Complete or absent records return `false`; neither replay nor native
+/// admission is performed. Recovery of an owned actor is independent of the
+/// current adapter/template and leaves the original digest and evidence intact.
+/// The state root must be the trusted provider-private root used by the launch.
+pub fn reconcile_interrupted_launch(
+    state_root: &std::path::Path,
+    provider_instance_id: Option<&str>,
+    request_id: &str,
+) -> Result<bool, LifecycleError> {
+    let key = custody::request_key(provider_instance_id, request_id);
+    let launch_custody = RequestCustody::acquire(state_root, &key)?;
+    let Some(state) = launch_custody.load_state()? else {
+        return Ok(false);
+    };
+    if state.is_complete() {
+        return Ok(false);
+    }
+    reconcile_actor(&state)?;
+    Ok(true)
+}
+
+fn reconcile_actor(state: &LaunchState) -> Result<(), LifecycleError> {
+    if let (Some(process_group_id), Some(incarnation)) =
+        (state.actor_id, state.incarnation.as_ref())
+    {
+        process::terminate_process_group_actor(&ProcessGroupActor {
+            process_group_id,
+            incarnation: incarnation.clone(),
+        })?;
+    }
+    Ok(())
+}
+
 /// Runs one launch like [`run_launch`], and also stops it when `stop` is set.
 ///
 /// `stop` is a caller-scoped request, for example one resident session's
@@ -626,26 +662,20 @@ where
     let key = custody::request_key(spec.provider_instance_id, spec.request_id);
     let launch_custody =
         RequestCustody::acquire(spec.state_root, &key).map_err(LifecycleError::from)?;
-    let digest = adapter.request_digest()?;
     if let Some(state) = launch_custody.load_state().map_err(LifecycleError::from)? {
-        if state.digest != digest {
-            return Err(LifecycleError::RequestChanged.into());
-        }
         if state.is_complete() {
+            if state.digest != adapter.request_digest()? {
+                return Err(LifecycleError::RequestChanged.into());
+            }
             launch_custody
                 .replay(&state, writer)
                 .map_err(LifecycleError::from)?;
             return Ok(state.exit_code.unwrap_or(1));
         }
-        if let (Some(process_group_id), Some(incarnation)) = (state.actor_id, state.incarnation) {
-            process::terminate_process_group_actor(&ProcessGroupActor {
-                process_group_id,
-                incarnation,
-            })
-            .map_err(LifecycleError::from)?;
-        }
+        reconcile_actor(&state)?;
         return Err(LifecycleError::ReconciliationRequired.into());
     }
+    let digest = adapter.request_digest()?;
     admission(spec.deadline_unix_ms, stop)?;
     let mut state = LaunchState::prepared(digest);
     let native = match adapter.prepare(&launch_custody)? {

@@ -385,6 +385,9 @@ pub struct DescribeCapabilities {
     pub session_turn_pages_v1: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resident_session_v1: Option<bool>,
+    /// Unknown advertisements are retained for version intersection.
+    #[serde(default, flatten)]
+    pub additional: JsonObject,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
