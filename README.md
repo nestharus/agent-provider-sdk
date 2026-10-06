@@ -155,8 +155,10 @@ state with its receipt and cleared actor. These helpers do not validate state
 transitions, enforce path confinement or prevent external journal mutation;
 locks coordinate cooperating callers only.
 
-On any journal, framing or delivery error, stop emitting and unwind native
-custody, leaving incomplete evidence for reconciliation. Framing errors are
+During an active launch, any journal, framing or delivery error requires the
+caller to stop emitting and unwind native custody, leaving incomplete evidence
+for reconciliation. A failed replay of an already-complete journal preserves
+its complete state and receipt for another replay attempt. Framing errors are
 not latched or rolled back; a journal append error may leave length/hash
 accounting inconsistent, and host delivery may have exposed only a prefix.
 Do not continue or publish completion after an error. `seal(&mut self)` syncs

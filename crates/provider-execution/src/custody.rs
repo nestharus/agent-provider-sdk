@@ -21,7 +21,8 @@
 //! After successful final-event delivery, sync the journal and publish complete
 //! state with its receipt and cleared actor. On any error, stop, discharge the
 //! child and leave incomplete evidence for reconciliation; do not continue
-//! appending or publish a completion receipt.
+//! appending or publish a completion receipt. A failed completed replay leaves
+//! its existing complete state and receipt intact for a later retry.
 
 use crate::encoding::sha256_hex;
 use fs2::FileExt;
@@ -196,6 +197,7 @@ impl RequestCustody {
     /// Verifies the journal receipt and copies it to `writer`. The caller must
     /// first check complete phase and matching request digest; this method does
     /// not. Keep custody held and prevent mutation throughout replay.
+    /// A delivery error does not alter the existing complete state or receipt.
     pub fn replay<W: Write>(
         &self,
         state: &LaunchState,
