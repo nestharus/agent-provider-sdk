@@ -305,8 +305,18 @@ pub fn run_effect_gate(args: &[String], descriptor_env: &str) -> i32 {
     }
     std::env::remove_var(descriptor_env);
     let error = Command::new(program).args(program_args).exec();
-    let errno = error.raw_os_error().unwrap_or(libc::EIO);
-    let _ = gate.write_all(&errno.to_ne_bytes());
+    let report = error.raw_os_error().unwrap_or(libc::EIO).to_ne_bytes();
+    // `exec` restored the default `SIGPIPE` disposition before failing, and a
+    // caller that dropped its observer has closed the other end: report
+    // without raising `SIGPIPE` so the gate still exits 126 below.
+    unsafe {
+        libc::send(
+            gate_fd,
+            report.as_ptr().cast(),
+            report.len(),
+            libc::MSG_NOSIGNAL,
+        );
+    }
     drop(gate);
     eprintln!("native effect gate could not execute native command: {error}");
     126

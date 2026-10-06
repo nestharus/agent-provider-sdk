@@ -6,7 +6,8 @@
 
 use agent_provider_execution::process::{
     actor_for_child, locate_provider_executable, process_group_is_live, run_effect_gate,
-    terminate_process_group_actor, terminate_process_group_child, EffectGate, GatedCommand,
+    terminate_process_group_actor, terminate_process_group_child, EffectGate, ExecStart,
+    GatedCommand,
 };
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -20,7 +21,7 @@ fn main() {
     if args.get(1).map(String::as_str) == Some(GATE_ARG) {
         std::process::exit(run_effect_gate(&args, GATE_ENV));
     }
-    let tests: [(&str, fn()); 5] = [
+    let tests: [(&str, fn()); 6] = [
         (
             "native_effect_waits_for_release",
             native_effect_waits_for_release,
@@ -36,6 +37,10 @@ fn main() {
         (
             "group_termination_reaches_native_descendants",
             group_termination_reaches_native_descendants,
+        ),
+        (
+            "failed_exec_is_reported_or_exits_126_when_unobserved",
+            failed_exec_is_reported_or_exits_126_when_unobserved,
         ),
         (
             "provider_executable_location_is_parameterized",
@@ -168,4 +173,55 @@ fn provider_executable_location_is_parameterized() {
             .kind(),
         std::io::ErrorKind::NotFound
     );
+}
+
+fn failed_exec_is_reported_or_exits_126_when_unobserved() {
+    let executable = executable();
+    let gate = EffectGate {
+        executable: &executable,
+        argument: GATE_ARG,
+        descriptor_env: GATE_ENV,
+    };
+    for observed in [true, false] {
+        let mut command =
+            GatedCommand::new(&gate, "/nonexistent/u89-effect-gate-program", ["x"]).unwrap();
+        command
+            .command_mut()
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let (mut child, gate) = command.spawn().unwrap();
+        let mut observer = gate.release().unwrap();
+        if observed {
+            let start = loop {
+                if let Some(start) = observer.wait(Duration::from_millis(50)).unwrap() {
+                    break start;
+                }
+            };
+            match start {
+                ExecStart::Failed(error) => assert_eq!(error.raw_os_error(), Some(libc::ENOENT)),
+                other => panic!("unexpected start {other:?}"),
+            }
+        } else {
+            drop(observer);
+        }
+        // An unobserved report must not turn into SIGPIPE.
+        assert_eq!(
+            child.wait().unwrap().code(),
+            Some(126),
+            "observed={observed}"
+        );
+    }
+    // A native program that starts reports no failure.
+    let root = tempfile::tempdir().unwrap();
+    let marker = root.path().join("ran");
+    let (mut child, gate) = gated_shell("exit 126", &marker).spawn().unwrap();
+    let mut observer = gate.release().unwrap();
+    let start = loop {
+        if let Some(start) = observer.wait(Duration::from_millis(50)).unwrap() {
+            break start;
+        }
+    };
+    assert!(matches!(start, ExecStart::NoFailureReported), "{start:?}");
+    assert_eq!(child.wait().unwrap().code(), Some(126));
 }
