@@ -165,10 +165,17 @@ Claude adapters both run their launches through `lifecycle::run_launch`:
   `process::run_effect_gate` from `main` before other argument handling.
   After release the gate keeps its descriptor close-on-exec: a successful
   `exec` closes it, while a failed `exec` writes the `errno` there before the
-  gate exits 126, and `ExecObserver` reports which happened. This is the
-  observed exec boundary, not a `PATH` or permission prediction, and it does
-  not interpret native exit statuses. Gates and callers from builds without
+  gate exits 126. `ExecObserver` distinguishes a reported exec failure from
+  EOF without a report. EOF can also mean the gate ended before exec, or a
+  report was unavailable or could not be delivered; `NoFailureReported` does
+  not attest successful exec. Reports come from the exec attempt, not a `PATH`
+  or permission prediction, and native exit statuses are not interpreted as
+  start failures. Gates and callers from builds without
   the report fall back to the earlier exit-126 diagnostic in either direction.
+  `ExecGate::release` now returns `io::Result<ExecObserver>` instead of
+  `io::Result<()>`. Rust callers forwarding or binding the old typed result
+  must adjust; statement callers can discard the observer. This source-API
+  change does not change the wire format.
 - `delivery`: `BoundedOutput`, a writer over a private duplicate of the host
   output descriptor. FIFO/socket writes fail after the no-progress stall limit
   (two seconds by default), and failure is sticky. Each successful partial write

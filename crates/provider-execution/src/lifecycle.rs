@@ -209,9 +209,11 @@ pub struct Terminal {
 /// custody is held; [`prepare`](Self::prepare) after the first admission
 /// check; [`discard`](Self::discard) only if a later admission check refuses
 /// the launch before the gate opens; [`start_failed`](Self::start_failed) only
-/// if the native program could not start; [`started`](Self::started) once the
-/// gate has executed the native program without reporting a failure (or a
-/// termination request arrived first); [`output`](Self::output) for each
+/// if gate spawn or native exec failure is observed; [`started`](Self::started)
+/// after the start wait unless a reported failure was settled by the adapter.
+/// It also runs on EOF without a report, a reported exec failure left unhandled
+/// by the default hook, or a stop observed while waiting. It is not proof that
+/// the native program ran. [`output`](Self::output) runs for each
 /// native record in arrival order; and [`finish`](Self::finish) after the
 /// native group has ended, output has drained and input delivery has been
 /// checked. Any error stops the launch and leaves incomplete custody.
@@ -257,6 +259,8 @@ pub trait LaunchAdapter {
     }
 
     /// Emits events that follow gate release and precede native output.
+    /// This hook does not prove the native program ran; see the trait's
+    /// start-wait and unhandled-failure semantics.
     fn started<W: Write>(&mut self, _events: &mut EventSink<'_, W>) -> Result<(), Self::Failure> {
         Ok(())
     }
