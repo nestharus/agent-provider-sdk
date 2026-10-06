@@ -279,7 +279,7 @@ fn process_group_actor_requires_signal(actor: &ProcessGroupActor) -> io::Result<
     }
     match process_group_incarnation(actor.process_group_id) {
         Ok(incarnation) => Ok(incarnation == actor.incarnation),
-        Err(error) if !process_group_is_live(actor.process_group_id) => Ok(false),
+        Err(_) if !process_group_is_live(actor.process_group_id) => Ok(false),
         Err(error) if process_group_leader_is_missing(&error) => Ok(true),
         Err(error) => Err(error),
     }
