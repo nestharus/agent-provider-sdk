@@ -59,15 +59,20 @@ the task worktree and branch when the work is complete.
   and require reconciliation for incomplete work. Identity used to recover a
   specific actor has a different purpose from provider compatibility.
 
-Current integration uses fixed-v1 validation and capability agreement. General
-supported-version selection and automatic refreshed Runner agreement after
-replacement remain unfinished; do not advertise a second wire version before
-the host can select a common supported version. The shared one-shot launch
-lifecycle lives in `agent-provider-execution::lifecycle`; adapters plug native
-behavior into it rather than reimplementing its ordering. Cross-build
-replay/update qualification and resident shared runtimes are separate unfinished
-work. These rules state requirements, not a claim that those mechanisms are
-implemented.
+Current Runner integration uses fixed-v1 validation and capability agreement.
+The SDK's `negotiation` module selects common contract and host-selected
+extension versions, and providers advertise an extension version only when the
+request's host offered it; Runner's host-side adoption of that selection and
+automatic refreshed agreement after replacement remain unfinished. Do not
+advertise a second contract wire version before the host can select a common
+supported version. The shared one-shot launch lifecycle lives in
+`agent-provider-execution::lifecycle`; adapters plug native behavior into it
+rather than reimplementing its ordering. The resident ACP v2 endpoint
+(`agent-provider-execution::resident`) runs every resident turn through that
+same lifecycle with a session-scoped stop flag; keep native session and turn
+translation in adapters. Cross-build replay/update qualification remains
+separate unfinished work. These rules state requirements, not a claim that
+those mechanisms are qualified.
 
 ## Compatibility and tests
 

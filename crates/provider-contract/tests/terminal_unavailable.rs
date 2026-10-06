@@ -89,7 +89,10 @@ fn evidence_bound_counts_characters_and_errors_do_not_echo_payload() {
 }
 
 #[test]
-fn pinned_base_remains_strict_and_legacy_fallback_remains_valid() {
+fn aligned_base_admits_the_kind_structurally_but_selection_still_gates_it() {
+    // The base snapshot follows Agent Runner's host schema, whose terminal
+    // kinds include provider_unavailable. Structural admission is therefore
+    // not selection: the selection-aware helper stays the admission gate.
     let registry = SchemaRegistry::new();
     let mut response = json!({
         "contract": "oulipoly.provider/v1", "request_id": "terminal-fixture", "ok": true,
@@ -100,14 +103,22 @@ fn pinned_base_remains_strict_and_legacy_fallback_remains_valid() {
         "seq": 1, "time_unix_ms": 1788622298202_u64, "kind": "exit",
         "status": {"kind": "exited", "code": 1}, "terminal_signal": signal()
     });
-    assert!(registry
+    registry
         .validate_response("terminal.classify", &response)
-        .is_err());
-    assert!(registry.validate_launch_event("exit", &exit).is_err());
+        .unwrap();
+    registry.validate_launch_event("exit", &exit).unwrap();
+    assert_eq!(
+        decode_signal(&host(None), &signal()),
+        Err(AdmissionError::NotSelected)
+    );
     response["result"]["terminal_signal"]["kind"] = json!("nonzero_exit");
     exit["terminal_signal"]["kind"] = json!("nonzero_exit");
     registry
         .validate_response("terminal.classify", &response)
         .unwrap();
     registry.validate_launch_event("exit", &exit).unwrap();
+    response["result"]["terminal_signal"]["kind"] = json!("provider_overloaded");
+    assert!(registry
+        .validate_response("terminal.classify", &response)
+        .is_err());
 }

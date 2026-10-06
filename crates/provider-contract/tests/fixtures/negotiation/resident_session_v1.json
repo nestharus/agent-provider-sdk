@@ -1,0 +1,42 @@
+{
+  "valid": {
+    "ResidentPrepareParams": [
+      {"protocol": "oulipoly.resident_session/v1", "launch": {"settings_id": "work", "mode": "headless", "model": {"name": "sol", "provider_args": [], "inputs": {"named": {}}}, "argv": ["codex"]}},
+      {"protocol": "oulipoly.resident_session/v1", "launch": {"settings_id": "work", "mode": "headless", "model": {"name": "opus", "provider_args": ["--model", "opus"], "inputs": {"prompt": null, "named": {}}}, "argv": ["claude", "-p"], "env": {"CLAUDE_CONFIG_DIR": "/home/u/.claude"}}}
+    ],
+    "ResidentPrepareResult": [
+      {"protocol": "oulipoly.resident_session/v1", "invocation": {"args": ["resident.serve", "--config", "/state/resident/configs/0000000000000000000000000000000000000000000000000000000000000000.json"], "endpoint": "stdio"}, "acp": {"protocol_version": 2, "schema": "schema-v2.0.0-alpha.7", "dedup_contract": 1}, "config_sha256": "0000000000000000000000000000000000000000000000000000000000000000", "operations": ["initialize", "session/new", "session/resume", "session/prompt", "session/cancel", "session/close", "session/list"]}
+    ],
+    "ResidentSessionMeta": [
+      {"protocol": "oulipoly.resident_session/v1", "acp_schema": "schema-v2.0.0-alpha.7"}
+    ],
+    "NativeTurnMeta": [
+      {"request_id": "resident-s-msg_1", "custody": "complete", "status": {"kind": "exited", "code": 0}, "terminal_signal": {"kind": "clean_exit", "observed_at_unix_ms": 1}, "launch_output": {"protocol": "oulipoly.launch_output/v1", "stdout": {"bytes": 3, "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}, "stderr": {"bytes": 0, "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}, "data_event_count": 1}},
+      {"request_id": "resident-s-msg_2", "custody": "reconciled", "failure": {"code": "launch_reconciliation_required", "message": "interrupted"}}
+    ],
+    "TurnStopReason": ["end_turn", "cancelled", "_oulipoly_native_failed", "_oulipoly_turn_failed", "_oulipoly_reconciliation_required"]
+  },
+  "invalid": {
+    "ResidentPrepareParams": [
+      {"protocol": "oulipoly.resident_session/v2", "launch": {"settings_id": "work", "mode": "headless", "model": {"name": "sol", "provider_args": [], "inputs": {"named": {}}}, "argv": []}},
+      {"protocol": "oulipoly.resident_session/v1", "launch": {"settings_id": "work", "mode": "headless", "model": {"name": "sol", "provider_args": [], "inputs": {"named": {}}}}},
+      {"protocol": "oulipoly.resident_session/v1", "launch": {"settings_id": "work", "mode": "headless", "model": {"name": "sol", "provider_args": [], "inputs": {"named": {}}}, "argv": [], "working_directory": "/w"}},
+      {"protocol": "oulipoly.resident_session/v1", "launch": {"settings_id": "work", "mode": "headless", "model": {"name": "sol", "provider_args": [], "inputs": {"named": {}}}, "argv": [], "session": {"known_provider_session_id": "x", "start_mode": "resume"}}}
+    ],
+    "ResidentPrepareResult": [
+      {"protocol": "oulipoly.resident_session/v1", "invocation": {"args": ["resident.serve"], "endpoint": "unix-socket"}, "acp": {"protocol_version": 2, "schema": "schema-v2.0.0-alpha.7", "dedup_contract": 1}, "config_sha256": "0000000000000000000000000000000000000000000000000000000000000000", "operations": ["session/new"]},
+      {"protocol": "oulipoly.resident_session/v1", "invocation": {"args": ["resident.serve"], "endpoint": "stdio"}, "acp": {"protocol_version": 1, "schema": "schema-v2.0.0-alpha.7", "dedup_contract": 1}, "config_sha256": "0000000000000000000000000000000000000000000000000000000000000000", "operations": ["session/new"]},
+      {"protocol": "oulipoly.resident_session/v1", "invocation": {"args": [], "endpoint": "stdio"}, "acp": {"protocol_version": 2, "schema": "schema-v2.0.0-alpha.7", "dedup_contract": 1}, "config_sha256": "0000000000000000000000000000000000000000000000000000000000000000", "operations": ["session/new"]},
+      {"protocol": "oulipoly.resident_session/v1", "invocation": {"args": ["resident.serve"], "endpoint": "stdio"}, "acp": {"protocol_version": 2, "schema": "schema-v2.0.0-alpha.7", "dedup_contract": 1}, "config_sha256": "0000000000000000000000000000000000000000000000000000000000000000", "operations": ["session/fork"]},
+      {"protocol": "oulipoly.resident_session/v1", "invocation": {"args": ["resident.serve"], "endpoint": "stdio", "executable": "/usr/bin/x"}, "acp": {"protocol_version": 2, "schema": "schema-v2.0.0-alpha.7", "dedup_contract": 1}, "config_sha256": "0000000000000000000000000000000000000000000000000000000000000000", "operations": ["session/new"]}
+    ],
+    "ResidentSessionMeta": [
+      {"protocol": "oulipoly.resident_session/v2", "acp_schema": "schema-v2.0.0-alpha.7"}
+    ],
+    "NativeTurnMeta": [
+      {"request_id": "r", "custody": "finished"},
+      {"custody": "complete"}
+    ],
+    "TurnStopReason": ["completed", "_oulipoly_other"]
+  }
+}

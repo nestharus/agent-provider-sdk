@@ -287,6 +287,8 @@ pub enum TerminalSignalKind {
     QuotaExhaustedInband,
     MaybeQuotaExhausted,
     RateLimited,
+    ProviderStorageContention,
+    ProviderUnavailable,
     ProlongedSilence,
     Cancelled,
     Unknown,
@@ -302,6 +304,8 @@ impl TerminalSignalKind {
             Self::QuotaExhaustedInband => "quota_exhausted_inband",
             Self::MaybeQuotaExhausted => "maybe_quota_exhausted",
             Self::RateLimited => "rate_limited",
+            Self::ProviderStorageContention => "provider_storage_contention",
+            Self::ProviderUnavailable => "provider_unavailable",
             Self::ProlongedSilence => "prolonged_silence",
             Self::Cancelled => "cancelled",
             Self::Unknown => "unknown",
@@ -371,6 +375,19 @@ pub struct DescribeCapabilities {
     pub setup_brain: bool,
     pub setup: bool,
     pub migration: bool,
+    /// Host-selected extension capabilities: present only when the describe
+    /// request selected them through `host.env`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_acceptance_v1: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub launch_output_v1: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_turn_pages_v1: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resident_session_v1: Option<bool>,
+    /// Unknown advertisements are retained for version intersection.
+    #[serde(default, flatten)]
+    pub additional: JsonObject,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -526,6 +543,55 @@ pub struct LaunchParams {
     pub stdin: Option<BytePayload>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session: Option<LaunchSession>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_acceptance: Option<PromptAcceptanceRequestV1>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_delivery: Option<LaunchOutputRequestV1>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PromptAcceptanceRequestV1 {
+    pub protocol: String,
+    pub prompt_sha256: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery_nonce: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PromptAcceptedMarkerValueV1 {
+    pub protocol: String,
+    pub provider_session_id: String,
+    pub prompt_sha256: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery_nonce: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LaunchOutputRequestV1 {
+    pub protocol: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LaunchOutputChannelSummaryV1 {
+    pub bytes: u64,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LaunchOutputCompleteMarkerValueV1 {
+    pub protocol: String,
+    pub stdout: LaunchOutputChannelSummaryV1,
+    pub stderr: LaunchOutputChannelSummaryV1,
+    pub data_event_count: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -667,6 +733,7 @@ pub struct SessionEnumerateResult {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionTurnProjection {
+    CanonicalIngest,
     UserObservation,
 }
 
@@ -677,10 +744,6 @@ macro_rules! session_base_params {
             pub settings_id: String,
             #[serde(skip_serializing_if = "Option::is_none")]
             pub session_id: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            pub turn_projection: Option<SessionTurnProjection>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            pub body_tail_limit: Option<u64>,
             #[serde(flatten)]
             pub extension_fields: JsonObject,
         }
@@ -688,8 +751,72 @@ macro_rules! session_base_params {
 }
 
 session_base_params!(SessionLocateTranscriptParams);
-session_base_params!(SessionReadTurnsParams);
 session_base_params!(SessionExportParams);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionTurnPageStartMode {
+    Beginning,
+    Tail,
+    Continuation,
+}
+
+/// `session.read_turns` under `oulipoly.session_turn_pages/v1`. Page tokens
+/// are present-or-`null` fields, not omissible ones.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SessionReadTurnsParams {
+    pub settings_id: String,
+    pub session_id: String,
+    pub read_protocol: String,
+    pub turn_projection: SessionTurnProjection,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_delivery_nonce: Option<String>,
+    pub start_mode: SessionTurnPageStartMode,
+    pub after_token: Option<String>,
+    pub snapshot_id: Option<String>,
+    pub page_token: Option<String>,
+    pub max_turns: u64,
+    pub max_response_bytes: u64,
+    pub max_source_bytes: u64,
+    pub max_inline_body_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SessionTurnBodyChunk {
+    #[serde(rename = "type")]
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(flatten)]
+    pub extension_fields: JsonObject,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionTurnBodyState {
+    Inline,
+    Absent,
+    OmittedOversize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SessionTurnPageTurn {
+    pub session_id: String,
+    pub turn_id: String,
+    pub snapshot_sequence: u64,
+    pub timestamp: String,
+    pub role: String,
+    pub parent_turn_id: Option<String>,
+    pub is_sidechain: bool,
+    pub is_compaction_boundary: bool,
+    pub body_state: SessionTurnBodyState,
+    pub body: Option<Vec<SessionTurnBodyChunk>>,
+    pub body_bytes: Option<u64>,
+    pub body_sha256: Option<String>,
+    pub canonical_text_sha256: Option<String>,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SessionLiveReport {
@@ -724,10 +851,25 @@ pub struct SessionLocateTranscriptResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SessionReadTurnsResult {
-    pub turns: Vec<Value>,
-    pub turn_count: u64,
-    pub complete: bool,
+    pub read_protocol: String,
+    pub provider_instance_id: String,
+    pub settings_id: String,
+    pub session_id: String,
+    pub turn_projection: SessionTurnProjection,
+    pub snapshot_id: String,
+    pub page_index: u64,
+    pub page_start_sequence: u64,
+    pub turns: Vec<SessionTurnPageTurn>,
+    pub page_turn_count: u64,
+    pub source_bytes_examined: u64,
+    pub scan_progress: bool,
+    pub snapshot_complete: bool,
+    pub next_page_token: Option<String>,
+    pub resume_token: Option<String>,
+    pub source_final: bool,
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

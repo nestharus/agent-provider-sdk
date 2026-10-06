@@ -1,0 +1,29 @@
+{
+  "contract": [
+    {"name": "common_v1", "host": ["oulipoly.provider/v1"], "advertised": ["oulipoly.provider/v1"], "preferred": "oulipoly.provider/v1", "expect": "oulipoly.provider/v1"},
+    {"name": "newer_unknown_preferred_falls_back_to_supported", "host": ["oulipoly.provider/v1"], "advertised": ["oulipoly.provider/v1", "oulipoly.provider/v2"], "preferred": "oulipoly.provider/v2", "expect": "oulipoly.provider/v1"},
+    {"name": "newer_host_uses_highest_common", "host": ["oulipoly.provider/v1", "oulipoly.provider/v2", "oulipoly.provider/v3"], "advertised": ["oulipoly.provider/v1", "oulipoly.provider/v2"], "preferred": "oulipoly.provider/v1", "expect": "oulipoly.provider/v1"},
+    {"name": "preferred_common_wins_over_highest", "host": ["oulipoly.provider/v1", "oulipoly.provider/v2"], "advertised": ["oulipoly.provider/v1", "oulipoly.provider/v2"], "preferred": "oulipoly.provider/v1", "expect": "oulipoly.provider/v1"},
+    {"name": "highest_common_without_common_preference", "host": ["oulipoly.provider/v1", "oulipoly.provider/v2"], "advertised": ["oulipoly.provider/v1", "oulipoly.provider/v2", "oulipoly.provider/v3"], "preferred": "oulipoly.provider/v3", "expect": "oulipoly.provider/v2"},
+    {"name": "no_common_version", "host": ["oulipoly.provider/v1"], "advertised": ["oulipoly.provider/v2"], "preferred": "oulipoly.provider/v2", "expect": null},
+    {"name": "malformed_versions_never_match", "host": ["oulipoly.provider/v1", "oulipoly.provider/v01"], "advertised": ["oulipoly.provider/v01", "oulipoly.provider/v1"], "preferred": "oulipoly.provider/v01", "expect": "oulipoly.provider/v1"}
+  ],
+  "resident_session_provider": [
+    {"name": "offered_and_supported", "provider_supported": [1], "host_env": {"OULIPOLY_HOST_RESIDENT_SESSION_V1": "1"}, "advertised": ["resident_session_v1"]},
+    {"name": "newer_provider_never_advertises_unoffered_version", "provider_supported": [1, 2], "host_env": {"OULIPOLY_HOST_RESIDENT_SESSION_V1": "1"}, "advertised": ["resident_session_v1"]},
+    {"name": "newer_host_offer_keeps_supported_v1", "provider_supported": [1], "host_env": {"OULIPOLY_HOST_RESIDENT_SESSION_V1": "1", "OULIPOLY_HOST_RESIDENT_SESSION_V2": "1"}, "advertised": ["resident_session_v1"]},
+    {"name": "unselected_host_gets_nothing", "provider_supported": [1], "host_env": {}, "advertised": []},
+    {"name": "absent_env_gets_nothing", "provider_supported": [1], "host_env": null, "advertised": []},
+    {"name": "only_exact_value_selects", "provider_supported": [1], "host_env": {"OULIPOLY_HOST_RESIDENT_SESSION_V1": "true", "OULIPOLY_HOST_RESIDENT_SESSION_V01": "1"}, "advertised": []},
+    {"name": "no_common_offer", "provider_supported": [1], "host_env": {"OULIPOLY_HOST_RESIDENT_SESSION_V2": "1"}, "advertised": []}
+  ],
+  "resident_session_host": [
+    {"name": "common_v1", "host_supported": [1], "capabilities": {"launch": true, "resident_session_v1": true}, "expect": 1},
+    {"name": "highest_common", "host_supported": [1, 2], "capabilities": {"resident_session_v1": true, "resident_session_v2": true}, "expect": 2},
+    {"name": "newer_unknown_advertisement_ignored", "host_supported": [1], "capabilities": {"resident_session_v1": true, "resident_session_v3": true}, "expect": 1},
+    {"name": "no_common_version", "host_supported": [2], "capabilities": {"resident_session_v1": true}, "expect": null},
+    {"name": "false_is_not_an_advertisement", "host_supported": [1], "capabilities": {"resident_session_v1": false}, "expect": null},
+    {"name": "non_boolean_is_not_an_advertisement", "host_supported": [1], "capabilities": {"resident_session_v1": "true"}, "expect": null},
+    {"name": "absent", "host_supported": [1], "capabilities": {"launch": true}, "expect": null}
+  ]
+}

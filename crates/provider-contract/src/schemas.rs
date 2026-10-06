@@ -136,7 +136,21 @@ impl SchemaRegistry {
         let definition = target
             .response_def
             .ok_or_else(|| SchemaValidationError::MissingResponseEnvelope(subcommand.to_owned()))?;
-        self.validate_definition(target.schema_file, definition, instance)
+        self.validate_definition(target.schema_file, definition, instance)?;
+        if subcommand == "describe" {
+            let result = &instance["result"];
+            if !result["contract_versions"]
+                .as_array()
+                .is_some_and(|versions| versions.contains(&result["preferred_contract"]))
+            {
+                return Err(SchemaValidationError::Validation {
+                    schema_file: target.schema_file,
+                    definition,
+                    errors: vec!["preferred_contract must belong to contract_versions".into()],
+                });
+            }
+        }
+        Ok(())
     }
 
     pub fn validate_error_response(

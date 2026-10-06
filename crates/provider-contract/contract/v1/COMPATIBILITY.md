@@ -62,9 +62,13 @@ labels remain outside this wire contract and are not renamed or overridden.
 
 Schema and capability declarations and structural validation do not prove
 behavioral semantic preservation. Review and behavioral verification remain
-necessary; different snapshots are not automatically compatible. This policy
-neither aligns the differing SDK/Codex schemas nor qualifies cross-build replay
-or updates. Current integration uses fixed-v1 validation and capability
-agreement; general supported-version selection and automatic refreshed Runner
-agreement after replacement remain unfinished. Do not advertise a second wire
-version before the host can select a common supported version.
+necessary; different snapshots are not automatically compatible. The snapshot
+is aligned with Agent Runner's current host copy plus the host-selected
+`resident_session_v1` capability (see `UPSTREAM.md`); a host must adopt those
+describe and common bytes before selecting that capability. This policy does
+not qualify cross-build replay or updates. Current Runner integration uses
+fixed-v1 validation and capability agreement; `negotiation` provides
+common-version selection, but Runner's host-side adoption and automatic
+refreshed agreement after replacement remain unfinished. Do not advertise a
+second contract wire version before the host can select a common supported
+version; extension versions are advertised only when the host offered them.
