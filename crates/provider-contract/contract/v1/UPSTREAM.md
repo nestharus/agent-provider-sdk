@@ -27,11 +27,14 @@ the upstream MIT terms and notice in every package archive.
 The SDK is the source of truth after this import. Update the snapshot as one
 versioned unit here, record the compatibility decision and complete schema
 digests, then update hosts and providers from the released SDK contract. A host
-or provider must not privately edit its pinned copy. Each active host/provider
-route uses one matching snapshot on both sides. Keep the prior matched pair
-available while a replacement pair is prepared, and restore that pair as a unit
-if rollback is required. The shared v1 discriminator alone does not authorize
-mixed-snapshot operation.
+or provider must not privately edit its imported copy. The recorded source and
+digests establish the provenance of local schema files; they do not require peer
+source or snapshot equality. Each active route must have compatible declared
+wire schemas and capability meaning under [COMPATIBILITY.md](COMPATIBILITY.md).
+The shared v1 discriminator alone does not establish that compatibility. Keep
+the previous working route available through replacement verification and the
+rollback decision, and restore that route if rollback is required, including
+its compatible readers and durable state.
 
 The JSON Schemas are the wire authority. `src/generated.rs` is their checked-in
 Rust DTO projection and is updated in the same release unit; it is not an

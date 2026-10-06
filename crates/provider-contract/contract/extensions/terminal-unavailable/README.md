@@ -41,11 +41,19 @@ The standalone Rust DTO and admission helper are in `terminal_unavailable`.
 
 Consumers can copy this complete extension directory byte-for-byte, recording
 the SDK source commit and artifact SHA-256, or consume the crate's extension
-module. This extension may be added to an already deployed host/provider route
-without importing unrelated revisions of its base schema. It does not certify
-that an existing route uses the SDK's pinned base snapshot, repair pre-existing
-snapshot divergence, or relax the matched-snapshot policy for a base-contract
-upgrade. Retain the prior host/provider pair through replacement verification
-and restore that pair together if rollback is needed. Changing this extension's
-selection, payload, or classification semantics incompatibly requires a new
-extension version.
+module. These records establish local artifact provenance, not peer equality.
+This extension may be added to an already deployed host/provider route without
+importing unrelated revisions of its base schema. It does not certify that an
+existing route uses the SDK's pinned base snapshot, repair pre-existing schema
+divergence, or establish compatibility merely from the v1 discriminator.
+Base-contract upgrades require compatible declared wire schemas and capability
+meaning, not matching peer source revisions or snapshot digests. Established
+base behavior and schema-specific unknown-field rules remain authoritative;
+breaking base semantics require a new contract version and explicit negotiation.
+Retain the previous working route through replacement verification and the
+rollback decision; if it cannot be retained, continue on that route. Rollback
+restores the working route with its required compatible readers and durable
+state. Changing this extension's selection, payload, or classification semantics
+incompatibly requires a new extension version. Retain older-host fixtures and
+the unselected legacy fallback. Structural admission alone does not prove
+behavioral semantic compatibility.

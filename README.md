@@ -68,16 +68,26 @@ Agent Runner validates authority and state preconditions, then translates an
 accepted proposal into its private mutation protocol. Providers do not apply
 host state, and schema or DTO admission alone never authorizes mutation.
 
-One active host/provider route must use the same complete v1 snapshot on both
-sides. Mixed-snapshot operation under the shared `oulipoly.provider/v1`
-discriminator is unsupported. Before rollout, the route owner must be able to
-keep the previous matched pair available through replacement verification and
-the rollback decision. If it cannot meet that prerequisite, the upgrade does not
-start and the route continues on its previous pair. Exact snapshot coherence
-takes priority over independently upgrading peers that merely share the v1
-discriminator, even when a revision is otherwise wire-compatible; mixed
-revisions are not an availability fallback. Rollback restores the retained
-previous pair as one unit.
+Runtime compatibility must follow declared supported wire schemas and capability
+agreement. Source/snapshot provenance, SDK package versions, native CLI banners,
+and executable byte identity are not equality requirements for provider
+compatibility. Consume SDK source without an explicit manifest source-revision
+constraint; normal Cargo lockfile commits record resolved builds, not runtime
+pins. Private schema edits remain unsupported; wire-semantic changes need an
+explicit supported contract or extension.
+Before rollout, the route owner must retain the previous working route through
+replacement verification and the rollback decision. If that prerequisite cannot
+be met, continue on the previous route. Rollback restores that working route.
+
+Compatible provider rebuilds/updates must remain usable automatically without
+manual restart, preserving compatible durable custody and replay state. Actor
+identity checks and recovery bounds still protect process custody. Current
+integration uses fixed-v1 validation and capability agreement; general version
+selection and automatic refreshed Runner agreement after replacement remain
+unfinished. Do not advertise a second wire version before host common-version
+selection exists. The shared lifecycle foundation and cross-build replay/update
+qualification are separate unfinished work; this documentation correction does
+not implement them.
 
 The crate and its complete schema snapshot may be used and redistributed under
 the MIT License, which is included in `crates/provider-contract` and in the
@@ -98,8 +108,8 @@ model-service unavailability, distinct from account quota and rate limiting.
 The `terminal_unavailable` module exposes its DTO, standalone schema, and
 selection-aware payload admission. The pinned base snapshot and base admission
 APIs remain unchanged. Existing routes can adopt this complete extension without
-importing unrelated base-contract revisions; this does not change the
-matched-snapshot requirements for a base-contract upgrade.
+importing unrelated base-contract revisions. Runtime admission follows supported
+wire schema/capability agreement as described above.
 
 ## Provider execution
 
