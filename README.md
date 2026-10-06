@@ -101,6 +101,43 @@ APIs remain unchanged. Existing routes can adopt this complete extension without
 importing unrelated base-contract revisions; this does not change the
 matched-snapshot requirements for a base-contract upgrade.
 
+## Provider execution
+
+The `agent-provider-execution` crate supplies provider-neutral machinery for one
+native invocation per provider process. It was seeded from the Codex adapter's
+launch path, which consumes it, and generalized by parameterizing provider
+identity:
+
+- `process`: an effect gate that withholds the native program's `exec` until
+  the caller has published the process-group actor, Linux process-group custody
+  with parent-death `SIGKILL`, a boot-scoped start-time actor incarnation, and
+  recovery that never signals a recycled process-group number. The provider
+  chooses its gate argument and descriptor variable and dispatches
+  `process::run_effect_gate` from `main` before other argument handling.
+- `delivery`: `BoundedOutput`, a non-blocking writer over a private duplicate of
+  the host output descriptor. A write with no progress for the stall limit
+  (two seconds by default) fails, and failure is sticky. Inherited descriptor
+  flags are never changed. Launch events written to a plain blocking stdout do
+  not carry this guarantee.
+- `custody`: per-request exclusive locks, durable `prepared`/`running`/`complete`
+  launch state, and an append-only journal sealed with its length and SHA-256.
+  A complete journal is replayed only after it matches that receipt. The
+  provider chooses the request digest inputs and maps outcomes to its failures.
+- `framing`: `oulipoly.provider/v1` launch-event framing (contract, request ID,
+  sequence, timestamp) written to the journal and then delivered.
+- `cancellation`: process-scoped recording of `SIGTERM`/`SIGINT` so launch
+  custody can terminate the native group and still publish its terminal state.
+- `durable_fs` and `encoding`: ordered directory publication with parent
+  synchronization, bounded reads and digests, base64, SHA-256, bounded text,
+  and canonical JSON.
+
+Native argv, authentication, account and config roots, model aliases, tool
+restrictions, native session formats, and native event translation remain in
+adapters. The crate is not a resident runtime: signal handling is per process,
+and a shared multi-session runtime needs session-scoped cancellation and its
+own lifecycle tests. It does not depend on `agent-provider-contract` and does
+not change the pinned v1 snapshot.
+
 ## Provider memory harness
 
 `provider-memory` measures a complete Linux process tree using
