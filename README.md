@@ -85,9 +85,9 @@ identity checks and recovery bounds still protect process custody. Current
 integration uses fixed-v1 validation and capability agreement; general version
 selection and automatic refreshed Runner agreement after replacement remain
 unfinished. Do not advertise a second wire version before host common-version
-selection exists. The shared lifecycle foundation and cross-build replay/update
-qualification are separate unfinished work; this documentation correction does
-not implement them.
+selection exists. The shared one-shot launch lifecycle below keeps executable
+and source identity out of request keys; cross-build replay/update
+qualification across a full rebuild matrix remains unfinished.
 
 The crate and its complete schema snapshot may be used and redistributed under
 the MIT License, which is included in `crates/provider-contract` and in the
@@ -115,8 +115,25 @@ wire schema/capability agreement as described above.
 
 The `agent-provider-execution` crate supplies provider-neutral machinery for one
 native invocation per provider process. It was seeded from the Codex adapter's
-launch path, which consumes it, and generalized by parameterizing provider
-identity:
+launch path and generalized by parameterizing provider identity. The Codex and
+Claude adapters both run their launches through `lifecycle::run_launch`:
+
+- `lifecycle`: the shared one-shot launch lifecycle. `run_launch` holds request
+  custody; compares the adapter's request digest; replays a matching complete
+  journal byte-for-byte; discharges the recorded actor of an interrupted launch
+  and then reports `ReconciliationRequired` instead of starting another native
+  turn; checks termination requests and the host deadline before preparation,
+  before and after publishing prepared state, and before opening the gate;
+  publishes the running actor before the gate opens; drains stdout/stderr as
+  lines or raw chunks; emits heartbeats; terminates the native group on
+  cancellation or deadline and after the leader exits, then drains until output
+  closes or stays silent past the drain grace; checks input delivery; writes
+  the final `exit` event itself; and seals the completion receipt. Adapters
+  implement `LaunchAdapter`: request digest, native preparation (or a settled
+  terminal outcome without a native process, journaled and replayed like any
+  other), sidecar discard on refused admission, start markers, native output
+  translation and the terminal status/signal. Each adapter maps
+  `LifecycleError` variants to its own contract failures.
 
 - `process`: an effect gate that withholds the native program's `exec` until
   the caller has published the process-group actor, Linux process-group custody
@@ -159,7 +176,8 @@ and a shared multi-session runtime needs session-scoped cancellation and its
 own lifecycle tests. It does not depend on `agent-provider-contract` and does
 not change the pinned v1 snapshot.
 
-The adapter owns the lifecycle: keep request custody held, check the digest
+Adapters that compose the individual modules instead of `run_launch` own the
+lifecycle themselves: keep request custody held, check the digest
 and complete phase before replay, publish prepared state, spawn behind the
 gate, capture and publish the running actor, create the journal and finish
 admission before releasing the gate. Retain a child cleanup guard. After
@@ -180,6 +198,18 @@ before sealing and never append after publishing that receipt. Journaling
 before delivery is write ordering, not an fsync before each event. Cancellation
 is a process-global latch without reset; handler installation does not check
 errors or restore previous signal dispositions, and the caller performs cleanup.
+
+`run_launch` guarantees and limits: it serves one launch per provider process
+and installs the process-scoped cancellation handlers. The state root must be a
+trusted, existing, provider-private directory; the request key is the provider
+instance and request ID, and the durable record keeps its seven fields
+(`digest`, `phase`, `actor_id`, `incarnation`, `exit_code`, `journal_sha256`,
+`journal_len`), so a compatible rebuild that keeps an adapter's digest inputs
+replays and reconciles earlier records. Host output should be `BoundedOutput`.
+Any error leaves incomplete evidence and terminates the native group while
+unwinding; recovery after provider loss happens on the next retry of the same
+request, not in the background. Drain bounds measure silence rather than total
+time. Linux-tested only; `lifecycle` is compiled on Unix.
 
 ## Provider memory harness
 
