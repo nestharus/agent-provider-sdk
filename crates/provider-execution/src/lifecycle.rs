@@ -30,11 +30,21 @@
 //!   requests and reconciles interrupted ones.
 //! - Host output should be a [`crate::delivery::BoundedOutput`]; an arbitrary
 //!   blocking writer carries no delivery bound.
-//! - Any error leaves incomplete durable evidence. The native process group is
-//!   terminated when the lifecycle unwinds, and a retry of the same request
-//!   discharges any recorded actor and reports
-//!   [`LifecycleError::ReconciliationRequired`] instead of starting another
-//!   native turn.
+//! - A failure before completion leaves incomplete durable evidence, or none
+//!   after an admission refusal. The native process group is terminated when
+//!   the lifecycle unwinds, and a retry of the same request discharges any
+//!   recorded actor and reports [`LifecycleError::ReconciliationRequired`]
+//!   instead of starting another native turn. Completion delivers `exit`,
+//!   seals the journal and then replaces the state record; a seal or state
+//!   error can follow a delivered `exit`, and a directory-sync error can
+//!   follow a visible complete record.
+//! - A native start failure is observed, not predicted: spawning the gate
+//!   process fails, or the gate reports its failed `exec`
+//!   ([`crate::process::ExecObserver`]). The adapter decides its meaning in
+//!   [`LaunchAdapter::start_failed`]. Native exit statuses are never read as
+//!   start failures.
+//! - Hooks, filesystem operations and host writes run synchronously; stop
+//!   requests are observed at admission checks and poll turns.
 //! - Drain bounds measure silence, not total time: a native group that keeps
 //!   writing after its leader exited is drained until it stops.
 
@@ -42,7 +52,7 @@ use crate::cancellation;
 use crate::custody::{self, CustodyError, LaunchState, RequestCustody};
 use crate::encoding::now_unix_ms;
 use crate::framing::{FramingError, LaunchEventWriter};
-use crate::process::{self, GatedCommand, ProcessGroupActor};
+use crate::process::{self, ExecStart, GatedCommand, ProcessGroupActor};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -134,9 +144,11 @@ pub enum Preparation {
     /// Run the native command.
     Native(NativeCommand),
     /// The adapter settled the launch without a native process, for example a
-    /// provider whose contract reports an unspawnable command as an `exit`
-    /// event. `events` precede the exit event. The outcome is journaled and
-    /// replayed exactly like a native one.
+    /// request whose input cannot form a native command. It passes the same
+    /// admission checks as a native launch, before and after prepared state
+    /// is published, and a refusal discards sidecars. `events` precede the
+    /// exit event. The outcome is journaled and replayed exactly like a native
+    /// one.
     Settled {
         events: Vec<Value>,
         terminal: Terminal,
@@ -150,6 +162,22 @@ pub enum StopCause {
     Cancelled { signal: i32 },
     /// The host deadline elapsed.
     Deadline,
+}
+
+/// Evidence that the native program never started, observed at the actual
+/// spawn and `exec` boundary rather than predicted.
+#[derive(Debug)]
+pub enum StartFailure {
+    /// The gate process could not be spawned with the native command's
+    /// configuration (for example its working directory, process limits, or
+    /// the provider's own gate executable). `Command::spawn` returned this
+    /// error; prepared state has no actor.
+    Spawn(io::Error),
+    /// The gate was released and its `exec` of the native program failed
+    /// with this error; the gate then exits 126 after writing a diagnostic to
+    /// stderr. A native program that started and exited 126 is not reported
+    /// here.
+    Exec(io::Error),
 }
 
 /// Native termination observed by the lifecycle.
@@ -180,11 +208,21 @@ pub struct Terminal {
 /// Methods run in this order: [`request_digest`](Self::request_digest) once
 /// custody is held; [`prepare`](Self::prepare) after the first admission
 /// check; [`discard`](Self::discard) only if a later admission check refuses
-/// the launch before the gate opens; [`started`](Self::started) after the gate
-/// opens; [`output`](Self::output) for each native record in arrival order; and
-/// [`finish`](Self::finish) after the native group has ended, output has
-/// drained and input delivery has been checked. Any error stops the launch
-/// and leaves incomplete custody.
+/// the launch before the gate opens; [`start_failed`](Self::start_failed) only
+/// if the native program could not start; [`started`](Self::started) once the
+/// gate has executed the native program without reporting a failure (or a
+/// termination request arrived first); [`output`](Self::output) for each
+/// native record in arrival order; and [`finish`](Self::finish) after the
+/// native group has ended, output has drained and input delivery has been
+/// checked. Any error stops the launch and leaves incomplete custody.
+///
+/// Adapters are trusted code inside the provider process; the lifecycle does
+/// not contain them. An adapter must not start native effects outside the
+/// gated command, must return every [`EventSink`] error rather than continue
+/// emitting, must send native data through [`EventSink::data`] so the
+/// accounting covers it, and must digest every input that determines the
+/// native effect. The lifecycle does not validate adapter events against the
+/// contract schema.
 pub trait LaunchAdapter {
     type Failure: From<LifecycleError>;
 
@@ -202,6 +240,20 @@ pub trait LaunchAdapter {
     /// was refused before the native program could run.
     fn discard(&mut self, _custody: &RequestCustody) -> Result<(), Self::Failure> {
         Ok(())
+    }
+
+    /// Decides the launch when the native program never started. Returning a
+    /// terminal journals `events` already emitted here and that terminal as
+    /// a completed launch; the gate's own output is not delivered. Returning
+    /// `None` keeps the earlier behavior: a [`StartFailure::Spawn`] fails the
+    /// launch with [`LifecycleError::Io`], and a [`StartFailure::Exec`] runs on
+    /// as the gate process, delivering its diagnostic and exit status 126.
+    fn start_failed<W: Write>(
+        &mut self,
+        _failure: &StartFailure,
+        _events: &mut EventSink<'_, W>,
+    ) -> Result<Option<Terminal>, Self::Failure> {
+        Ok(None)
     }
 
     /// Emits events that follow gate release and precede native output.
@@ -551,6 +603,18 @@ where
     let native = match adapter.prepare(&launch_custody)? {
         Preparation::Native(native) => native,
         Preparation::Settled { events, terminal } => {
+            if let Err(error) = check_admission(spec.deadline_unix_ms) {
+                adapter.discard(&launch_custody)?;
+                return Err(error.into());
+            }
+            launch_custody
+                .write_state(&state)
+                .map_err(LifecycleError::from)?;
+            if let Err(error) = check_admission(spec.deadline_unix_ms) {
+                std::fs::remove_file(launch_custody.state_path()).map_err(LifecycleError::from)?;
+                adapter.discard(&launch_custody)?;
+                return Err(error.into());
+            }
             return settle(spec, &launch_custody, state, events, terminal, writer)
                 .map_err(Into::into);
         }
@@ -581,7 +645,30 @@ where
         adapter.discard(&launch_custody)?;
         return Err(error.into());
     }
-    let (child, release) = command.spawn().map_err(LifecycleError::from)?;
+    let (child, release) = match command.spawn() {
+        Ok(spawned) => spawned,
+        Err(error) => {
+            let failure = StartFailure::Spawn(error);
+            let journal = launch_custody
+                .create_journal()
+                .map_err(LifecycleError::from)?;
+            let mut sink = EventSink {
+                events: LaunchEventWriter::new(writer, journal, spec.contract, spec.request_id),
+                accounting: DataAccounting::default(),
+            };
+            if let Some(terminal) = adapter.start_failed(&failure, &mut sink)? {
+                return complete(&launch_custody, state, sink, &terminal).map_err(Into::into);
+            }
+            // Leave the same evidence as before the hook existed: prepared
+            // state without an actor or journal, which requires reconciliation.
+            drop(sink);
+            std::fs::remove_file(launch_custody.journal_path()).map_err(LifecycleError::from)?;
+            let StartFailure::Spawn(error) = failure else {
+                unreachable!("spawn failure")
+            };
+            return Err(LifecycleError::from(error).into());
+        }
+    };
     let mut child = ChildGuard { child, live: true };
     let actor = process::actor_for_child(&child.child).map_err(LifecycleError::from)?;
     state.actor_id = Some(actor.process_group_id);
@@ -610,7 +697,29 @@ where
         adapter.discard(&launch_custody)?;
         return Err(error.into());
     }
-    release.release().map_err(LifecycleError::from)?;
+    let mut observer = release.release().map_err(LifecycleError::from)?;
+    // The gate reports a failed `exec` before it exits; a termination request
+    // while waiting is handled by the loop below.
+    let start = loop {
+        if let Some(start) = observer
+            .wait(spec.timing.poll_interval)
+            .map_err(LifecycleError::from)?
+        {
+            break Some(start);
+        }
+        if stop_requested(spec.deadline_unix_ms).is_some() {
+            break None;
+        }
+    };
+    if let Some(ExecStart::Failed(error)) = start {
+        let failure = StartFailure::Exec(error);
+        if let Some(terminal) = adapter.start_failed(&failure, &mut sink)? {
+            // Only the gate ran; its diagnostic output is not native output.
+            child.terminate();
+            drop(receive);
+            return complete(&launch_custody, state, sink, &terminal).map_err(Into::into);
+        }
+    }
     let input: Option<JoinHandle<io::Result<()>>> = stdin.map(|bytes| {
         let mut pipe = child.child.stdin.take().expect("piped native stdin");
         std::thread::spawn(move || pipe.write_all(&bytes))

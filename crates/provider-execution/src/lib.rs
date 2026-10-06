@@ -18,9 +18,10 @@
 //! types assume the caller owns one launch at a time.
 //!
 //! Callers of the individual modules, rather than [`lifecycle::run_launch`],
-//! enforce lifecycle ordering, validate events/state, hold request custody,
-//! and unwind child custody on errors. See [`custody`] and [`framing`]
-//! for error/seal obligations. Delivery bounds apply to FIFO/socket progress,
+//! enforce lifecycle ordering, hold request custody, and unwind child custody
+//! on errors. Neither path validates events or state against the contract
+//! schema; see [`lifecycle::LaunchAdapter`] for adapter obligations and
+//! [`custody`] and [`framing`] for error/seal obligations. Delivery bounds apply to FIFO/socket progress,
 //! and incarnation checks do not make signalling atomic; see [`delivery`] and
 //! [`process`].
 

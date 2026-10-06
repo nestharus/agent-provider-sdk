@@ -11,7 +11,7 @@ use agent_provider_execution::custody::{LaunchState, RequestCustody};
 use agent_provider_execution::delivery::BoundedOutput;
 use agent_provider_execution::lifecycle::{
     run_launch, Channel, EventSink, LaunchAdapter, LaunchSpec, LifecycleError, LifecycleTiming,
-    NativeCommand, NativeOutcome, OutputFraming, Preparation, StopCause, Terminal,
+    NativeCommand, NativeOutcome, OutputFraming, Preparation, StartFailure, StopCause, Terminal,
 };
 use agent_provider_execution::process::{run_effect_gate, EffectGate, GatedCommand};
 use serde_json::{json, Value};
@@ -31,7 +31,7 @@ fn main() {
         Some("--provider") => std::process::exit(provider(&args[2])),
         _ => {}
     }
-    let tests: [(&str, fn()); 10] = [
+    let tests: [(&str, fn()); 16] = [
         (
             "completed_launch_replays_exactly_without_native_effects",
             completed_launch_replays_exactly_without_native_effects,
@@ -71,6 +71,30 @@ fn main() {
         (
             "settled_launch_is_journaled_and_replayed",
             settled_launch_is_journaled_and_replayed,
+        ),
+        (
+            "late_stop_during_settled_preparation_refuses_and_discards",
+            late_stop_during_settled_preparation_refuses_and_discards,
+        ),
+        (
+            "failed_exec_reaches_the_adapter_as_a_start_failure",
+            failed_exec_reaches_the_adapter_as_a_start_failure,
+        ),
+        (
+            "unhandled_exec_failure_keeps_the_gate_exit",
+            unhandled_exec_failure_keeps_the_gate_exit,
+        ),
+        (
+            "native_exit_126_is_not_a_start_failure",
+            native_exit_126_is_not_a_start_failure,
+        ),
+        (
+            "failed_gate_spawn_reaches_the_adapter_or_leaves_prepared_state",
+            failed_gate_spawn_reaches_the_adapter_or_leaves_prepared_state,
+        ),
+        (
+            "native_path_lookup_uses_the_native_directory_and_environment",
+            native_path_lookup_uses_the_native_directory_and_environment,
         ),
     ];
     let mut failed = 0;
@@ -132,6 +156,19 @@ impl LaunchAdapter for FixtureAdapter {
         let sidecar = custody.sibling("sidecar");
         std::fs::write(&sidecar, b"prepared").unwrap();
         self.sidecar = Some(sidecar);
+        // A stop that arrives while preparation runs.
+        match self.config["stop_during_prepare"].as_str() {
+            Some("deadline") => {
+                let deadline = self.config["deadline_unix_ms"].as_u64().unwrap();
+                while unix_ms() < deadline {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            }
+            Some("signal") => {
+                assert_eq!(unsafe { libc::raise(libc::SIGTERM) }, 0);
+            }
+            _ => {}
+        }
         if self.config["settled"].as_bool() == Some(true) {
             return Ok(Preparation::Settled {
                 events: vec![json!({"kind":"marker","name":"settled","value":true})],
@@ -144,19 +181,32 @@ impl LaunchAdapter for FixtureAdapter {
             });
         }
         let executable = std::env::current_exe().unwrap();
+        let script = self.config["script"].as_str().unwrap();
+        let argv: Vec<String> = match self.config["argv"].as_array() {
+            Some(argv) => argv
+                .iter()
+                .map(|arg| arg.as_str().unwrap().to_string())
+                .collect(),
+            None => vec!["/bin/sh".into(), "-c".into(), script.into()],
+        };
         let mut command = GatedCommand::new(
             &EffectGate {
                 executable: &executable,
                 argument: GATE_ARG,
                 descriptor_env: GATE_ENV,
             },
-            "/bin/sh",
-            ["-c", self.config["script"].as_str().unwrap()],
+            &argv[0],
+            &argv[1..],
         )
         .unwrap();
         command
             .command_mut()
             .current_dir(self.config["dir"].as_str().unwrap());
+        if let Some(env) = self.config["env"].as_object() {
+            for (key, value) in env {
+                command.command_mut().env(key, value.as_str().unwrap());
+            }
+        }
         Ok(Preparation::Native(NativeCommand {
             command,
             stdin: Some(b"native input\n".to_vec()),
@@ -169,6 +219,27 @@ impl LaunchAdapter for FixtureAdapter {
     fn discard(&mut self, _custody: &RequestCustody) -> Result<(), FixtureFailure> {
         std::fs::remove_file(self.sidecar.as_ref().unwrap()).unwrap();
         Ok(())
+    }
+
+    fn start_failed<W: Write>(
+        &mut self,
+        failure: &StartFailure,
+        events: &mut EventSink<'_, W>,
+    ) -> Result<Option<Terminal>, FixtureFailure> {
+        if self.config["settle_start_failure"].as_bool() != Some(true) {
+            return Ok(None);
+        }
+        let (stage, error) = match failure {
+            StartFailure::Spawn(error) => ("spawn", error),
+            StartFailure::Exec(error) => ("exec", error),
+        };
+        events.marker("start_failed", json!(stage))?;
+        Ok(Some(Terminal {
+            status: json!({"kind":"start_failed","stage":stage,"errno":error.raw_os_error()}),
+            terminal_signal: json!({"kind":"fixture"}),
+            session: None,
+            exit_code: 6,
+        }))
     }
 
     fn started<W: Write>(&mut self, events: &mut EventSink<'_, W>) -> Result<(), FixtureFailure> {
@@ -239,6 +310,13 @@ fn provider(config: &str) -> i32 {
             70
         }
     }
+}
+
+fn unix_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64
 }
 
 // ---- harness ------------------------------------------------------------------
@@ -587,4 +665,148 @@ fn settled_launch_is_journaled_and_replayed() {
     let replay = fixture.run(&config);
     assert_eq!(replay.status.code(), Some(5));
     assert_eq!(replay.stdout, first.stdout);
+}
+
+fn late_stop_during_settled_preparation_refuses_and_discards() {
+    for (stop, refusal) in [("deadline", "deadline"), ("signal", "cancelled")] {
+        let fixture = Fixture::new();
+        let mut config = fixture.config("exit 0");
+        config["settled"] = json!(true);
+        config["stop_during_prepare"] = json!(stop);
+        config["deadline_unix_ms"] = json!(unix_ms() + 300);
+        let output = fixture.run(&config);
+        assert_eq!(lifecycle_error(&output), refusal, "{stop}: {output:?}");
+        assert!(output.stdout.is_empty(), "{stop}: nothing delivered");
+        assert_eq!(
+            fixture.state_files(),
+            ["lock"],
+            "{stop}: no state or sidecar remains"
+        );
+        // The request ID was not consumed: a later admitted retry settles.
+        config["stop_during_prepare"] = Value::Null;
+        config["deadline_unix_ms"] = Value::Null;
+        let retry = fixture.run(&config);
+        assert_eq!(retry.status.code(), Some(5), "{stop}: {retry:?}");
+        assert!(fixture.state().unwrap().is_complete());
+    }
+}
+
+fn missing_interpreter_script(fixture: &Fixture) -> PathBuf {
+    let script = fixture.path("missing-interpreter");
+    std::fs::write(&script, "#!/nonexistent/fixture-interpreter\necho ran\n").unwrap();
+    std::fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    script
+}
+
+fn failed_exec_reaches_the_adapter_as_a_start_failure() {
+    let fixture = Fixture::new();
+    let script = missing_interpreter_script(&fixture);
+    let mut config = fixture.config("");
+    config["argv"] = json!([script]);
+    config["settle_start_failure"] = json!(true);
+    let first = fixture.run(&config);
+    assert_eq!(first.status.code(), Some(6), "{first:?}");
+    let delivered = events(&first);
+    assert_eq!(delivered.len(), 2, "{delivered:?}");
+    assert_eq!(delivered[0]["name"], "start_failed");
+    assert_eq!(
+        delivered[1]["status"],
+        json!({"kind":"start_failed","stage":"exec","errno":libc::ENOENT})
+    );
+    assert!(
+        !delivered.iter().any(|event| event["kind"] == "stderr"),
+        "the gate diagnostic is not native output"
+    );
+    let state = fixture.state().unwrap();
+    assert!(state.is_complete());
+    assert_eq!((state.actor_id, state.incarnation.as_deref()), (None, None));
+    let replay = fixture.run(&config);
+    assert_eq!(replay.status.code(), Some(6));
+    assert_eq!(replay.stdout, first.stdout);
+}
+
+fn unhandled_exec_failure_keeps_the_gate_exit() {
+    let fixture = Fixture::new();
+    let script = missing_interpreter_script(&fixture);
+    let mut config = fixture.config("");
+    config["argv"] = json!([script]);
+    let output = fixture.run(&config);
+    assert_eq!(output.status.code(), Some(126), "{output:?}");
+    let delivered = events(&output);
+    assert_eq!(delivered[0]["name"], "started");
+    assert!(delivered.iter().any(|event| event["kind"] == "stderr"));
+    assert_eq!(
+        delivered.last().unwrap()["status"],
+        json!({"kind":"exited","code":126})
+    );
+}
+
+fn native_exit_126_is_not_a_start_failure() {
+    let fixture = Fixture::new();
+    let mut config = fixture.config(&format!(
+        "{RECORD_CALL}echo 'native effect gate could not execute native command' >&2; exit 126"
+    ));
+    config["settle_start_failure"] = json!(true);
+    let output = fixture.run(&config);
+    assert_eq!(output.status.code(), Some(126), "{output:?}");
+    let delivered = events(&output);
+    assert!(!delivered
+        .iter()
+        .any(|event| event["name"] == "start_failed"));
+    assert_eq!(delivered[0]["name"], "started");
+    assert_eq!(
+        delivered.last().unwrap()["status"],
+        json!({"kind":"exited","code":126})
+    );
+    assert_eq!(fixture.calls(), 1);
+}
+
+fn failed_gate_spawn_reaches_the_adapter_or_leaves_prepared_state() {
+    let fixture = Fixture::new();
+    let mut config = fixture.config(&format!("{RECORD_CALL}exit 0"));
+    config["dir"] = json!(fixture.path("missing-directory"));
+    config["settle_start_failure"] = json!(true);
+    let output = fixture.run(&config);
+    assert_eq!(output.status.code(), Some(6), "{output:?}");
+    assert_eq!(
+        events(&output).last().unwrap()["status"],
+        json!({"kind":"start_failed","stage":"spawn","errno":libc::ENOENT})
+    );
+    assert!(fixture.state().unwrap().is_complete());
+
+    let fixture = Fixture::new();
+    let mut config = fixture.config(&format!("{RECORD_CALL}exit 0"));
+    config["dir"] = json!(fixture.path("missing-directory"));
+    let output = fixture.run(&config);
+    assert!(lifecycle_error(&output).starts_with("other:"), "{output:?}");
+    assert!(output.stdout.is_empty());
+    assert_eq!(fixture.state_files(), ["json", "lock", "sidecar"]);
+    assert_eq!(fixture.state().unwrap().phase, "prepared");
+    assert_eq!(fixture.calls(), 0);
+}
+
+fn native_path_lookup_uses_the_native_directory_and_environment() {
+    for (path, place) in [("bin", "bin/path-probe"), (":", "path-probe")] {
+        let fixture = Fixture::new();
+        let native = fixture.path("native");
+        let program = native.join(place);
+        std::fs::create_dir_all(program.parent().unwrap()).unwrap();
+        std::fs::write(&program, "#!/bin/sh\necho found\n").unwrap();
+        std::fs::set_permissions(
+            &program,
+            std::os::unix::fs::PermissionsExt::from_mode(0o755),
+        )
+        .unwrap();
+        let mut config = fixture.config("");
+        config["dir"] = json!(native);
+        config["argv"] = json!(["path-probe"]);
+        config["env"] = json!({"PATH": path});
+        config["settle_start_failure"] = json!(true);
+        let output = fixture.run(&config);
+        assert_eq!(output.status.code(), Some(0), "PATH={path}: {output:?}");
+        let delivered = events(&output);
+        assert!(delivered
+            .iter()
+            .any(|event| event["data_base64"] == "Zm91bmQK")); // "found\n"
+    }
 }

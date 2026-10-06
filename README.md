@@ -123,17 +123,33 @@ Claude adapters both run their launches through `lifecycle::run_launch`:
   journal byte-for-byte; discharges the recorded actor of an interrupted launch
   and then reports `ReconciliationRequired` instead of starting another native
   turn; checks termination requests and the host deadline before preparation,
-  before and after publishing prepared state, and before opening the gate;
-  publishes the running actor before the gate opens; drains stdout/stderr as
+  before and after publishing prepared state, and before opening the gate; a
+  refusal after preparation discards adapter sidecars and leaves no state, for
+  settled outcomes as well as native ones; publishes the running actor before
+  the gate opens; observes the actual native start at the gate, where either
+  spawning the gate process fails or the gate reports that its `exec` failed,
+  and offers that start failure to the adapter, which may settle the launch
+  with its own terminal outcome instead of the gate's exit 126 (a native
+  program that ran and exited 126 is not a start failure); drains stdout/stderr as
   lines or raw chunks; emits heartbeats; terminates the native group on
   cancellation or deadline and after the leader exits, then drains until output
   closes or stays silent past the drain grace; checks input delivery; writes
   the final `exit` event itself; and seals the completion receipt. Adapters
   implement `LaunchAdapter`: request digest, native preparation (or a settled
   terminal outcome without a native process, journaled and replayed like any
-  other), sidecar discard on refused admission, start markers, native output
-  translation and the terminal status/signal. Each adapter maps
-  `LifecycleError` variants to its own contract failures.
+  other), sidecar discard on refused admission, the meaning of a start
+  failure, start markers, native output translation and the terminal
+  status/signal. Each adapter maps `LifecycleError` variants to its own
+  contract failures.
+
+  Adapters are trusted code in the provider process, not a contained boundary.
+  An adapter must not start native effects outside its gated command, must
+  return every `EventSink` error instead of continuing to emit, must send
+  native data through `EventSink::data` so the output accounting covers it,
+  and must digest every input that determines the native effect.
+  `run_launch` does not validate adapter events or terminal values against the
+  contract schema and does not add an error event: after a failure, what
+  follows the events already delivered is the adapter's caller's choice.
 
 - `process`: an effect gate that withholds the native program's `exec` until
   the caller has published the process-group actor, Linux process-group custody
@@ -147,6 +163,12 @@ Claude adapters both run their launches through `lifecycle::run_launch`:
   atomic protection against recycling. The provider
   chooses its gate argument and descriptor variable and dispatches
   `process::run_effect_gate` from `main` before other argument handling.
+  After release the gate keeps its descriptor close-on-exec: a successful
+  `exec` closes it, while a failed `exec` writes the `errno` there before the
+  gate exits 126, and `ExecObserver` reports which happened. This is the
+  observed exec boundary, not a `PATH` or permission prediction, and it does
+  not interpret native exit statuses. Gates and callers from builds without
+  the report fall back to the earlier exit-126 diagnostic in either direction.
 - `delivery`: `BoundedOutput`, a writer over a private duplicate of the host
   output descriptor. FIFO/socket writes fail after the no-progress stall limit
   (two seconds by default), and failure is sticky. Each successful partial write
@@ -205,11 +227,20 @@ trusted, existing, provider-private directory; the request key is the provider
 instance and request ID, and the durable record keeps its seven fields
 (`digest`, `phase`, `actor_id`, `incarnation`, `exit_code`, `journal_sha256`,
 `journal_len`), so a compatible rebuild that keeps an adapter's digest inputs
-replays and reconciles earlier records. Host output should be `BoundedOutput`.
-Any error leaves incomplete evidence and terminates the native group while
+replays and reconciles earlier records; completed records are replayed as
+their original bytes, never reinterpreted. Host output should be
+`BoundedOutput`. A failure before completion leaves incomplete evidence (or
+none, after an admission refusal) and terminates the native group while
 unwinding; recovery after provider loss happens on the next retry of the same
-request, not in the background. Drain bounds measure silence rather than total
-time. Linux-tested only; `lifecycle` is compiled on Unix.
+request, not in the background. Completion delivers the `exit` event, then
+seals the journal, then atomically replaces the state record: a seal or state
+failure can follow a delivered `exit`, and a directory-sync error can be
+returned after complete state is already visible, so neither a delivered
+`exit` nor an error proves which state was published. Adapter hooks, digests,
+filesystem operations and host writes run synchronously; termination requests
+and the deadline are observed at admission checks and poll turns, not
+preemptively. Drain bounds measure silence rather than total time. Linux-tested
+only; `lifecycle` is compiled on Unix.
 
 ## Provider memory harness
 
