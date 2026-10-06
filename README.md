@@ -82,10 +82,11 @@ be met, continue on the previous route. Rollback restores that working route.
 Compatible provider rebuilds/updates must remain usable automatically without
 manual restart, preserving compatible durable custody and replay state. Actor
 identity checks and recovery bounds still protect process custody. Current
-integration uses fixed-v1 validation and capability agreement; general version
-selection and automatic refreshed Runner agreement after replacement remain
-unfinished. Do not advertise a second wire version before host common-version
-selection exists. The shared one-shot launch lifecycle below keeps executable
+Runner integration uses fixed-v1 validation and capability agreement. The
+`negotiation` module implements common-version selection (below); Runner's
+host-side adoption and automatic refreshed agreement after replacement remain
+unfinished. Do not advertise a second contract wire version before host
+common-version selection exists. The shared one-shot launch lifecycle below keeps executable
 and source identity out of request keys; cross-build replay/update
 qualification across a full rebuild matrix remains unfinished.
 
@@ -101,13 +102,50 @@ Provider SDK and Provider Runtime and Memory projects. Live output is deliberate
 active-only and bounded; completed turns remain canonical in normal session
 storage.
 
+### Snapshot alignment, version selection and resident sessions
+
+The v1 snapshot now carries Agent Runner's current host-selected v1 extensions
+(`prompt_acceptance_v1`, `launch_output_v1`, `session_turn_pages_v1` and their
+launch, marker and `session.read_turns` shapes, and the
+`provider_storage_contention`/`provider_unavailable` terminal kinds), imported
+from Runner commit `5d025b82` byte-for-byte, plus one SDK addition: the
+host-selected `capabilities.resident_session_v1`. `UPSTREAM.md` records the
+exact provenance. The DTO projection follows: `DescribeCapabilities` gains four
+optional capability fields, `LaunchParams` gains `prompt_acceptance` and
+`output_delivery`, `TerminalSignalKind` gains two variants, and
+`session.read_turns` uses the bounded page DTOs. These are Rust source-API
+changes (struct literals and exhaustive matches must adjust), so the workspace
+package version is 0.2.0; admitted wire JSON follows the aligned host snapshot.
+
+`negotiation` selects common supported versions without identity equality:
+`select_contract_version` uses the provider's preferred `oulipoly.provider/vN`
+when the host supports it, otherwise the highest common one, and ignores
+versions the host does not know. For host-selected extensions, a host offers
+each supported version with its own `host.env` selector
+(`<PREFIX>_V<n>=1`), a provider advertises `<capability>_v<n>: true` only for
+offered versions it supports, and the host uses the highest offered version the
+provider advertised; no common version is an explicit refusal. Because the v1
+describe schema is closed, a provider never sends a capability its host did not
+offer. Golden cases live in `tests/fixtures/negotiation/` (also exported
+through the `contract-test-fixtures` feature).
+
+The [`resident-session/v1` extension](crates/provider-contract/contract/extensions/resident-session/README.md)
+(`resident_session` module) is selected by
+`host.env.OULIPOLY_HOST_RESIDENT_SESSION_V1=1` and advertised as
+`capabilities.resident_session_v1`. Its `resident.prepare` subcommand admits a
+policy-evaluated launch template and answers the arguments the host appends to
+the same registered provider executable to start a resident ACP v2 endpoint on
+stdio, the ACP subset served, and the operations offered. The endpoint is
+`agent_provider_execution::resident` (below).
+
 The independently versioned
 [`terminal-unavailable/v1` extension](crates/provider-contract/contract/extensions/terminal-unavailable/README.md)
 adds an explicitly selected `provider_unavailable` terminal result for temporary
 model-service unavailability, distinct from account quota and rate limiting.
 The `terminal_unavailable` module exposes its DTO, standalone schema, and
-selection-aware payload admission. The pinned base snapshot and base admission
-APIs remain unchanged. Existing routes can adopt this complete extension without
+selection-aware payload admission. The aligned base snapshot structurally admits
+the `provider_unavailable` kind, as Runner's host schema does; selection, not the
+base schema, gates it. Existing routes can adopt this complete extension without
 importing unrelated base-contract revisions. Runtime admission follows supported
 wire schema/capability agreement as described above.
 
@@ -200,10 +238,53 @@ Claude adapters both run their launches through `lifecycle::run_launch`:
 
 Native argv, authentication, account and config roots, model aliases, tool
 restrictions, native session formats, and native event translation remain in
-adapters. The crate is not a resident runtime: signal handling is per process,
-and a shared multi-session runtime needs session-scoped cancellation and its
-own lifecycle tests. It does not depend on `agent-provider-contract` and does
-not change the pinned v1 snapshot.
+adapters. It does not depend on `agent-provider-contract` (its tests do) and
+does not change the pinned v1 snapshot.
+
+- `lifecycle::run_launch_until` is `run_launch` with one caller-scoped stop
+  flag, observed at the same admission checks and poll turns as the
+  process-scoped termination latch. Before admission it refuses with
+  `LifecycleError::Cancelled`; once the native group runs it terminates that
+  group and reports the new `StopCause::Requested` to `finish`. Setting it never
+  affects another launch. `StopCause::Requested` is a Rust source-API addition:
+  exhaustive matches on `StopCause` must add it; the wire is unchanged.
+- `resident`: the agent side of the ACP v2 draft subset Agent Runner's root
+  supervisor consumes (`schema-v2.0.0-alpha.7`), served by `resident::serve`
+  over one newline-delimited JSON-RPC connection. It serves `initialize`
+  (protocol 2, `session: {}`, the message-key dedup contract and the
+  resident-session contract in `_meta`), `session/new`, `session/resume`,
+  `session/prompt`, `session/cancel`, `session/close` and `session/list`.
+  Every turn is one provider/v1 launch the adapter runs through
+  `run_launch_until` under the session's own launch state root
+  (`ResidentTurns::run_turn`), so custody, the seven-field launch state,
+  replay and reconciliation are the shared lifecycle's. Turns of a session run
+  in arrival order. An input is durably recorded with an ascending `messageId`
+  before its turn may start; the prompt is acknowledged only when the turn
+  emits `oulipoly.submitted_user_turn` (recorded first), followed by
+  `user_message` and `state_update: running`. Each `stdout` data event is one
+  `agent_message` tagged `oulipoly.ai/parentMessageId`; the turn ends with one
+  idle `state_update` tagged `oulipoly.ai/lastUserMessageId`, a stop reason
+  (`end_turn`, `cancelled`, `_oulipoly_native_failed`, `_oulipoly_turn_failed`,
+  `_oulipoly_reconciliation_required`) and `oulipoly.ai/nativeTurn` (launch
+  request id, status, terminal signal, launch-output accounting and custody).
+  A turn that ends, or is refused before it starts, without consumption answers
+  a JSON-RPC error and records the input as not inserted; a failure whose
+  consumption is unknown is never rerun. A resent message key inserts nothing:
+  it answers the original `messageId` once insertion is known and repeats the
+  ended turn's tagged idle (outputs are not re-sent). `session/cancel` stops
+  only that session's running turn (process group terminated and drained) and
+  refuses its queued inputs; `session/close` answers after settlement;
+  connection end or `SIGTERM`/`SIGINT` stops and settles every running turn.
+  `session/resume` (same working directory, one holding process per session
+  through an exclusive lock) settles inputs an earlier process left unfinished
+  by rerunning their exact launch request: a complete journal replays without
+  native effects, an interrupted one has its recorded process group discharged,
+  and the interrupted journal's markers recover native session identity and
+  consumption. Limits: no per-turn deadline or silence kill; only text prompt
+  content; outputs are not replayed to a later connection; session records and
+  turn journals are never pruned; the provider's own process loss leaves
+  descendants outside a PID namespace running until a later resume discharges
+  them; Linux-tested only.
 
 Adapters that compose the individual modules instead of `run_launch` own the
 lifecycle themselves: keep request custody held, check the digest

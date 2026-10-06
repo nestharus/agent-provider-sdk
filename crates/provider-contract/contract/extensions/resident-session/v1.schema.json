@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oulipoly:resident-session:v1",
+  "title": "Oulipoly Resident Session v1 Extension",
+  "description": "Host-selected provider/v1 extension that prepares a resident ACP v2 session endpoint. Selected by host.env.OULIPOLY_HOST_RESIDENT_SESSION_V1=1 in describe and advertised as capabilities.resident_session_v1. The resident.prepare request and response use the base provider/v1 envelopes; this schema admits their params and result and the resident endpoint's oulipoly _meta payloads.",
+  "$defs": {
+    "Protocol": { "const": "oulipoly.resident_session/v1" },
+    "Sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "ResidentLaunchTemplate": {
+      "description": "The policy-evaluated provider/v1 launch inputs every resident turn reuses. Each turn adds its working directory (the session cwd), its prompt and its native session; launch output custody is always requested.",
+      "type": "object",
+      "properties": {
+        "settings_id": { "type": "string", "minLength": 1 },
+        "mode": { "type": "string", "minLength": 1 },
+        "model": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "provider_args": { "type": "array", "items": { "type": "string" } },
+            "inputs": {
+              "type": "object",
+              "properties": {
+                "prompt": { "type": ["string", "null"] },
+                "named": {
+                  "type": "object",
+                  "additionalProperties": { "type": "array", "items": { "type": "string" } }
+                }
+              },
+              "required": ["named"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["name", "provider_args", "inputs"],
+          "additionalProperties": false
+        },
+        "argv": { "type": "array", "items": { "type": "string" } },
+        "env": { "type": "object", "additionalProperties": { "type": "string" } }
+      },
+      "required": ["settings_id", "mode", "model", "argv"],
+      "additionalProperties": false
+    },
+    "ResidentPrepareParams": {
+      "type": "object",
+      "properties": {
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "launch": { "$ref": "#/$defs/ResidentLaunchTemplate" }
+      },
+      "required": ["protocol", "launch"],
+      "additionalProperties": false
+    },
+    "ResidentInvocation": {
+      "description": "Arguments the host appends to the same registered provider executable it invoked for resident.prepare. The provider never names its own executable, so a compatible replacement at that path serves later relaunches.",
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 4096 },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "endpoint": { "const": "stdio" }
+      },
+      "required": ["args", "endpoint"],
+      "additionalProperties": false
+    },
+    "ResidentAcp": {
+      "type": "object",
+      "properties": {
+        "protocol_version": { "const": 2 },
+        "schema": { "const": "schema-v2.0.0-alpha.7" },
+        "dedup_contract": { "const": 1 }
+      },
+      "required": ["protocol_version", "schema", "dedup_contract"],
+      "additionalProperties": false
+    },
+    "ResidentOperation": {
+      "enum": [
+        "initialize",
+        "session/new",
+        "session/resume",
+        "session/prompt",
+        "session/cancel",
+        "session/close",
+        "session/list"
+      ]
+    },
+    "ResidentPrepareResult": {
+      "type": "object",
+      "properties": {
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "invocation": { "$ref": "#/$defs/ResidentInvocation" },
+        "acp": { "$ref": "#/$defs/ResidentAcp" },
+        "config_sha256": { "$ref": "#/$defs/Sha256" },
+        "operations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ResidentOperation" },
+          "uniqueItems": true,
+          "minItems": 1
+        }
+      },
+      "required": ["protocol", "invocation", "acp", "config_sha256", "operations"],
+      "additionalProperties": false
+    },
+    "ResidentSessionMeta": {
+      "description": "Value of _meta[\"oulipoly.ai/residentSession\"] in the endpoint's initialize response.",
+      "type": "object",
+      "properties": {
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "acp_schema": { "const": "schema-v2.0.0-alpha.7" }
+      },
+      "required": ["protocol", "acp_schema"],
+      "additionalProperties": false
+    },
+    "TurnStopReason": {
+      "description": "Stop reasons of an idle state_update tagged with oulipoly.ai/lastUserMessageId.",
+      "enum": [
+        "end_turn",
+        "cancelled",
+        "_oulipoly_native_failed",
+        "_oulipoly_turn_failed",
+        "_oulipoly_reconciliation_required"
+      ]
+    },
+    "NativeTurnMeta": {
+      "description": "Value of _meta[\"oulipoly.ai/nativeTurn\"] on a tagged idle: the native turn's provider/v1 launch outcome. custody: complete (exit delivered and journal sealed), complete_without_exit, not_admitted (stopped before admission), reconciled (an earlier process's interrupted launch was discharged; nothing ran again), incomplete (the lifecycle failed).",
+      "type": "object",
+      "properties": {
+        "request_id": { "type": "string", "minLength": 1 },
+        "custody": {
+          "enum": ["complete", "complete_without_exit", "not_admitted", "reconciled", "incomplete"]
+        },
+        "status": { "type": "object" },
+        "terminal_signal": { "type": "object" },
+        "launch_output": {
+          "type": "object",
+          "properties": {
+            "protocol": { "const": "oulipoly.launch_output/v1" },
+            "stdout": { "$ref": "#/$defs/ChannelSummary" },
+            "stderr": { "$ref": "#/$defs/ChannelSummary" },
+            "data_event_count": { "type": "integer", "minimum": 0 }
+          },
+          "required": ["protocol", "stdout", "stderr", "data_event_count"],
+          "additionalProperties": false
+        },
+        "failure": {
+          "type": "object",
+          "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" }
+          },
+          "required": ["code", "message"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["request_id", "custody"],
+      "additionalProperties": false
+    },
+    "ChannelSummary": {
+      "type": "object",
+      "properties": {
+        "bytes": { "type": "integer", "minimum": 0 },
+        "sha256": { "$ref": "#/$defs/Sha256" }
+      },
+      "required": ["bytes", "sha256"],
+      "additionalProperties": false
+    }
+  }
+}

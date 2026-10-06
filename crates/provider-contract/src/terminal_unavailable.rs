@@ -1,8 +1,10 @@
 //! Opt-in provider-neutral terminal-unavailable/v1 extension.
 //!
-//! This module does not change the pinned provider/v1 schema registry. Consumers
-//! must still admit the enclosing response or event using their selected route
-//! schema; validating this payload alone does not admit an envelope.
+//! The aligned provider/v1 base schema structurally admits the
+//! `provider_unavailable` kind; selection is enforced here, not by the base
+//! registry. Consumers must still admit the enclosing response or event using
+//! their selected route schema; validating this payload alone does not admit
+//! an envelope.
 
 use crate::generated::HostContext;
 use serde::{Deserialize, Serialize};

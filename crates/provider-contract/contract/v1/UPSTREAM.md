@@ -1,12 +1,35 @@
 # Contract snapshot provenance
 
-These schemas were imported as an exact snapshot of `contract/v1` from
+These schemas were first imported as an exact snapshot of `contract/v1` from
 `nestharus/agent-runner` commit
 `afdd74fc4ab658a6be0441c7ca5bfb5cb8bafdbb`.
 
 The same 13 schema files were independently verified byte-for-byte against
 `nestharus/agent-runner-opencode` commit
 `254925f22260afd0b2c71ad2319c088fdf69a9c3` during the import.
+
+## Alignment with the current host snapshot (resident-session release)
+
+Agent Runner later evolved its own copy with host-selected v1 extensions that
+Codex already advertises and Runner's launch dispatch requires: the
+`prompt_acceptance_v1`, `launch_output_v1` and `session_turn_pages_v1`
+describe capabilities and their selectors, the launch `prompt_acceptance` and
+`output_delivery` requests and reserved marker values, bounded
+`oulipoly.session_turn_pages/v1` `session.read_turns` pages, and the
+`provider_storage_contention` and `provider_unavailable` terminal-signal kinds.
+This release imports all 13 schema files from `nestharus/agent-runner` commit
+`5d025b82784556fe47521b1419c8eee574ddf13a` byte-for-byte, then adds exactly
+one SDK change in two files:
+
+- `describe.schema.json`: the optional host-selected
+  `capabilities.resident_session_v1` boolean;
+- `common.schema.json`: the `host.env` description naming its selector
+  `OULIPOLY_HOST_RESIDENT_SESSION_V1=1`.
+
+Every other file is byte-identical to that Runner commit. The added capability
+is omitted unless selected, so an unselecting v1 host never receives it; a host
+must adopt these two files before selecting it. The checked-in DTO projection,
+fixtures and tests were updated in the same release unit.
 
 ## License provenance
 
@@ -48,16 +71,16 @@ separate result or response envelope.
 SHA-256 identities:
 
 ```text
-3ce23f580ef7bf896e2c12f43a91a777945c8f67d9e1981ca728217e9f0b5a10  common.schema.json
-69e413286bc1376b48e79eb63d6da8debed6257a627c7d50152ac931f2b93954  describe.schema.json
+a6760352a585883708d0eb538c1dd2cd7572995b8288c440ba2635fa7f7b2866  common.schema.json
+f23f45f5c0e76395acf00abef738b33042c962491b4ebe86a4828153d51af926  describe.schema.json
 c39d0c97e3f74b102e08bff14bb28baefdfa23f2fef7fa7fb67c308af05b049b  discovery.schema.json
-faf3b06a455e8a00a9f10c36b0ecf3038d6de6627873cf3cba3368a050ff8e9e  launch.schema.json
+b04462a3bd7020d2c3886f554f67cbf0941a638c6a6ce135be3edbb06a9a5840  launch.schema.json
 25144a109c8dd4d56c6268d0e89f562b8dca1b3bb8cc5ce1e0f9ef09ac80433d  migration.schema.json
-292412aed125b9bf9dfaebbd239faef969a47d699ba5a95b91871964a9cb6eb7  policy.schema.json
+6bfd306db0d06c2837513a975046a7b2f908e426c2b50f26a5692883d33cc875  policy.schema.json
 e33411bf286d74c64118b597d7fffc7e7c68d456f25fd48c27a4738224d6ddd4  quota.schema.json
 762d361115fb42ec708fb10fe93834955e94341b3faee7112b3ffaae211eb190  rotation.schema.json
 ea190f0eebf373cac05d84135ced6003a14faeddbd992453314596603def8b67  schema.schema.json
-71385c9ed6f8e935560691fd57e1f072a6f0fe1f3323b125e13515ea8b03b3ac  session.schema.json
+297ecf77f3dcd2a5a2b1f4f71ce61d25520d74a6b4349f544a0ea3a9d867159d  session.schema.json
 f844876032d7ce0f289fec571823026758b1349d8dfe0b7bbcb6e7197a78e9d8  settings.schema.json
 2e515d18166740c807a03f26454ed4e5857f7eea6759aa65a857476aee11c953  setup.schema.json
 8dd39342bd7177cfd92df52046f4912555971418d0a95fa98074db8235196c6c  terminal.schema.json

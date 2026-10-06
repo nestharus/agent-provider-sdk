@@ -13,9 +13,11 @@
 //! Native argv, authentication, account and config roots, model aliases, tool
 //! restrictions, session formats, and native event translation stay in
 //! provider adapters. Logical session identity, admission, ancestry,
-//! scheduling, and host-state authority stay in Agent Runner. This crate is not
-//! a resident runtime: termination handling is process-scoped and the custody
-//! types assume the caller owns one launch at a time.
+//! scheduling, and host-state authority stay in Agent Runner. Termination
+//! handling is process-scoped and the custody types assume the caller owns one
+//! launch at a time; [`lifecycle::run_launch_until`] adds a caller-scoped stop,
+//! and [`resident`] serves resident ACP v2 sessions whose turns each run one
+//! launch through it.
 //!
 //! Callers of the individual modules, rather than [`lifecycle::run_launch`],
 //! enforce lifecycle ordering, hold request custody, and unwind child custody
@@ -36,3 +38,5 @@ pub mod framing;
 #[cfg(unix)]
 pub mod lifecycle;
 pub mod process;
+#[cfg(unix)]
+pub mod resident;

@@ -19,9 +19,11 @@
 //!
 //! Scope and caller assumptions:
 //!
-//! - One launch per provider process. Cancellation is the process-scoped
-//!   `SIGTERM`/`SIGINT` latch in [`crate::cancellation`]; a resident runtime
-//!   serving several sessions needs session-scoped cancellation instead.
+//! - Cancellation is the process-scoped `SIGTERM`/`SIGINT` latch in
+//!   [`crate::cancellation`] and, with [`run_launch_until`], one caller-scoped
+//!   stop flag per launch. [`run_launch`] serves one launch per provider
+//!   process; the resident endpoint ([`crate::resident`]) runs one launch per
+//!   resident turn with its session's stop flag.
 //! - The state root is a trusted, existing, provider-private directory. The
 //!   request key is derived from the provider instance and request ID; the
 //!   digest is whatever the adapter supplies. No executable or source identity
@@ -58,6 +60,7 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::process::{Child, ExitStatus, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -162,6 +165,9 @@ pub enum StopCause {
     Cancelled { signal: i32 },
     /// The host deadline elapsed.
     Deadline,
+    /// The caller's own stop request passed to [`run_launch_until`], for
+    /// example one resident session's cancellation.
+    Requested,
 }
 
 /// Evidence that the native program never started, observed at the actual
@@ -291,7 +297,8 @@ pub enum LifecycleError {
     /// An earlier invocation ended before terminal custody; any recorded
     /// actor has been discharged.
     ReconciliationRequired,
-    /// A termination signal arrived before the native program was admitted.
+    /// A termination signal, or the caller stop of [`run_launch_until`],
+    /// arrived before the native program was admitted.
     Cancelled,
     /// The host deadline elapsed before the native program was admitted.
     DeadlineElapsed,
@@ -380,7 +387,7 @@ impl From<FramingError> for LifecycleError {
 /// Refuses admission after a recorded termination signal or at the deadline.
 pub fn check_admission(deadline_unix_ms: Option<u64>) -> Result<(), LifecycleError> {
     match stop_requested(deadline_unix_ms) {
-        Some(StopCause::Cancelled { .. }) => Err(LifecycleError::Cancelled),
+        Some(StopCause::Cancelled { .. } | StopCause::Requested) => Err(LifecycleError::Cancelled),
         Some(StopCause::Deadline) => Err(LifecycleError::DeadlineElapsed),
         None => Ok(()),
     }
@@ -393,6 +400,19 @@ fn stop_requested(deadline_unix_ms: Option<u64>) -> Option<StopCause> {
     deadline_unix_ms
         .is_some_and(|deadline| now_unix_ms() >= deadline)
         .then_some(StopCause::Deadline)
+}
+
+fn stop_requested_until(deadline_unix_ms: Option<u64>, stop: &AtomicBool) -> Option<StopCause> {
+    stop_requested(deadline_unix_ms)
+        .or_else(|| stop.load(Ordering::SeqCst).then_some(StopCause::Requested))
+}
+
+fn admission(deadline_unix_ms: Option<u64>, stop: &AtomicBool) -> Result<(), LifecycleError> {
+    match stop_requested_until(deadline_unix_ms, stop) {
+        Some(StopCause::Cancelled { .. } | StopCause::Requested) => Err(LifecycleError::Cancelled),
+        Some(StopCause::Deadline) => Err(LifecycleError::DeadlineElapsed),
+        None => Ok(()),
+    }
 }
 
 /// Byte count and SHA-256 of one channel's data events.
@@ -578,6 +598,30 @@ where
     A: LaunchAdapter,
     W: Write,
 {
+    static NEVER: AtomicBool = AtomicBool::new(false);
+    run_launch_until(spec, &NEVER, adapter, writer)
+}
+
+/// Runs one launch like [`run_launch`], and also stops it when `stop` is set.
+///
+/// `stop` is a caller-scoped request, for example one resident session's
+/// cancellation, observed at the same points as the process-scoped
+/// termination latch: before admission it refuses the launch with
+/// [`LifecycleError::Cancelled`]; once the native group runs it terminates
+/// that group and reports [`StopCause::Requested`] to
+/// [`LaunchAdapter::finish`]. Setting it never affects another launch. The
+/// process-scoped latch still applies, so a recorded `SIGTERM`/`SIGINT` stops
+/// every launch of the process.
+pub fn run_launch_until<A, W>(
+    spec: &LaunchSpec<'_>,
+    stop: &AtomicBool,
+    adapter: &mut A,
+    writer: &mut W,
+) -> Result<i32, A::Failure>
+where
+    A: LaunchAdapter,
+    W: Write,
+{
     cancellation::install_termination_handlers();
     let key = custody::request_key(spec.provider_instance_id, spec.request_id);
     let launch_custody =
@@ -602,19 +646,19 @@ where
         }
         return Err(LifecycleError::ReconciliationRequired.into());
     }
-    check_admission(spec.deadline_unix_ms)?;
+    admission(spec.deadline_unix_ms, stop)?;
     let mut state = LaunchState::prepared(digest);
     let native = match adapter.prepare(&launch_custody)? {
         Preparation::Native(native) => native,
         Preparation::Settled { events, terminal } => {
-            if let Err(error) = check_admission(spec.deadline_unix_ms) {
+            if let Err(error) = admission(spec.deadline_unix_ms, stop) {
                 adapter.discard(&launch_custody)?;
                 return Err(error.into());
             }
             launch_custody
                 .write_state(&state)
                 .map_err(LifecycleError::from)?;
-            if let Err(error) = check_admission(spec.deadline_unix_ms) {
+            if let Err(error) = admission(spec.deadline_unix_ms, stop) {
                 std::fs::remove_file(launch_custody.state_path()).map_err(LifecycleError::from)?;
                 adapter.discard(&launch_custody)?;
                 return Err(error.into());
@@ -637,14 +681,14 @@ where
         })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    if let Err(error) = check_admission(spec.deadline_unix_ms) {
+    if let Err(error) = admission(spec.deadline_unix_ms, stop) {
         adapter.discard(&launch_custody)?;
         return Err(error.into());
     }
     launch_custody
         .write_state(&state)
         .map_err(LifecycleError::from)?;
-    if let Err(error) = check_admission(spec.deadline_unix_ms) {
+    if let Err(error) = admission(spec.deadline_unix_ms, stop) {
         std::fs::remove_file(launch_custody.state_path()).map_err(LifecycleError::from)?;
         adapter.discard(&launch_custody)?;
         return Err(error.into());
@@ -693,7 +737,7 @@ where
     let stderr = child.child.stderr.take().expect("piped native stderr");
     spawn_reader(Channel::Stdout, Box::new(stdout), framing, send.clone());
     spawn_reader(Channel::Stderr, Box::new(stderr), framing, send);
-    if let Err(error) = check_admission(spec.deadline_unix_ms) {
+    if let Err(error) = admission(spec.deadline_unix_ms, stop) {
         drop(release);
         child.terminate();
         std::fs::remove_file(launch_custody.journal_path()).map_err(LifecycleError::from)?;
@@ -711,7 +755,7 @@ where
         {
             break Some(start);
         }
-        if stop_requested(spec.deadline_unix_ms).is_some() {
+        if stop_requested_until(spec.deadline_unix_ms, stop).is_some() {
             break None;
         }
     };
@@ -739,7 +783,7 @@ where
     let mut streams_closed_at = None;
     loop {
         if stopped.is_none() {
-            if let Some(cause) = stop_requested(spec.deadline_unix_ms) {
+            if let Some(cause) = stop_requested_until(spec.deadline_unix_ms, stop) {
                 stopped = Some(cause);
                 native_status = child.terminate();
                 exited_at = Some(Instant::now());

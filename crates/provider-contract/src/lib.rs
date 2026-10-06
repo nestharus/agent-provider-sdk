@@ -8,7 +8,9 @@
 
 pub mod generated;
 pub mod launch_stream;
+pub mod negotiation;
 pub mod operations;
+pub mod resident_session;
 pub mod schemas;
 pub mod terminal_unavailable;
 
@@ -28,6 +30,13 @@ pub mod fixtures {
     pub fn contract_v1() -> Value {
         serde_json::from_str(CONTRACT_V1_JSON).expect("embedded contract fixtures are valid JSON")
     }
+
+    /// Golden common-version selection cases.
+    pub const VERSION_SELECTION_JSON: &str =
+        include_str!("../tests/fixtures/negotiation/version_selection.json");
+    /// Valid and invalid resident-session/v1 extension payloads.
+    pub const RESIDENT_SESSION_V1_JSON: &str =
+        include_str!("../tests/fixtures/negotiation/resident_session_v1.json");
 
     pub fn invalid_contract_v1() -> Value {
         serde_json::from_str(INVALID_CONTRACT_V1_JSON)

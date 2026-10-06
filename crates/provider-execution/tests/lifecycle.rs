@@ -266,6 +266,7 @@ impl LaunchAdapter for FixtureAdapter {
             Some(StopCause::Cancelled { signal }) => {
                 (json!({"kind":"cancelled","signal":signal}), 8)
             }
+            Some(StopCause::Requested) => (json!({"kind":"requested"}), 7),
             None => {
                 let code = outcome.status.code().unwrap_or(1);
                 (json!({"kind":"exited","code":code}), code)
