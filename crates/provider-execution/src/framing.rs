@@ -4,6 +4,15 @@
 //! number starting at one, and a timestamp, and is written as one NDJSON line:
 //! first to the custody journal, then to the host. Which native events become
 //! launch events, and which markers a provider emits, are adapter decisions.
+//!
+//! The caller supplies object events and enforces schema, event ordering and
+//! finality. Journal append precedes host delivery, but is not synced per event.
+//! An arbitrary `Write` sink has no delivery bound supplied by this module.
+//! On any error the caller must stop emitting, unwind native-process custody,
+//! and leave incomplete state for reconciliation. Errors are not latched here:
+//! the sequence is already allocated, the journal may have advanced, and the
+//! host may have received only a prefix. Continuing or publishing completion
+//! after an error is unsupported by this composition.
 
 use crate::custody::{CustodyError, Journal, JournalReceipt};
 use crate::encoding::{encode_base64, now_unix_ms};
@@ -71,7 +80,9 @@ impl<'a, W: Write> LaunchEventWriter<'a, W> {
         }
     }
 
-    /// Frames and delivers one event. Delivery is flushed before returning.
+    /// Frames and delivers one object event. Host delivery is flushed before
+    /// successful return. Non-object/non-null JSON values panic when stamped;
+    /// callers must supply objects. This does not validate schema or finality.
     pub fn event(&mut self, mut event: Value) -> Result<(), FramingError> {
         self.seq += 1;
         event["contract"] = json!(self.contract);
@@ -99,12 +110,17 @@ impl<'a, W: Write> LaunchEventWriter<'a, W> {
         self.event(json!({"kind":"heartbeat"}))
     }
 
-    /// Last sequence number written.
+    /// Last sequence number allocated (zero before the first event). Allocation
+    /// precedes journal append and host delivery; this does not certify either
+    /// write succeeded and is not rolled back on error.
     pub fn seq(&self) -> u64 {
         self.seq
     }
 
-    /// Synchronizes the journal and returns its receipt.
+    /// Synchronizes the journal and returns its current receipt. This leaves
+    /// event emission open; the caller must stop emitting before sealing and
+    /// never emit again once it publishes this receipt as complete state.
+    /// Do not seal/publish completion after a framing error.
     pub fn seal(&mut self) -> io::Result<JournalReceipt> {
         self.journal.seal()
     }

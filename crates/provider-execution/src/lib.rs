@@ -14,6 +14,12 @@
 //! scheduling, and host-state authority stay in Agent Runner. This crate is not
 //! a resident runtime: termination handling is process-scoped and the custody
 //! types assume the caller owns one launch at a time.
+//!
+//! The caller enforces lifecycle ordering, validates events/state, holds request
+//! custody, and unwinds child custody on errors. See [`custody`] and [`framing`]
+//! for error/seal obligations. Delivery bounds apply to FIFO/socket progress,
+//! and incarnation checks do not make signalling atomic; see [`delivery`] and
+//! [`process`].
 
 #[cfg(unix)]
 pub mod cancellation;

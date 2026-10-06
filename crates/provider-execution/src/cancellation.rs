@@ -5,6 +5,9 @@
 //! event, and publish durable state. Signal dispositions belong to the whole
 //! process: this suits a provider process that owns one launch. A resident
 //! runtime serving several sessions needs session-scoped cancellation instead.
+//! The latch has no reset. Installation does not check `sigaction` errors or
+//! restore previous dispositions. The caller must observe recorded signals and
+//! perform cleanup; installing these handlers does not discharge custody.
 
 use std::sync::atomic::{AtomicI32, Ordering};
 

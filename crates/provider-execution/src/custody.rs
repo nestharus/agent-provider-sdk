@@ -10,6 +10,18 @@
 //! reconciliation rather than starting another native turn. Which inputs form
 //! the request digest, and how outcomes map to provider failures, remain
 //! provider decisions.
+//!
+//! These primitives do not enforce that lifecycle. The caller owns trusted
+//! root/key/path inputs, phase and digest checks, transition ordering, and a
+//! lock held through execution or replay. The advisory lock coordinates only
+//! cooperating users; journal paths do not establish filesystem immutability
+//! or path confinement. Publish prepared state, spawn behind the effect gate,
+//! capture and publish the running actor, create the journal and finish
+//! admission before releasing the gate. Keep a child cleanup guard throughout.
+//! After successful final-event delivery, sync the journal and publish complete
+//! state with its receipt and cleared actor. On any error, stop, discharge the
+//! child and leave incomplete evidence for reconciliation; do not continue
+//! appending or publish a completion receipt.
 
 use crate::encoding::sha256_hex;
 use fs2::FileExt;
@@ -68,7 +80,8 @@ impl From<io::Error> for CustodyError {
     }
 }
 
-/// Durable launch state record. Field names are the on-disk format.
+/// Durable launch state record. Field names are the on-disk format. Phase and
+/// field combinations are caller-controlled and are not validated by writes.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct LaunchState {
     pub digest: String,
@@ -162,6 +175,8 @@ impl RequestCustody {
     }
 
     /// Atomically replaces the state record and synchronizes its directory.
+    /// Does not validate transitions or field combinations. A directory-sync
+    /// error can occur after replacement; failure does not imply no publication.
     pub fn write_state(&self, state: &LaunchState) -> Result<(), CustodyError> {
         let path = self.state_path();
         let mut temporary = tempfile::NamedTempFile::new_in(&self.root)?;
@@ -178,7 +193,9 @@ impl RequestCustody {
         Journal::create_new(&self.journal_path())
     }
 
-    /// Verifies a complete journal against `state` and copies it to `writer`.
+    /// Verifies the journal receipt and copies it to `writer`. The caller must
+    /// first check complete phase and matching request digest; this method does
+    /// not. Keep custody held and prevent mutation throughout replay.
     pub fn replay<W: Write>(
         &self,
         state: &LaunchState,
@@ -190,6 +207,8 @@ impl RequestCustody {
 
 /// Copies a journal to `writer` only after its length and SHA-256 match the
 /// durable receipt in `state`.
+/// Does not check phase/digest, acquire custody, prevent mutation between
+/// validation and copying, or bound the supplied writer's blocking I/O.
 pub fn replay_journal<W: Write>(
     path: &Path,
     state: &LaunchState,
@@ -241,7 +260,10 @@ impl Journal {
         })
     }
 
-    /// Appends `bytes`. The length is checked before anything is written.
+    /// Appends `bytes`. Length accounting advances before writing and hashing
+    /// follows a successful write. After any error, stop using the journal;
+    /// partial I/O may leave accounting inconsistent with its contents. Do not
+    /// seal it or publish a completion receipt after an append error.
     pub fn append(&mut self, bytes: &[u8]) -> Result<(), CustodyError> {
         self.len = self
             .len
@@ -260,7 +282,9 @@ impl Journal {
         self.len == 0
     }
 
-    /// Synchronizes the journal and returns its receipt.
+    /// Synchronizes the journal and returns its current receipt. Does not close
+    /// or disable append access. Stop appending before sealing and never append
+    /// after publishing the receipt; later writes would invalidate that receipt.
     pub fn seal(&mut self) -> io::Result<JournalReceipt> {
         self.file.sync_all()?;
         Ok(JournalReceipt {

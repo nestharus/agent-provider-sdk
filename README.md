@@ -110,21 +110,29 @@ identity:
 
 - `process`: an effect gate that withholds the native program's `exec` until
   the caller has published the process-group actor, Linux process-group custody
-  with parent-death `SIGKILL`, a boot-scoped start-time actor incarnation, and
-  recovery that never signals a recycled process-group number. The provider
+  with parent-death `SIGKILL` on the leader, a boot-scoped start-time actor
+  incarnation, and recovery that skips a changed live leader. Zero and
+  out-of-range recovery PGIDs fail before probing or signalling a group.
+  Incarnation checks and signals are separate syscalls, so recovery is not
+  atomic protection against recycling. The provider
   chooses its gate argument and descriptor variable and dispatches
   `process::run_effect_gate` from `main` before other argument handling.
-- `delivery`: `BoundedOutput`, a non-blocking writer over a private duplicate of
-  the host output descriptor. A write with no progress for the stall limit
-  (two seconds by default) fails, and failure is sticky. Inherited descriptor
-  flags are never changed. Launch events written to a plain blocking stdout do
-  not carry this guarantee.
+- `delivery`: `BoundedOutput`, a writer over a private duplicate of the host
+  output descriptor. FIFO/socket writes fail after the no-progress stall limit
+  (two seconds by default), and failure is sticky. Each successful partial write
+  starts a new interval; this is not a total delivery deadline. Regular files
+  and other descriptors can block inside a write beyond that limit. Inherited
+  descriptor flags are never changed. Arbitrary `Write` sinks have no delivery
+  bound supplied by framing or replay.
 - `custody`: per-request exclusive locks, durable `prepared`/`running`/`complete`
   launch state, and an append-only journal sealed with its length and SHA-256.
   A complete journal is replayed only after it matches that receipt. The
   provider chooses the request digest inputs and maps outcomes to its failures.
 - `framing`: `oulipoly.provider/v1` launch-event framing (contract, request ID,
-  sequence, timestamp) written to the journal and then delivered.
+  sequence, timestamp) written to the journal and then delivered. Sequence
+  numbers are allocated before writing, including failed attempts; `seq()`
+  does not certify successful journaling or delivery. The caller supplies
+  object events and validates schema, ordering and finality.
 - `cancellation`: process-scoped recording of `SIGTERM`/`SIGINT` so launch
   custody can terminate the native group and still publish its terminal state.
 - `durable_fs` and `encoding`: ordered directory publication with parent
@@ -137,6 +145,26 @@ adapters. The crate is not a resident runtime: signal handling is per process,
 and a shared multi-session runtime needs session-scoped cancellation and its
 own lifecycle tests. It does not depend on `agent-provider-contract` and does
 not change the pinned v1 snapshot.
+
+The adapter owns the lifecycle: keep request custody held, check the digest
+and complete phase before replay, publish prepared state, spawn behind the
+gate, capture and publish the running actor, create the journal and finish
+admission before releasing the gate. Retain a child cleanup guard. After
+successful final-event delivery, sync/seal the journal and publish complete
+state with its receipt and cleared actor. These helpers do not validate state
+transitions, enforce path confinement or prevent external journal mutation;
+locks coordinate cooperating callers only.
+
+On any journal, framing or delivery error, stop emitting and unwind native
+custody, leaving incomplete evidence for reconciliation. Framing errors are
+not latched or rolled back; a journal append error may leave length/hash
+accounting inconsistent, and host delivery may have exposed only a prefix.
+Do not continue or publish completion after an error. `seal(&mut self)` syncs
+and returns the current receipt without closing append access: stop appending
+before sealing and never append after publishing that receipt. Journaling
+before delivery is write ordering, not an fsync before each event. Cancellation
+is a process-global latch without reset; handler installation does not check
+errors or restore previous signal dispositions, and the caller performs cleanup.
 
 ## Provider memory harness
 

@@ -1,8 +1,11 @@
 //! Bounded launch-output delivery to the host.
 //!
 //! No background writer owns a native child or a borrowed output stream. A
-//! write that cannot make progress within the stall limit fails, and a failed
-//! write stays failed, so dispatch cannot append a response to a partial JSON
+//! FIFO or socket write that cannot make progress within the stall limit fails.
+//! Each successful partial write starts a new no-progress interval; this is not
+//! a total delivery deadline. Other descriptors use potentially blocking writes
+//! that the stall limit cannot interrupt. A failed write stays failed, so
+//! dispatch cannot append a response to a partial JSON
 //! event or wait on the same pipe again while unwinding launch custody.
 //!
 //! A provider binary should wrap its stdout with [`BoundedOutput::stdout`]
@@ -17,8 +20,9 @@ use std::time::{Duration, Instant};
 /// Default time a single write may make no progress before delivery fails.
 pub const OUTPUT_STALL_LIMIT: Duration = Duration::from_secs(2);
 
-/// Non-blocking, stall-bounded writer over a private duplicate of a host
-/// output descriptor.
+/// Writer over a private duplicate of a host output descriptor. FIFO and socket
+/// writes have a no-progress bound; regular files and other descriptors may
+/// block in a write syscall beyond the stall limit.
 pub struct BoundedOutput {
     output: File,
     socket: bool,
@@ -36,7 +40,8 @@ impl BoundedOutput {
     /// Wraps a duplicate of `output`. The inherited descriptor's file status
     /// flags are never changed: a FIFO is reopened as an independent
     /// non-blocking open file description, and admission fails if that cannot
-    /// be isolated.
+    /// be isolated. Sockets use non-blocking sends. Other descriptor kinds use
+    /// direct writes and have no syscall-duration bound.
     pub fn duplicate(output: BorrowedFd<'_>, stall_limit: Duration) -> io::Result<Self> {
         let fd = unsafe { libc::fcntl(output.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 3) };
         if fd == -1 {

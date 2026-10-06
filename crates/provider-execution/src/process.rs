@@ -3,14 +3,19 @@
 //! A native command starts behind an effect gate: the provider re-executes its
 //! own binary with a gate argument and an inherited descriptor, and the gate
 //! does not `exec` the native program until the caller has durably published
-//! the process-group actor and released the gate. The native command leads its
-//! own process group, receives `SIGKILL` if the provider dies (Linux), and its
-//! durable actor identity carries a boot-scoped start-time incarnation so
-//! recovery never signals a recycled process-group number.
+//! the process-group actor and released the gate. Publication before release
+//! is the caller's obligation, not enforced by the gate. The native command
+//! leads its own process group; Linux parent-death `SIGKILL` applies to the
+//! leader, not automatically to every descendant. Durable recovery checks a
+//! boot-scoped start-time incarnation and skips a changed live leader. The
+//! observation and signal are separate syscalls, so this is not atomic
+//! protection against process-group recycling.
 //!
 //! The provider binary chooses its gate argument and descriptor variable and
 //! dispatches the gate before any other argument handling, through
 //! [`run_effect_gate`].
+//! The caller retains a cleanup guard, terminates/reaps the child on errors,
+//! and owns durable recovery/reconciliation if its in-process owner is lost.
 
 use std::ffi::OsStr;
 #[cfg(target_os = "linux")]
@@ -240,17 +245,28 @@ pub fn actor_is_terminal_or_recycled(actor: &ProcessGroupActor) -> io::Result<bo
 /// missing leader while the group remains live is the original orphaned group:
 /// a new group with that number cannot exist without a leader whose PID equals
 /// the PGID.
+///
+/// Zero or out-of-range PGIDs return `InvalidInput` before any group probe or
+/// signal. Valid actors must come from the caller's own durable custody. The
+/// incarnation check and subsequent signal are not atomic; recovery does not
+/// eliminate the inherited check-then-signal race.
 #[cfg(unix)]
 pub fn terminate_process_group_actor(actor: &ProcessGroupActor) -> io::Result<()> {
-    if !process_group_actor_requires_signal(actor)? {
-        return Ok(());
-    }
     let pgid = i32::try_from(actor.process_group_id).map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
             "native process-group identity exceeds the platform PID range",
         )
     })?;
+    if pgid == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "native process-group identity must be positive",
+        ));
+    }
+    if !process_group_actor_requires_signal(actor)? {
+        return Ok(());
+    }
     send_process_group_signal_checked(-pgid, SIGTERM)?;
     std::thread::sleep(TERMINATION_GRACE);
     if !process_group_actor_requires_signal(actor)? {

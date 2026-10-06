@@ -17,3 +17,7 @@ tempfile.workspace = true
 [[test]]
 name = "effect_gate"
 harness = false
+
+[[test]]
+name = "process_actor"
+harness = false
