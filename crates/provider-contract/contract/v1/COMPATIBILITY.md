@@ -7,21 +7,23 @@ The SDK pins that boundary; it does not add a second host/provider protocol.
 
 - The 13 schemas, checked-in Rust DTO projection, subcommand matrix, and conformance fixtures
   form one release unit.
-- Hosts and providers consume a released SDK version or an exact pinned snapshot
-  whose digest matches that release. They do not maintain private schema edits.
-- Host and provider peers on one route must use the same complete v1 snapshot.
-  Sharing the `oulipoly.provider/v1` discriminator does not establish snapshot
-  compatibility, and mixed-snapshot v1 operation is unsupported.
-- Before rollout, the route owner must be able to keep the previous matched
-  host/provider pair available through replacement verification and the rollback
-  decision. If it cannot meet that prerequisite, the upgrade does not start and
-  the route continues on its previous pair. Rollback restores both sides to the
-  retained previous matched snapshot; it does not mix releases.
-- Exact snapshot coherence intentionally takes priority over independently
-  upgrading peers that merely share the v1 discriminator, including revisions
-  that are otherwise wire-compatible. The route owner is responsible for
-  coordinating host and provider deployment and retaining that previous complete
-  pair. Mixed revisions are not an availability fallback.
+- Hosts and providers consume a released SDK version or a complete versioned
+  schema snapshot whose local digests match its recorded provenance. They do not
+  maintain private schema edits. These identities establish local provenance,
+  not peer equality.
+- Runtime compatibility follows declared supported wire schemas and capability
+  agreement, including their established semantics. Peers may upgrade
+  independently when that agreement remains compatible; source revisions,
+  snapshot digests, SDK package versions, native CLI banners, and executable
+  bytes must not be equality requirements for otherwise compatible updates.
+  Sharing the `oulipoly.provider/v1` discriminator alone does not establish
+  compatibility. Unsupported schema or capability meaning must fail closed.
+- Before rollout, the route owner must retain the previous working route through
+  replacement verification and the rollback decision. If it cannot meet that
+  prerequisite, the upgrade does not start and the route continues on its
+  previous configuration. Rollback restores that working route, including the
+  compatible readers and durable state it requires; it does not require equal
+  peer source revisions or snapshot digests.
 - The crate and complete schema snapshot may be used and redistributed under
   the MIT License. Redistributors preserve the packaged upstream MIT notice.
   `UPSTREAM.md` records the imported schemas' source grant.
@@ -29,7 +31,8 @@ The SDK pins that boundary; it does not add a second host/provider protocol.
   established required behavior. Schema-specific unknown-field rules remain
   authoritative.
 - A breaking wire change requires a new contract version and explicit
-  negotiation. It must not be published as a silent v1 replacement.
+  negotiation. It must not be published as a silent v1 replacement. Version
+  wire-format changes and retain conformance fixtures for older supported hosts.
 - The `oulipoly.provider/v1` compatibility promise covers wire behavior, not the
   crate's Rust source API as a separate surface. Rust API compatibility follows
   the crate package version and Cargo's semantic-versioning rules. A
@@ -56,3 +59,12 @@ The SDK pins that boundary; it does not add a second host/provider protocol.
 
 The SDK contract contains no model-label migration. Existing model and provider
 labels remain outside this wire contract and are not renamed or overridden.
+
+Schema and capability declarations and structural validation do not prove
+behavioral semantic preservation. Review and behavioral verification remain
+necessary; different snapshots are not automatically compatible. This policy
+neither aligns the differing SDK/Codex schemas nor qualifies cross-build replay
+or updates. Current integration uses fixed-v1 validation and capability
+agreement; general supported-version selection and automatic refreshed Runner
+agreement after replacement remain unfinished. Do not advertise a second wire
+version before the host can select a common supported version.
