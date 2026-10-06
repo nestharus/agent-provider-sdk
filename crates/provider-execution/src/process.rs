@@ -246,24 +246,16 @@ pub fn actor_is_terminal_or_recycled(actor: &ProcessGroupActor) -> io::Result<bo
 /// a new group with that number cannot exist without a leader whose PID equals
 /// the PGID.
 ///
-/// Zero or out-of-range PGIDs return `InvalidInput` before any group probe or
-/// signal. Valid actors must come from the caller's own durable custody. The
+/// Only PGIDs `2..=i32::MAX` are accepted. Zero and one would produce reserved
+/// kill selectors `0` (caller's group) and `-1` (all permitted processes);
+/// both and out-of-range PGIDs return `InvalidInput` before any group probe or
+/// signal. This guard applies to recovery, not the other public process helpers.
+/// Valid actors must come from the caller's own durable custody. The
 /// incarnation check and subsequent signal are not atomic; recovery does not
 /// eliminate the inherited check-then-signal race.
 #[cfg(unix)]
 pub fn terminate_process_group_actor(actor: &ProcessGroupActor) -> io::Result<()> {
-    let pgid = i32::try_from(actor.process_group_id).map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "native process-group identity exceeds the platform PID range",
-        )
-    })?;
-    if pgid == 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "native process-group identity must be positive",
-        ));
-    }
+    let pgid = recovery_process_group_id(actor.process_group_id)?;
     if !process_group_actor_requires_signal(actor)? {
         return Ok(());
     }
@@ -286,6 +278,23 @@ pub fn terminate_process_group_actor(actor: &ProcessGroupActor) -> io::Result<()
         ));
     }
     Ok(())
+}
+
+#[cfg(unix)]
+fn recovery_process_group_id(process_group_id: u32) -> io::Result<i32> {
+    let pgid = i32::try_from(process_group_id).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "native process-group identity exceeds the platform PID range",
+        )
+    })?;
+    if pgid <= 1 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "native process-group identity must exceed one to avoid reserved kill selectors",
+        ));
+    }
+    Ok(pgid)
 }
 
 #[cfg(unix)]
@@ -556,6 +565,20 @@ unsafe extern "C" {
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recovery_process_group_id_rejects_reserved_selectors_and_overflow() {
+        // Pure validation only: never pass PGID one to a probe or recovery call.
+        for id in [0, 1, i32::MAX as u32 + 1, u32::MAX] {
+            let error = recovery_process_group_id(id).expect_err("invalid recovery identity");
+            assert_eq!(error.kind(), io::ErrorKind::InvalidInput, "PGID {id}");
+        }
+        for id in [2, i32::MAX as u32] {
+            let pgid = recovery_process_group_id(id).expect("ordinary group selector");
+            assert_eq!(pgid as u32, id);
+            assert!(-pgid < -1);
+        }
+    }
 
     #[test]
     fn durable_actor_recovery_terminates_a_group_after_its_leader_exits() {

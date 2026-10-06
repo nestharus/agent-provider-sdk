@@ -1,5 +1,6 @@
 //! Run potentially hazardous recovery inputs only in a disposable session.
 //! Even without input validation, kill(0, ...) cannot reach the test runner.
+//! PGID one is forbidden here: setsid does not contain kill(-1, ...).
 #[cfg(target_os = "linux")]
 fn main() {
     use agent_provider_execution::process::{terminate_process_group_actor, ProcessGroupActor};
@@ -28,8 +29,13 @@ fn main() {
                 0
             );
         }
+        let process_group_id = args[2].parse().unwrap();
+        assert!(
+            [0, i32::MAX as u32 + 1, u32::MAX].contains(&process_group_id),
+            "only zero and overflow inputs are safe in this fixture"
+        );
         let actor = ProcessGroupActor {
-            process_group_id: args[2].parse().unwrap(),
+            process_group_id,
             incarnation: "invalid-durable-record".into(),
         };
         let error = terminate_process_group_actor(&actor).expect_err("invalid actor must fail");

@@ -111,8 +111,11 @@ identity:
 - `process`: an effect gate that withholds the native program's `exec` until
   the caller has published the process-group actor, Linux process-group custody
   with parent-death `SIGKILL` on the leader, a boot-scoped start-time actor
-  incarnation, and recovery that skips a changed live leader. Zero and
-  out-of-range recovery PGIDs fail before probing or signalling a group.
+  incarnation, and recovery that skips a changed live leader. Recovery accepts
+  only PGIDs `2..=i32::MAX`: zero and one produce reserved kill selectors `0`
+  (caller's group) and `-1` (all permitted processes), and are rejected with
+  `InvalidInput`, as are values above `i32::MAX`, before any probe or signal.
+  This validation boundary applies to recovery, not the other process helpers.
   Incarnation checks and signals are separate syscalls, so recovery is not
   atomic protection against recycling. The provider
   chooses its gate argument and descriptor variable and dispatches
