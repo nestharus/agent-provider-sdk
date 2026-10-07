@@ -365,7 +365,7 @@ does not change the pinned v1 snapshot.
   (`end_turn`, `cancelled`, `_oulipoly_native_failed`, `_oulipoly_turn_failed`,
   `_oulipoly_reconciliation_required`) and `oulipoly.ai/nativeTurn` (launch
   request id, status, terminal signal, launch-output accounting and custody).
-  A turn that ends, or is refused before it starts, without consumption answers
+  A completed turn, or a justified refusal before start, without consumption answers
   a JSON-RPC error and records the input as not inserted; a failure whose
   consumption is unknown is never rerun. A resent message key inserts nothing:
   it answers the original `messageId` once insertion is known and repeats the
@@ -373,9 +373,13 @@ does not change the pinned v1 snapshot.
   only; a duplicate ACK does not accept the current prompt bytes. `session/cancel` stops
   only that session's running turn (process group terminated and drained) and
   refuses its queued inputs; `session/close` answers success after settling
-  reconstructed inputs and releasing the lock, with its worker joined and
-  worker resources dropped. Connection end or `SIGTERM`/`SIGINT` stops and
-  settles currently running turns; the unreadable-input limit below still applies.
+  session custody and releasing the lock, with its worker joined and
+  worker resources dropped. Settlement also scans this session's recorded launches
+  independently of input reconstruction, using their custody locks and recorded
+  actor incarnations. Connection end or `SIGTERM`/`SIGINT` joins all session workers;
+  unresolved custody returns an I/O error from `serve`, including after a refused
+  close released session ownership. A later successful settlement of that session
+  in the same connection can discharge this close failure.
   `session/resume` (same working directory, one holding process per session
   through an exclusive lock) reconstructs readable inputs an earlier process
   left unfinished and settles them through the lifecycle without readmission:
@@ -387,8 +391,8 @@ does not change the pinned v1 snapshot.
   dispatch from the preceding settled session state, so queued turns continue
   it. Native-session publication errors surface as failures; incomplete custody
   stays unsettled, without an ended record or idle completion. Immediate
-  reconciliation may discharge it; unresolved custody in reconstructed inputs
-  refuses subsequent native dispatch and successful close/resume. Config content
+  reconciliation may discharge it; unresolved custody, including unreadable launch
+  evidence, refuses subsequent native dispatch and successful close/resume. Config content
   hashes protect private prepare records, not compatibility or recovery admission.
   Limits: no per-turn deadline or silence kill; only text prompt
   content. ACP records are bounded at 32 MiB (including newline); an over-bound
@@ -403,17 +407,34 @@ does not change the pinned v1 snapshot.
   clears the native ID and blocks new input. Resume settles readable inputs even
   alongside an unreadable input, then reports `-32012`; known duplicate ACK/end
   remains available, while new input is blocked. No corrupt evidence is deleted.
-  An unreadable input is not reconstructed; its own actor may remain live even
-  after `session/close` returns `{}` and provider EOF exits 0. Neither establishes
-  that every recorded actor settled or clears earlier `-32012` uncertainty.
-  Correcting this SDK custody gap is owed before native recovery qualification.
+  Missing, busy, unreadable, invalid or over-bound launch evidence never turns
+  a recorded insertion into non-insertion. Known duplicate ACKs remain usable;
+  inputs without a justified ACK retain explicit uncertainty, with no new-key
+  advice. Unusable recovery evidence leaves input bytes intact and the input
+  eligible for settlement after restoration. Non-start requires a recorded
+  undispatched input with no consumption evidence and neither launch nor journal
+  evidence under its request lock, or a fresh locally refused attempt under
+  that same absence check. A completed non-consuming turn remains non-inserted.
+  An unreadable input is not reconstructed, but readable launch evidence still
+  discharges its recorded interrupted actor without prompt reconstruction, replay,
+  inferred insertion or rewriting custody bytes. Unreadable/invalid launch evidence,
+  a missing launch record alongside its journal, or failed actor discharge remains
+  explicitly unsettled: close returns `-32012` and connection end returns an I/O
+  error. Physical settlement and later successful close/EOF do not clear earlier
+  `-32012` insertion/continuity uncertainty or justify deleting the retained root.
+  These controls use fake actors and synthetic corruption; they establish neither
+  natural fault frequency nor real-native recovery qualification.
   These errors do not prove non-insertion. These are per-record bounds, not a
   session-count or retention policy. Outputs are not replayed to a later
   connection; session records and
   turn journals are never pruned; the provider's own process loss leaves
-  descendants outside a PID namespace running; later resume reconciles only
-  reconstructed inputs, subject to the unreadable-evidence limits above;
+  descendants outside a PID namespace running; later resume reconciles recorded
+  session actors, subject to the unreadable-launch-evidence limits above;
   Linux-tested only.
+
+A missing launch state alongside a retained journal is unusable custody evidence;
+the shared lifecycle refuses before adapter preparation or a fresh native launch,
+preserving that journal for restoration and reconciliation.
 
 Adapters that compose the individual modules instead of `run_launch` own the
 lifecycle themselves: keep request custody held, check the digest

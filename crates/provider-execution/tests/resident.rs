@@ -61,7 +61,7 @@ fn main() {
         Some("--resident") => std::process::exit(serve(&args[2])),
         _ => {}
     }
-    let tests: [(&str, fn()); 25] = [
+    let tests: [(&str, fn()); 28] = [
         (
             "initialize_serves_only_v2_with_dedup_and_resident_contract",
             initialize_serves_only_v2_with_dedup_and_resident_contract,
@@ -130,6 +130,18 @@ fn main() {
         (
             "refused_preparation_is_not_an_insertion",
             refused_preparation_is_not_an_insertion,
+        ),
+        (
+            "insertion_missing_launch_preserves_ack_and_restored_reconciliation",
+            insertion_missing_launch_preserves_ack_and_restored_reconciliation,
+        ),
+        (
+            "custody_corrupt_own_input_settles_without_reconstruction",
+            custody_corrupt_own_input_settles_without_reconstruction,
+        ),
+        (
+            "custody_unreadable_launch_refuses_close_and_eof",
+            custody_unreadable_launch_refuses_close_and_eof,
         ),
         (
             "bounds_admission_refuses_before_effects",
@@ -373,7 +385,7 @@ impl Fixture {
     fn new() -> Self {
         let dir = tempfile::Builder::new()
             .prefix("u108-resident-bounds-fixture-")
-            .tempdir_in("/tmp")
+            .tempdir_in(std::env::temp_dir())
             .unwrap();
         std::fs::create_dir(dir.path().join("work")).unwrap();
         Self { dir }
@@ -1004,6 +1016,8 @@ fn refused_preparation_is_not_an_insertion() {
     assert_eq!(native["failure"]["code"], json!("fixture_refused"));
     extension::validate("NativeTurnMeta", native).unwrap();
     assert_eq!(fixture.runs(), 0);
+    let duplicate = client.prompt(&session, "ignored", Some("r"));
+    assert_eq!(client.response(duplicate)["error"]["code"], json!(-32010));
     let next = client.prompt(&session, "reply fine", None);
     let next = message_id(&client.response(next));
     assert_eq!(client.idle_for(&next)["stopReason"], json!("end_turn"));
@@ -1162,7 +1176,10 @@ fn native_session_publish_failure_keeps_custody_unsettled() {
     assert!(input.get("ended_unix_ms").is_none());
     std::fs::remove_dir(dir.join("session.json")).unwrap();
     std::fs::rename(dir.join("session-held.json"), dir.join("session.json")).unwrap();
-    assert!(client.end().success());
+    assert!(
+        !client.end().success(),
+        "a refused close still owes custody evidence"
+    );
     let mut reopened = fixture.start();
     reopened.call("initialize", json!({"protocolVersion":2}));
     assert_eq!(
@@ -1540,4 +1557,177 @@ fn bounds_missing_marker_differs_from_unreadable_journal() {
         assert_eq!(fixture.runs(), 1, "unproved insertion is never rerun");
         assert!(second.end().success());
     }
+}
+
+// These controls reuse the actual interrupted actor fixture; disk corruption
+// is issued after the provider's real SIGKILL wait. A subreaper retains exact
+// descendant waits as well as physical non-running observations.
+struct CustodyActors {
+    actor: std::mem::ManuallyDrop<LostActor>,
+    identities: [(i32, String); 2],
+    reaper: Option<std::thread::JoinHandle<()>>,
+}
+fn custody_actor_identity(pid: i32) -> String {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap();
+    let ticks = stat
+        .rsplit_once(") ")
+        .unwrap()
+        .1
+        .split_whitespace()
+        .nth(19)
+        .unwrap();
+    format!(
+        "{}:{ticks}",
+        std::fs::read_to_string("/proc/sys/kernel/random/boot_id")
+            .unwrap()
+            .trim()
+    )
+}
+impl CustodyActors {
+    fn capture(fixture: &Fixture) -> (String, String, Self) {
+        assert_eq!(unsafe { libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 1) }, 0);
+        let (session, id, actors) = bounds_lost(fixture);
+        let identities =
+            [actors.leader, actors.descendant].map(|pid| (pid, custody_actor_identity(pid)));
+        let pids = [actors.leader, actors.descendant];
+        let reaper = std::thread::spawn(move || {
+            for pid in pids {
+                let mut status = 0;
+                loop {
+                    let result = unsafe { libc::waitpid(pid, &mut status, 0) };
+                    if result == -1
+                        && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted
+                    {
+                        continue;
+                    }
+                    assert_eq!(result, pid);
+                    break;
+                }
+                println!("owned actor wait pid={pid} status={status}");
+            }
+        });
+        (
+            session,
+            id,
+            Self {
+                actor: std::mem::ManuallyDrop::new(actors),
+                identities,
+                reaper: Some(reaper),
+            },
+        )
+    }
+}
+impl Drop for CustodyActors {
+    fn drop(&mut self) {
+        for (pid, identity) in &self.identities {
+            if alive(*pid) {
+                assert_eq!(&custody_actor_identity(*pid), identity);
+                unsafe {
+                    libc::kill(*pid, libc::SIGKILL);
+                }
+            }
+        }
+        self.reaper.take().unwrap().join().unwrap();
+        assert_eq!(unsafe { libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 0) }, 0);
+    }
+}
+
+fn custody_corrupt_own_input_settles_without_reconstruction() {
+    let fixture = Fixture::new();
+    let (session, id, actor) = CustodyActors::capture(&fixture);
+    let input = bounds_input(&fixture, &session, &id);
+    let journal = bounds_journal(&fixture, &session, &id);
+    let launch = journal.with_extension("json");
+    let launch_bytes = std::fs::read(&launch).unwrap();
+    let journal_bytes = std::fs::read(&journal).unwrap();
+    std::fs::write(&input, b"{corrupt own input").unwrap();
+    let (mut client, response) = bounds_resume(&fixture, &session);
+    assert_eq!(response["error"]["code"], json!(-32012));
+    assert_dies(actor.actor.descendant);
+    let duplicate = client.prompt(&session, "ignored", Some("bounds-lost"));
+    assert_eq!(client.response(duplicate)["error"]["code"], json!(-32012));
+    assert_eq!(
+        client.call("session/close", json!({"sessionId":session}))["result"],
+        json!({})
+    );
+    assert!(client.end().success());
+    assert_eq!(std::fs::read(&input).unwrap(), b"{corrupt own input");
+    assert_eq!(std::fs::read(&launch).unwrap(), launch_bytes);
+    assert_eq!(std::fs::read(&journal).unwrap(), journal_bytes);
+    assert_eq!(fixture.runs(), 1);
+    let (next, response) = bounds_resume(&fixture, &session);
+    assert_eq!(response["error"]["code"], json!(-32012));
+    assert!(next.end().success());
+}
+
+fn custody_unreadable_launch_refuses_close_and_eof() {
+    let fixture = Fixture::new();
+    let (session, id, actor) = CustodyActors::capture(&fixture);
+    let input = bounds_input(&fixture, &session, &id);
+    let journal = bounds_journal(&fixture, &session, &id);
+    let launch = journal.with_extension("json");
+    std::fs::write(&input, b"{corrupt own input").unwrap();
+    std::fs::write(&launch, b"{unreadable launch").unwrap();
+    let (mut client, response) = bounds_resume(&fixture, &session);
+    assert_eq!(response["error"]["code"], json!(-32012));
+    assert!(alive(actor.actor.descendant));
+    assert_eq!(
+        client.call("session/close", json!({"sessionId":session}))["error"]["code"],
+        json!(-32012)
+    );
+    assert!(
+        !client.end().success(),
+        "refused close must survive as EOF failure"
+    );
+    let (next, response) = bounds_resume(&fixture, &session);
+    assert_eq!(response["error"]["code"], json!(-32012));
+    assert!(
+        !next.end().success(),
+        "open-session EOF must expose unreadable custody"
+    );
+    assert!(alive(actor.actor.descendant));
+    assert_eq!(std::fs::read(&input).unwrap(), b"{corrupt own input");
+    assert_eq!(std::fs::read(&launch).unwrap(), b"{unreadable launch");
+    assert_eq!(fixture.runs(), 1);
+}
+
+fn insertion_missing_launch_preserves_ack_and_restored_reconciliation() {
+    let fixture = Fixture::new();
+    let (session, id, actor) = CustodyActors::capture(&fixture);
+    let input = bounds_input(&fixture, &session, &id);
+    let journal = bounds_journal(&fixture, &session, &id);
+    let launch = journal.with_extension("json");
+    let input_bytes = std::fs::read(&input).unwrap();
+    let launch_bytes = std::fs::read(&launch).unwrap();
+    let journal_bytes = std::fs::read(&journal).unwrap();
+    std::fs::remove_file(&launch).unwrap();
+    let (mut client, response) = bounds_resume(&fixture, &session);
+    assert_eq!(response["error"]["code"], json!(-32012));
+    assert!(alive(actor.actor.descendant));
+    let duplicate = client.prompt(&session, "ignored", Some("bounds-lost"));
+    assert_eq!(message_id(&client.response(duplicate)), id);
+    assert_eq!(std::fs::read(&input).unwrap(), input_bytes);
+    assert_eq!(
+        client.call("session/close", json!({"sessionId":session}))["error"]["code"],
+        json!(-32012)
+    );
+    assert!(!client.end().success());
+    std::fs::write(&launch, &launch_bytes).unwrap();
+    let (mut client, response) = bounds_resume(&fixture, &session);
+    assert_eq!(response["result"], json!({}));
+    assert_dies(actor.actor.descendant);
+    let duplicate = client.prompt(&session, "ignored", Some("bounds-lost"));
+    assert_eq!(message_id(&client.response(duplicate)), id);
+    assert_eq!(
+        client.idle_for(&id)["_meta"]["oulipoly.ai/nativeTurn"]["custody"],
+        json!("reconciled")
+    );
+    assert_eq!(
+        client.call("session/close", json!({"sessionId":session}))["result"],
+        json!({})
+    );
+    assert!(client.end().success());
+    assert_eq!(std::fs::read(&launch).unwrap(), launch_bytes);
+    assert_eq!(std::fs::read(&journal).unwrap(), journal_bytes);
+    assert_eq!(fixture.runs(), 1);
 }

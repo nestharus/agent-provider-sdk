@@ -163,11 +163,21 @@ impl RequestCustody {
         self.sibling("jsonl")
     }
 
-    /// Reads the prior state record, if one was published.
+    /// Reads the prior state record. Only absence of both state and journal
+    /// returns `None`; an orphan journal cannot authorize a fresh launch.
     pub fn load_state(&self) -> Result<Option<LaunchState>, CustodyError> {
         let path = self.state_path();
-        if !path.is_file() {
-            return Ok(None);
+        match std::fs::symlink_metadata(&path) {
+            Ok(_) if path.is_file() => {}
+            Ok(_) => return Err(CustodyError::InvalidState),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return match std::fs::symlink_metadata(self.journal_path()) {
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+                    Err(error) => Err(error.into()),
+                    Ok(_) => Err(CustodyError::InvalidState),
+                };
+            }
+            Err(error) => return Err(error.into()),
         }
         let bytes = crate::durable_fs::read_file_bounded(&path, LAUNCH_STATE_MAX_BYTES)?;
         serde_json::from_slice(&bytes)
@@ -404,6 +414,23 @@ mod tests {
             custody.load_state(),
             Err(CustodyError::InvalidState)
         ));
+    }
+
+    #[test]
+    fn missing_state_with_journal_is_invalid_rather_than_absent() {
+        let root = tempfile::tempdir().unwrap();
+        let custody = RequestCustody::acquire(root.path(), "key").unwrap();
+        let bytes = b"retained insertion evidence\n";
+        std::fs::write(custody.journal_path(), bytes).unwrap();
+        assert!(matches!(
+            custody.load_state(),
+            Err(CustodyError::InvalidState)
+        ));
+        assert_eq!(std::fs::read(custody.journal_path()).unwrap(), bytes);
+        assert!(!custody.state_path().exists());
+        std::fs::create_dir(custody.state_path()).unwrap();
+        assert!(custody.load_state().is_err());
+        assert_eq!(std::fs::read(custody.journal_path()).unwrap(), bytes);
     }
 
     #[test]
