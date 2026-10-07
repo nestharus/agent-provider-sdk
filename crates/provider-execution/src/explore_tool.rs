@@ -277,8 +277,11 @@ fn launch_text(launch: &Value) -> Result<String, &'static str> {
             "\nLaunch: no child process was started ({reason}); setup effects: {}.",
             launch["setup_effects"].as_str().unwrap_or("not reported")
         )),
-        (Some("launch-failed"), _) => Ok(format!(
+        (Some("launch-failed"), Some(false)) => Ok(format!(
             "\nLaunch: a child work process was created, but its launch failed ({reason}). This is not a positive no-start: setup effects are possible."
+        )),
+        (Some("launch-failed"), None) => Ok(format!(
+            "\nLaunch failed ({reason}); process creation was not reported, so launch status is unknown to this tool. Setup effects are possible."
         )),
         (Some("launch-unknown"), _) => Ok(format!(
             "\nLaunch outcome unknown ({reason}): the child may have started; it stays counted against this root's children at once."
@@ -397,6 +400,10 @@ fn result(route: &str, value: &Value, stages: &[Value], stderr: &str) -> Answer 
             .map(|reason| format!("; stopped by the root ({reason})"))
             .unwrap_or_default()
     );
+    let turn_end = value["turn_end"]["stop_reason"]
+        .as_str()
+        .map(|reason| format!("\nTurn end (final result): {reason}."))
+        .unwrap_or_default();
     let body = match answered {
         Some(text) => format!(
             "\nAnswer (the child's last reply before its turn ended; not verified):\n{}",
@@ -406,7 +413,7 @@ fn result(route: &str, value: &Value, stages: &[Value], stderr: &str) -> Answer 
     };
     answer(
         format!(
-            "{head}{body}{facts}\nThe outcome is about the answer's content only: it does not prove the child or its Bash ended or drained, or that anything was done with it. This admission used one of this root's child starts (and a prepared route's slot) whatever its outcome; nothing is retried.{}",
+            "{head}{turn_end}{body}{facts}\nThe outcome is about the answer's content only: it does not prove the child or its Bash ended or drained, or that anything was done with it. This admission used one of this root's child starts (and a prepared route's slot) whatever its outcome; nothing is retried.{}",
             lifecycle(stages)
         ),
         outcome != "answered",

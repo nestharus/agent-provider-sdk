@@ -226,6 +226,7 @@ fn an_offer_adds_a_non_command_tool_and_asks_only_offered_routes() {
     let shown = text(&reply);
     for part in [
         "Explorer child-3 (route luna): answered.",
+        "Turn end (final result): end_turn.",
         "src/lib.rs wires it",
         "not verified",
         "End: signal:9, observed by work-pid1-wait; namespace drained.",
@@ -417,6 +418,74 @@ fn launch_end_and_stop_facts_are_rendered_as_the_owner_reported_them() {
         "{}",
         answer.text
     );
+}
+
+#[test]
+fn missing_process_creation_fact_stays_unknown_after_admission() {
+    // Source-shaped Inbox failure: no launch boolean and no worker/end.
+    let mut failed = answered();
+    failed["outcome"] = json!("launch-failed");
+    failed["answer"] = Value::Null;
+    failed["turn_end"] = Value::Null;
+    failed["launch"] =
+        json!({"event":"launch-failed","reason":"inbox: Too many open files (os error 24)"});
+    failed["end"] = Value::Null;
+    failed["lifecycle"]["end"] = json!("no-process");
+    for null_fact in [false, true] {
+        if null_fact {
+            failed["launch"]["not_started"] = Value::Null;
+        }
+        let answer = render(Some(0), &failed, &[accepted()]);
+        assert!(answer.error);
+        for part in [
+            "inbox: Too many open files",
+            "process creation was not reported",
+            "launch status is unknown",
+            "Setup effects are possible",
+            "No answer was received",
+            "End: none reported",
+            "end no process",
+            "budget: still charged (release pending)",
+            "This admission used one",
+            "nothing is retried",
+        ] {
+            assert!(answer.text.contains(part), "{part}: {}", answer.text);
+        }
+        assert!(!answer.text.contains("a child work process was created"));
+        assert!(!answer.text.contains("no child process was started"));
+    }
+}
+
+#[test]
+fn final_turn_end_reason_survives_without_its_relayed_stage() {
+    let mut partial = answered();
+    partial["outcome"] = json!("no-answer");
+    partial["turn_end"]["stop_reason"] = json!("max_tokens");
+    for with_text in [true, false] {
+        if !with_text {
+            partial["answer"] = Value::Null;
+        }
+        // Empty stderr and an accepted-only prefix both lack turn-end.
+        for stages in [vec![], vec![accepted()]] {
+            let answer = render(Some(0), &partial, &stages);
+            assert!(answer.error);
+            for part in [
+                "no-answer",
+                "Turn end (final result): max_tokens.",
+                "End: signal:9",
+                "budget: still charged (release pending)",
+                "nothing is retried",
+            ] {
+                assert!(answer.text.contains(part), "{part}: {}", answer.text);
+            }
+            if with_text {
+                assert!(answer.text.contains("not verified"));
+                assert!(answer.text.contains("src/lib.rs wires it"));
+            } else {
+                assert!(answer.text.contains("No answer was received"));
+            }
+        }
+    }
 }
 
 #[test]

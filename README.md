@@ -173,7 +173,9 @@ The [`exploration/v1` extension](crates/provider-contract/contract/extensions/ex
 - **Serving.** The provider serves the offer with the same `tool_bridge`. The
   added `explore` tool runs no command. The host's owner admits or refuses
   each child, and the bridge renders its outcome with the launch, end, stop
-  and lifecycle qualifiers. Route labels carry no provider, model or account
+  and lifecycle qualifiers. An absent process-creation fact stays unknown;
+  the final turn-end reason is shown independently of bounded stage stderr.
+  Route labels carry no provider, model or account
   meaning here, and a child is never offered exploration.
 
 The independently versioned

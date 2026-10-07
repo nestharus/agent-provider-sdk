@@ -127,9 +127,14 @@ requester established:
   `route-not-allowed`, `depth`, `parent-not-current` and closing. Nothing was
   admitted.
 - **Result** (exit 0): the outcome; the answer, marked unverified;
-  `stopped`; the launch facts; the end; and the lifecycle qualifiers.
-  - Launch facts: a positive no-start; work created but launch failed, which
-    is not a no-start and may have setup effects; or launch unknown.
+  the final `turn_end.stop_reason`; `stopped`; the launch facts; the end;
+  and the lifecycle qualifiers. The final turn-end reason remains visible
+  even when the bounded stderr relay does not retain its earlier stage.
+  - Launch facts: explicit `not_started:true` is a positive no-start;
+    explicit `false` means work created but launch failed, which is not a
+    no-start and may have setup effects. An absent process-creation fact
+    leaves launch status unknown to the tool, with setup effects possible.
+    A reported unknown launch also remains unknown.
   - The end: the waiter's status, or unknown.
   - Lifecycle: end observed, unknown or no process; open Bash runs; budget.
   - `answered` is the only non-error outcome, and it concerns the answer's
