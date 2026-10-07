@@ -1,22 +1,27 @@
 //! Durable provider-owned directory publication and bounded file reads.
 //!
 //! Directory creation publishes each missing link in order and synchronizes it
-//! and its parent, so a retry after a failed parent sync republishes the whole
-//! visible lineage. Existing directories synchronize only a bounded suffix of
-//! their ancestry.
+//! and its containing parent. Existing targets synchronize themselves only;
+//! their creators own publication of pre-existing ancestor links. A failure may
+//! leave visible directories. Before relying on a retry, the creator must repair
+//! the failed publication (including its containing-parent sync); existence is
+//! not evidence of durability, and a retry does not republish existing ancestry.
 
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{Error, ErrorKind, Read};
 use std::path::{Path, PathBuf};
 
-/// Number of existing ancestors synchronized after a directory is published.
-pub const MAX_PROVIDER_DIRECTORY_SYNC_LEVELS: usize = 8;
-
+/// Creates missing directories and synchronizes each new directory and the
+/// parent containing its link before proceeding. An existing target is synced
+/// without syncing its ancestors. See the module's creator/recovery obligations.
 pub fn create_directories(path: &Path) -> std::io::Result<()> {
     create_directory_chain(path, false)
 }
 
+/// Like [`create_directories`], setting newly created directories and the target
+/// to mode 0700 on Unix before synchronizing them. Existing ancestors keep their
+/// permissions and remain their creator's publication responsibility.
 pub fn create_private_directories(path: &Path) -> std::io::Result<()> {
     create_directory_chain(path, true)
 }
@@ -160,6 +165,12 @@ where
             Err(error) => return Err(error),
         }
     }
+    if missing.is_empty() {
+        if private {
+            set_private_directory_permissions(path)?;
+        }
+        return sync(path);
+    }
     for directory in missing.into_iter().rev() {
         match fs::create_dir(&directory) {
             Ok(()) => {}
@@ -178,10 +189,7 @@ where
                 .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "directory has no parent"))?,
         )?;
     }
-    if private {
-        set_private_directory_permissions(path)?;
-    }
-    sync_directory_publication_suffix(path, sync)
+    Ok(())
 }
 
 fn prepare_best_effort_private_directory_with_sync<F>(
@@ -207,30 +215,55 @@ where
     }
 }
 
-fn sync_directory_publication_suffix<F>(path: &Path, mut sync: F) -> std::io::Result<()>
-where
-    F: FnMut(&Path) -> std::io::Result<()>,
-{
-    for directory in path
-        .ancestors()
-        .filter(|path| !path.as_os_str().is_empty())
-        .take(MAX_PROVIDER_DIRECTORY_SYNC_LEVELS)
-    {
-        let metadata = fs::metadata(directory)?;
-        if !metadata.is_dir() {
-            return Err(Error::new(
-                ErrorKind::NotADirectory,
-                "directory lineage entry is not a directory",
-            ));
-        }
-        sync(directory)?;
-    }
-    Ok(())
+#[cfg(unix)]
+/// Syncs this directory, reporting the operation and path on failure. The error
+/// keeps its kind; the underlying I/O error (including errno) is in its source.
+pub fn sync_directory(path: &Path) -> std::io::Result<()> {
+    let directory = fs::File::open(path)
+        .map_err(|error| directory_operation_error("open directory for sync", path, error))?;
+    directory
+        .sync_all()
+        .map_err(|error| directory_operation_error("sync directory", path, error))
 }
 
 #[cfg(unix)]
-pub fn sync_directory(path: &Path) -> std::io::Result<()> {
-    fs::File::open(path)?.sync_all()
+#[derive(Debug)]
+struct DirectoryOperationError {
+    operation: &'static str,
+    path: PathBuf,
+    cause: Error,
+}
+
+#[cfg(unix)]
+impl std::fmt::Display for DirectoryOperationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "{} '{}': {}",
+            self.operation,
+            self.path.display(),
+            self.cause
+        )
+    }
+}
+
+#[cfg(unix)]
+impl std::error::Error for DirectoryOperationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.cause)
+    }
+}
+
+#[cfg(unix)]
+fn directory_operation_error(operation: &'static str, path: &Path, cause: Error) -> Error {
+    Error::new(
+        cause.kind(),
+        DirectoryOperationError {
+            operation,
+            path: path.to_path_buf(),
+            cause,
+        },
+    )
 }
 
 #[cfg(not(unix))]
@@ -254,7 +287,120 @@ mod tests {
     use super::*;
 
     #[test]
-    fn retry_resynchronizes_a_visible_directory_after_parent_sync_failure() {
+    fn new_links_sync_their_objects_and_containing_parents_only() {
+        let temporary = tempfile::tempdir().unwrap();
+        let first = temporary.path().join("first");
+        let target = first.join("target");
+        let mut syncs = Vec::new();
+        create_directory_chain_with_sync(&target, true, |directory| {
+            syncs.push(directory.to_path_buf());
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(
+            syncs,
+            vec![first.clone(), temporary.path().to_path_buf(), target, first]
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    struct RestoreReadPermission(PathBuf);
+
+    #[cfg(target_os = "linux")]
+    impl Drop for RestoreReadPermission {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&self.0, fs::Permissions::from_mode(0o700)).unwrap();
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn deny_directory_read(path: &Path) -> RestoreReadPermission {
+        use std::os::unix::fs::PermissionsExt;
+        assert_ne!(
+            unsafe { libc::geteuid() },
+            0,
+            "DAC control requires nonroot"
+        );
+        fs::set_permissions(path, fs::Permissions::from_mode(0o300)).unwrap();
+        assert_eq!(
+            fs::File::open(path).unwrap_err().kind(),
+            ErrorKind::PermissionDenied
+        );
+        RestoreReadPermission(path.to_path_buf())
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn unrelated_search_only_ancestor_allows_new_and_existing_targets() {
+        use std::os::unix::fs::PermissionsExt;
+        let temporary = tempfile::tempdir().unwrap();
+        let ancestor = temporary.path().join("administrative");
+        let root = ancestor.join("provider");
+        fs::create_dir_all(&root).unwrap();
+        let _restore = deny_directory_read(&ancestor);
+        for (name, prepare) in [
+            (
+                "public",
+                create_directories as fn(&Path) -> std::io::Result<()>,
+            ),
+            ("private", create_private_directories),
+            ("evidence", prepare_best_effort_private_directory),
+        ] {
+            let target = root.join(name);
+            prepare(&target).unwrap();
+            prepare(&target).unwrap();
+            assert!(target.is_dir());
+        }
+        assert_eq!(
+            fs::metadata(&ancestor).unwrap().permissions().mode() & 0o777,
+            0o300
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn unreadable_required_parent_fails_after_link_and_needs_explicit_repair() {
+        let temporary = tempfile::tempdir().unwrap();
+        let parent = temporary.path().join("parent");
+        fs::create_dir(&parent).unwrap();
+        let restore = deny_directory_read(&parent);
+        let first = parent.join("first");
+        let target = first.join("target");
+        let error = create_private_directories(&target).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+        assert!(first.is_dir());
+        assert!(!target.exists());
+        assert!(error.to_string().contains("open directory for sync"));
+        assert!(error.to_string().contains(&parent.display().to_string()));
+        let detail = error
+            .get_ref()
+            .unwrap()
+            .downcast_ref::<DirectoryOperationError>()
+            .unwrap();
+        assert_eq!(detail.cause.raw_os_error(), Some(libc::EACCES));
+        // Seeing the partial link cannot certify its earlier publication.
+        // Its creator repairs the failed containing-parent sync explicitly.
+        drop(restore);
+        sync_directory(&parent).unwrap();
+        create_private_directories(&target).unwrap();
+        assert!(target.is_dir());
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn unreadable_existing_target_still_fails_its_own_sync() {
+        let temporary = tempfile::tempdir().unwrap();
+        let target = temporary.path().join("target");
+        fs::create_dir(&target).unwrap();
+        let _restore = deny_directory_read(&target);
+        let error = create_directories(&target).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+        assert!(error.to_string().contains(&target.display().to_string()));
+    }
+
+    #[test]
+    fn parent_sync_failure_stops_creation_and_requires_creator_repair_before_retry() {
         let temporary = tempfile::tempdir().expect("create durable directory test root");
         let first_directory = temporary.path().join("first");
         let target = first_directory.join("target");
@@ -266,29 +412,32 @@ mod tests {
             }
             Ok(())
         });
-        assert!(first.is_err());
+        assert_eq!(
+            first.unwrap_err().to_string(),
+            "injected parent sync failure"
+        );
         assert!(first_directory.is_dir());
         assert!(!target.exists());
 
+        // Repair the failed publication explicitly; a retry cannot distinguish
+        // this partial link from an ancestor published by a different creator.
+        sync_directory(temporary.path()).expect("repair the failed containing-parent sync");
         let mut retry_syncs = Vec::new();
         create_directory_chain_with_sync(&target, false, |directory| {
             retry_syncs.push(directory.to_path_buf());
             Ok(())
         })
-        .expect("retry should republish the complete visible lineage");
+        .expect("retry after repairing prior publication");
 
         assert!(target.is_dir());
-        assert!(retry_syncs.iter().any(|path| path == &first_directory));
-        assert!(retry_syncs.iter().any(|path| path == temporary.path()));
+        assert_eq!(retry_syncs, vec![target, first_directory]);
     }
 
     #[test]
-    fn existing_material_directory_sync_is_bounded_to_the_publication_suffix() {
+    fn existing_material_directory_syncs_only_itself_and_propagates_failure() {
         let temporary = tempfile::tempdir().expect("create material directory test root");
-        let target = (0..64).fold(temporary.path().to_path_buf(), |path, index| {
-            path.join(format!("depth-{index}"))
-        });
-        fs::create_dir_all(&target).expect("create deep existing material lineage");
+        let target = temporary.path().join("existing");
+        fs::create_dir(&target).expect("create existing material directory");
 
         let mut syncs = Vec::new();
         create_directory_chain_with_sync(&target, true, |directory| {
@@ -297,14 +446,12 @@ mod tests {
         })
         .expect("prepare existing material directory");
 
-        assert_eq!(syncs.len(), MAX_PROVIDER_DIRECTORY_SYNC_LEVELS);
-        assert_eq!(syncs.first(), Some(&target));
-        assert_eq!(
-            syncs.last().map(PathBuf::as_path),
-            target
-                .ancestors()
-                .nth(MAX_PROVIDER_DIRECTORY_SYNC_LEVELS - 1)
-        );
+        assert_eq!(syncs, vec![target.clone()]);
+        let error = create_directory_chain_with_sync(&target, false, |_| {
+            Err(Error::from_raw_os_error(libc::EIO))
+        })
+        .unwrap_err();
+        assert_eq!(error.raw_os_error(), Some(libc::EIO));
     }
 
     #[test]
