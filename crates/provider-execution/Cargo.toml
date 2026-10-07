@@ -7,15 +7,13 @@ license = "MIT"
 description = "Provider-neutral native execution, custody, delivery, and durable-state helpers for provider adapters"
 
 [dependencies]
+agent-provider-contract = { path = "../provider-contract", version = "0.2.0" }
 fs2.workspace = true
 libc.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
-
-[dev-dependencies]
-agent-provider-contract = { path = "../provider-contract" }
 
 [[test]]
 name = "effect_gate"
@@ -31,4 +29,8 @@ harness = false
 
 [[test]]
 name = "resident"
+harness = false
+
+[[test]]
+name = "proc_view"
 harness = false

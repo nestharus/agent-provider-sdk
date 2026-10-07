@@ -17,7 +17,8 @@
 //! handling is process-scoped and the custody types assume the caller owns one
 //! launch at a time; [`lifecycle::run_launch_until`] adds a caller-scoped stop,
 //! and [`resident`] serves resident ACP v2 sessions whose turns each run one
-//! launch through it.
+//! launch through it. [`tool_bridge`] is the mediated `bash` tool a provider
+//! registers natively under `oulipoly.tool_mediation/v1`.
 //!
 //! Callers of the individual modules, rather than [`lifecycle::run_launch`],
 //! enforce lifecycle ordering, hold request custody, and unwind child custody
@@ -40,3 +41,5 @@ pub mod lifecycle;
 pub mod process;
 #[cfg(unix)]
 pub mod resident;
+#[cfg(unix)]
+pub mod tool_bridge;

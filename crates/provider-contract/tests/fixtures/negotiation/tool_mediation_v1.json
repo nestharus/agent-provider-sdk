@@ -1,0 +1,28 @@
+{
+  "valid": {
+    "ToolMediation": [
+      {"protocol": "oulipoly.tool_mediation/v1", "bash": {"allow": ["git status", "cargo test --locked"]}, "requester": "/opt/agent-bash/agent-bash", "ingress_env": "OULIPOLY_ROOT_BASH_V1"},
+      {"protocol": "oulipoly.tool_mediation/v1", "bash": {"authority": "trusted-task"}, "requester": "/opt/agent-bash/agent-bash", "ingress_env": "OULIPOLY_ROOT_BASH_V1"}
+    ],
+    "EffectiveMediation": [
+      {"protocol": "oulipoly.tool_mediation/v1", "bash": {"authority": "trusted-task"}, "tool": "mcp__oulipoly__bash", "native_tools": ["mcp__oulipoly__bash", "Read", "Write", "Edit"], "ingress_env": "OULIPOLY_ROOT_BASH_V1"}
+    ]
+  },
+  "invalid": {
+    "ToolMediation": [
+      {"protocol": "oulipoly.tool_mediation/v2", "bash": {"authority": "trusted-task"}, "requester": "/a", "ingress_env": "X"},
+      {"protocol": "oulipoly.tool_mediation/v1", "bash": {"allow": []}, "requester": "/a", "ingress_env": "X"},
+      {"protocol": "oulipoly.tool_mediation/v1", "bash": {"allow": ["  "]}, "requester": "/a", "ingress_env": "X"},
+      {"protocol": "oulipoly.tool_mediation/v1", "bash": {"allow": ["true"], "authority": "trusted-task"}, "requester": "/a", "ingress_env": "X"},
+      {"protocol": "oulipoly.tool_mediation/v1", "bash": {"authority": "anything"}, "requester": "/a", "ingress_env": "X"},
+      {"protocol": "oulipoly.tool_mediation/v1", "bash": {}, "requester": "/a", "ingress_env": "X"},
+      {"protocol": "oulipoly.tool_mediation/v1", "bash": {"allow": ["true"]}, "requester": "agent-bash", "ingress_env": "X"},
+      {"protocol": "oulipoly.tool_mediation/v1", "bash": {"allow": ["true"]}, "requester": "/a", "ingress_env": "BAD=NAME"},
+      {"protocol": "oulipoly.tool_mediation/v1", "bash": {"allow": ["true"]}, "requester": "/a"},
+      {"protocol": "oulipoly.tool_mediation/v1", "bash": {"allow": ["true"]}, "requester": "/a", "ingress_env": "X", "tools": ["Read"]}
+    ],
+    "EffectiveMediation": [
+      {"protocol": "oulipoly.tool_mediation/v1", "bash": {"authority": "trusted-task"}, "native_tools": [], "ingress_env": "X"}
+    ]
+  }
+}

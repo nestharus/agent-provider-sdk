@@ -526,6 +526,7 @@ fn set_current_process_group() -> io::Result<()> {
 /// Boot-scoped start-time identity of a process.
 #[cfg(target_os = "linux")]
 pub fn process_group_incarnation(process_id: u32) -> io::Result<String> {
+    require_matching_proc_view()?;
     let stat = fs::read_to_string(format!("/proc/{process_id}/stat"))?;
     let command_end = stat.rfind(')').ok_or_else(|| {
         io::Error::new(
@@ -553,6 +554,35 @@ pub fn process_group_incarnation(process_id: u32) -> io::Result<String> {
         ));
     }
     Ok(format!("linux:{boot_id}:{start_ticks}"))
+}
+
+/// `/proc/self/status` lists NSpid from the proc mount's PID namespace down
+/// to ours. A matching view has exactly our one PID. Checking in this process
+/// avoids attributing a helper's NSpid to us. Do this before numeric lookups;
+/// refusal is not ENOENT (which recovery interprets as a missing leader).
+#[cfg(target_os = "linux")]
+fn require_matching_proc_view() -> io::Result<()> {
+    let invalid = || {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "proc view does not identify the caller's PID namespace",
+        )
+    };
+    let own_pid = std::process::id();
+    let self_pid = fs::read_link("/proc/self").map_err(|_| invalid())?;
+    let status = fs::read_to_string("/proc/self/status").map_err(|_| invalid())?;
+    let mut pids = status
+        .lines()
+        .find_map(|line| line.strip_prefix("NSpid:"))
+        .ok_or_else(invalid)?
+        .split_whitespace();
+    if self_pid.to_str().and_then(|pid| pid.parse::<u32>().ok()) != Some(own_pid)
+        || pids.next().and_then(|pid| pid.parse::<u32>().ok()) != Some(own_pid)
+        || pids.next().is_some()
+    {
+        return Err(invalid());
+    }
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]

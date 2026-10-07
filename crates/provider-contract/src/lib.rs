@@ -13,6 +13,7 @@ pub mod operations;
 pub mod resident_session;
 pub mod schemas;
 pub mod terminal_unavailable;
+pub mod tool_mediation;
 
 #[cfg(feature = "contract-test-fixtures")]
 pub mod fixtures {
@@ -37,6 +38,9 @@ pub mod fixtures {
     /// Valid and invalid resident-session/v1 extension payloads.
     pub const RESIDENT_SESSION_V1_JSON: &str =
         include_str!("../tests/fixtures/negotiation/resident_session_v1.json");
+    /// Valid and invalid tool-mediation/v1 extension payloads.
+    pub const TOOL_MEDIATION_V1_JSON: &str =
+        include_str!("../tests/fixtures/negotiation/tool_mediation_v1.json");
 
     pub fn invalid_contract_v1() -> Value {
         serde_json::from_str(INVALID_CONTRACT_V1_JSON)

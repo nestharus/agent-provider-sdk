@@ -146,6 +146,18 @@ the same registered provider executable to start a resident ACP v2 endpoint on
 stdio, the ACP subset served, and the operations offered. The endpoint is
 `agent_provider_execution::resident` (below).
 
+The [`tool-mediation/v1` extension](crates/provider-contract/contract/extensions/tool-mediation/README.md)
+(`tool_mediation` module) is selected by
+`host.env.OULIPOLY_HOST_TOOL_MEDIATION_V1=1` and advertised as
+`capabilities.tool_mediation_v1`. The host supplies its Bash policy
+(`bash_allow` as `{"allow": [...]}` or `{"authority": "trusted-task"}`), its
+Bash requester and the name of its Bash ingress variable as one JSON object in
+the launch environment variable `OULIPOLY_TOOL_MEDIATION_V1`, so it reaches
+launches and resident templates through `policy.evaluate` `launch.env` without
+a new prepare field. A provider honours it with
+`agent_provider_execution::tool_bridge` as its native agent's only command
+tool, or refuses; it never ignores it.
+
 The independently versioned
 [`terminal-unavailable/v1` extension](crates/provider-contract/contract/extensions/terminal-unavailable/README.md)
 adds an explicitly selected `provider_unavailable` terminal result for temporary
@@ -260,6 +272,17 @@ does not change the pinned v1 snapshot.
   request_id)`: discharges an already-recorded incomplete actor under its
   custody lock, preserving original digest/evidence, without replay or admission.
   Resident recovery invokes this before adapter policy validation.
+- `tool_bridge`: the mediated `bash` tool of `tool-mediation/v1`, a stdio MCP
+  server with one tool that a provider registers natively and serves as its own
+  executable's `tool.bridge` subcommand (`tool_bridge::main`). Under an allow
+  list a command not named exactly is refused and no requester starts; without
+  the ingress variable no requester starts. Otherwise the call runs only
+  `requester run --delivery sync|async -- bash -lc COMMAND` (or the retained
+  output reads `native-output` / `native-accept`) and renders what the
+  requester's root v1 result established; a missing or malformed result is
+  "may have run; do not replay". The server and requesters stay in the native
+  process group, so turn cancellation ends them; `notifications/cancelled`
+  ends one call's requester without an answer.
 - `resident`: the agent side of the ACP v2 draft subset Agent Runner's root
   supervisor consumes (`schema-v2.0.0-alpha.7`), served by `resident::serve`
   over one newline-delimited JSON-RPC connection. It serves `initialize`
@@ -399,3 +422,13 @@ and MCP children.
 ├── trunk/       # clean main integration checkout
 └── worktrees/   # isolated ticket branches
 ```
+
+The mediated bridge serializes requester spawn with cancellation/connection
+closure, collects each direct requester exit, and bounds stopped collection and
+post-exit pipe drain to two seconds (unconfirmed exit is an explicit bridge
+error). Requester termination does not revoke independently accepted owner work.
+Malformed waited/output/acceptance facts are unresolved; retained continuation
+uses the bytes actually displayed, including UTF-8 and hex display limits.
+Linux durable actor capture/recovery refuses a proc view whose own `NSpid` and
+`/proc/self` do not identify the caller's PID namespace. Hosts must supply a
+matching proc mount; the SDK does not translate namespace-local PIDs.
