@@ -50,6 +50,12 @@ and every resident turn.
   native tool offered). What `trusted-task` adds besides the mediated tool is
   the provider's documented meaning. Refuse a template whose own native tool,
   permission, settings or MCP options would conflict.
+- A launch that also carries an admitted
+  [`oulipoly.exploration/v1`](../exploration/README.md) offer adds that
+  extension's non-command `explore` tool from the same bridge. It runs no
+  command, so the mediated tool remains the only command tool; its native name
+  is listed in `native_tools`. Without that offer the bridge serves `bash`
+  alone.
 - Refuse a turn whose serving process lacks `ingress_env` before any native
   effect, so no requester can fall back to another route.
 - Serve the tool with `agent_provider_execution::tool_bridge` or an equivalent

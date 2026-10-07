@@ -6,6 +6,7 @@
 //! Raw Serde deserialization is a representation operation, not wire admission;
 //! use the operation-bound `decode_*` and `encode_*` APIs at wire boundaries.
 
+pub mod exploration;
 pub mod generated;
 pub mod launch_stream;
 pub mod negotiation;
@@ -41,6 +42,9 @@ pub mod fixtures {
     /// Valid and invalid tool-mediation/v1 extension payloads.
     pub const TOOL_MEDIATION_V1_JSON: &str =
         include_str!("../tests/fixtures/negotiation/tool_mediation_v1.json");
+    /// Valid and invalid exploration/v1 extension payloads.
+    pub const EXPLORATION_V1_JSON: &str =
+        include_str!("../tests/fixtures/negotiation/exploration_v1.json");
 
     pub fn invalid_contract_v1() -> Value {
         serde_json::from_str(INVALID_CONTRACT_V1_JSON)

@@ -1,5 +1,7 @@
 //! The mediated `bash` tool: a stdio MCP server that a provider registers as
-//! its native agent's only command tool under `oulipoly.tool_mediation/v1`.
+//! its native agent's only command tool under `oulipoly.tool_mediation/v1`,
+//! and, when the launch also carries an `oulipoly.exploration/v1` offer, the
+//! non-command [`explore_tool`](crate::explore_tool) beside it.
 //!
 //! A provider adapter starts it as its own executable's [`SUBCOMMAND`] (for
 //! example from a native CLI's MCP configuration) with the launch's
@@ -21,6 +23,13 @@
 //!   host-retained output of an earlier run (`requester native-output` /
 //!   `native-accept`); they run no command and are not policy decisions.
 //!
+//! Without an exploration offer ([`exploration::ENV`] unset) `tools/list`
+//! is `bash` alone and any other tool name is unknown, exactly as before.
+//! With one, `explore` asks the host's child requester for one child on an
+//! offered route and renders the owner's result
+//! ([`crate::explore_tool::render_child`]); it shares this server's
+//! requester custody, cancellation and connection closure.
+//!
 //! The answer renders only what the requester's one JSON result object
 //! established (`agent-bash-root-v1` surfaces): the owner's refusal, a
 //! positive no-start, a waited end with its output facts, or an unknown
@@ -36,6 +45,8 @@
 //! offers no other tool.
 
 use crate::encoding::decode_base64;
+use crate::explore_tool;
+use agent_provider_contract::exploration::{self, Exploration};
 use agent_provider_contract::tool_mediation::{self, Decision, ToolMediation};
 use serde_json::{json, Map, Value};
 use std::collections::{HashMap, HashSet};
@@ -56,6 +67,10 @@ const OUTPUT_SURFACE: &str = "agent-bash-root-v1-output";
 const RESULT_LIMIT: usize = 64 * 1024 * 1024;
 /// Output bytes shown inline; the rest stays with the owner's retention.
 const SHOWN_BYTES: usize = 16 * 1024;
+/// Bash requester stderr kept for diagnostics.
+const BASH_STDERR: usize = 64 * 1024;
+/// Child requester stderr kept: diagnostics and relayed owner stages.
+const CHILD_STDERR: usize = 1024 * 1024;
 const MAX_LINE: u64 = 16 * 1024 * 1024;
 
 /// One tool call's outcome: its text and whether it is an error.
@@ -227,9 +242,26 @@ impl Requesters {
     }
 }
 
-/// Serves one MCP connection. `lookup` reads this process's environment.
+/// Serves one MCP connection with the mediated `bash` tool alone. `lookup`
+/// reads this process's environment.
 pub fn serve<R, W>(
     policy: ToolMediation,
+    lookup: impl Fn(&str) -> Option<String> + Send + Sync + 'static,
+    input: R,
+    output: W,
+) -> io::Result<()>
+where
+    R: BufRead,
+    W: Write + Send + 'static,
+{
+    serve_offered(policy, None, lookup, input, output)
+}
+
+/// Serves one MCP connection: the mediated `bash` tool and, when `offer` is
+/// present, the `explore` tool beside it.
+pub fn serve_offered<R, W>(
+    policy: ToolMediation,
+    offer: Option<Exploration>,
     lookup: impl Fn(&str) -> Option<String> + Send + Sync + 'static,
     input: R,
     output: W,
@@ -247,6 +279,7 @@ where
         }
     };
     let policy = Arc::new(policy);
+    let offer = Arc::new(offer);
     let lookup = Arc::new(lookup);
     let running: Running = Arc::default();
     let mut calls = Vec::new();
@@ -289,9 +322,15 @@ where
                     "serverInfo":{"name":"oulipoly-tool-bridge","version":env!("CARGO_PKG_VERSION")}})));
             }
             "ping" => send(reply(json!({}))),
-            "tools/list" => send(reply(json!({"tools":[tool_definition(&policy)]}))),
+            "tools/list" => {
+                let mut tools = vec![tool_definition(&policy)];
+                tools.extend(offer.as_ref().as_ref().map(explore_tool::tool_definition));
+                send(reply(json!({ "tools": tools })))
+            }
             "tools/call" => {
-                if message["params"]["name"] != json!(TOOL) {
+                let name = &message["params"]["name"];
+                let explore = *name == json!(explore_tool::TOOL) && offer.is_some();
+                if *name != json!(TOOL) && !explore {
                     send(
                         json!({"jsonrpc":"2.0","id":id,"error":{"code":-32602,"message":"Unknown tool"}}),
                     );
@@ -299,14 +338,20 @@ where
                 }
                 let key = id.to_string();
                 let arguments = message["params"]["arguments"].clone();
-                let (policy, lookup, running, send) = (
+                let (policy, offer, lookup, running, send) = (
                     Arc::clone(&policy),
+                    Arc::clone(&offer),
                     Arc::clone(&lookup),
                     Arc::clone(&running),
                     send.clone(),
                 );
                 calls.push(thread::spawn(move || {
-                    let answer = call(&policy, &*lookup, &arguments, &key, &running)?;
+                    let answer = match offer.as_ref() {
+                        Some(offer) if explore => {
+                            call_explore(offer, &*lookup, &arguments, &key, &running)?
+                        }
+                        _ => call(&policy, &*lookup, &arguments, &key, &running)?,
+                    };
                     if running.lock().expect("requesters").stopped(&key) {
                         return Ok(());
                     }
@@ -399,29 +444,22 @@ fn call(
             (None, OUTPUT_SURFACE)
         }
     };
-    command
-        .env(&policy.ingress_env, ingress)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    // Cancellation/EOF and spawn+registration are one transition. A worker
-    // cannot publish a new child after shutdown's scan has finished.
-    let mut custody = running.lock().expect("requesters");
-    if custody.stopped(key) {
-        return Ok(answer(
-            "Requester cancelled before start. Nothing was run.",
-            true,
-        ));
-    }
-    if custody.running.contains_key(key) {
-        return Ok(answer(
-            "Duplicate active request id; no new requester started.",
-            true,
-        ));
-    }
-    let mut child = match command.spawn() {
-        Ok(child) => child,
-        Err(error) => {
+    command.env(&policy.ingress_env, ingress);
+    let (code, bytes, stderr) = match requester(command, key, running, BASH_STDERR)? {
+        Requester::Collected(code, bytes, stderr) => (code, bytes, stderr),
+        Requester::Cancelled => {
+            return Ok(answer(
+                "Requester cancelled before start. Nothing was run.",
+                true,
+            ))
+        }
+        Requester::Duplicate => {
+            return Ok(answer(
+                "Duplicate active request id; no new requester started.",
+                true,
+            ))
+        }
+        Requester::NotStarted(error) => {
             return Ok(answer(
                 format!(
                     "Bash requester not started ({error}{}); nothing was run.",
@@ -437,11 +475,102 @@ fn call(
             ))
         }
     };
+    Ok(match delivery {
+        Some(delivery) => render_run(code, &bytes, &stderr, delivery),
+        None => render_output(code, &bytes, surface),
+    })
+}
+
+/// One `explore` call: offered route, ingress, child requester, rendering.
+fn call_explore(
+    offer: &Exploration,
+    lookup: &dyn Fn(&str) -> Option<String>,
+    arguments: &Value,
+    key: &str,
+    running: &Running,
+) -> io::Result<Answer> {
+    let (route, question) = match explore_tool::parse_call(offer, arguments) {
+        Ok(call) => call,
+        Err(reason) => {
+            return Ok(answer(
+                format!(
+                    "Invalid explore call ({reason}). Nothing was asked and no child was admitted."
+                ),
+                true,
+            ))
+        }
+    };
+    let ingress = match offer.ingress(lookup) {
+        Ok(ingress) => ingress,
+        Err(error) => {
+            return Ok(answer(
+                format!("Root owner ingress unavailable: {error}. No requester was started and nothing was asked."),
+                true,
+            ))
+        }
+    };
+    let mut command = Command::new(&offer.requester);
+    command
+        .arg(&route)
+        .arg(&question)
+        .env(&offer.ingress_env, ingress);
+    Ok(match requester(command, key, running, CHILD_STDERR)? {
+        Requester::Collected(code, bytes, stderr) => {
+            explore_tool::render_child(&route, code, &bytes, &stderr)
+        }
+        Requester::Cancelled => answer(
+            "Requester cancelled before start. Nothing was asked.",
+            true,
+        ),
+        Requester::Duplicate => answer(
+            "Duplicate active request id; no new requester started.",
+            true,
+        ),
+        Requester::NotStarted(error) => answer(
+            format!("Child requester not started ({error}); nothing was asked and no child was admitted."),
+            true,
+        ),
+    })
+}
+
+/// What happened to one requester.
+enum Requester {
+    Cancelled,
+    Duplicate,
+    NotStarted(io::Error),
+    /// Its exit code (when its result was read whole), stdout and stderr.
+    Collected(Option<i32>, Vec<u8>, String),
+}
+
+/// Starts `command` under this server's custody and collects it.
+fn requester(
+    mut command: Command,
+    key: &str,
+    running: &Running,
+    stderr_limit: usize,
+) -> io::Result<Requester> {
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    // Cancellation/EOF and spawn+registration are one transition. A worker
+    // cannot publish a new child after shutdown's scan has finished.
+    let mut custody = running.lock().expect("requesters");
+    if custody.stopped(key) {
+        return Ok(Requester::Cancelled);
+    }
+    if custody.running.contains_key(key) {
+        return Ok(Requester::Duplicate);
+    }
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(error) => return Ok(Requester::NotStarted(error)),
+    };
     let stdout = child.stdout.take().expect("piped stdout");
     let stderr = child.stderr.take().expect("piped stderr");
     custody.running.insert(key.to_owned(), child);
     drop(custody);
-    let collected = collect(key, running, stdout, stderr);
+    let collected = collect(key, running, stdout, stderr, stderr_limit);
     // Keep the requester available to cancellation until its exit is collected.
     let mut custody = running.lock().expect("requesters");
     let mut child = custody.running.remove(key).expect("requester registered");
@@ -463,10 +592,7 @@ fn call(
     // wait returns its cached status and cannot block on a still-live child.
     child.wait()?;
     let (code, bytes, stderr) = collected?;
-    Ok(match delivery {
-        Some(delivery) => render_run(code, &bytes, &stderr, delivery),
-        None => render_output(code, &bytes, surface),
-    })
+    Ok(Requester::Collected(code, bytes, stderr))
 }
 
 /// Nonblocking pipe collection keeps cancellation independent of pipe EOF.
@@ -479,6 +605,7 @@ fn collect(
     running: &Running,
     mut stdout: std::process::ChildStdout,
     mut stderr: std::process::ChildStderr,
+    stderr_limit: usize,
 ) -> io::Result<(Option<i32>, Vec<u8>, String)> {
     use std::os::fd::AsRawFd;
     let setup = |fd| {
@@ -501,7 +628,7 @@ fn collect(
     loop {
         if fault.is_none() {
             if let Err(error) = drain(&mut stdout, &mut bytes, RESULT_LIMIT + 1, &mut out_eof)
-                .and_then(|()| drain(&mut stderr, &mut errors, 64 * 1024, &mut err_eof))
+                .and_then(|()| drain(&mut stderr, &mut errors, stderr_limit, &mut err_eof))
             {
                 fault = Some(error);
             }
@@ -580,6 +707,7 @@ fn collect(
     _running: &Running,
     _stdout: std::process::ChildStdout,
     _stderr: std::process::ChildStderr,
+    _stderr_limit: usize,
 ) -> io::Result<(Option<i32>, Vec<u8>, String)> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
@@ -647,8 +775,8 @@ fn exec_error(value: &Value) -> Result<Option<&str>, ()> {
     if index != 1
         || accepted["event"] != "accepted"
         || accepted["durable"] != true
-        || !accepted["root_id"].as_str().is_some_and(|s| !s.is_empty())
-        || !accepted["work"].as_i64().is_some_and(|w| w > 0)
+        || accepted["root_id"].as_str().is_none_or(str::is_empty)
+        || accepted["work"].as_i64().is_none_or(|w| w <= 0)
     {
         return Err(());
     }
@@ -976,9 +1104,11 @@ pub fn render_output(code: Option<i32>, stdout: &[u8], surface: &str) -> Answer 
 }
 
 /// The bridge's process entry: the policy from this process's
-/// [`tool_mediation::ENV`], served on stdin/stdout. Exit 2 when no valid
-/// policy is present: the native agent then has no working command tool,
-/// never an unrestricted one.
+/// [`tool_mediation::ENV`] and any exploration offer from its
+/// [`exploration::ENV`], served on stdin/stdout. Exit 2 when no valid
+/// policy is present, or an offer is present but invalid: the native agent
+/// then has no working command tool, never an unrestricted one, and an
+/// offer is never silently dropped.
 pub fn main() -> i32 {
     let policy = match std::env::var(tool_mediation::ENV) {
         Ok(text) => match ToolMediation::decode(&text) {
@@ -993,9 +1123,24 @@ pub fn main() -> i32 {
             return 2;
         }
     };
+    let offer = match std::env::var(exploration::ENV) {
+        Ok(text) => match Exploration::decode(&text) {
+            Ok(offer) => Some(offer),
+            Err(error) => {
+                eprintln!("tool bridge refused: {error}");
+                return 2;
+            }
+        },
+        Err(std::env::VarError::NotPresent) => None,
+        Err(error) => {
+            eprintln!("tool bridge refused: {}: {error}", exploration::ENV);
+            return 2;
+        }
+    };
     let stdin = io::stdin();
-    match serve(
+    match serve_offered(
         policy,
+        offer,
         |name| std::env::var(name).ok(),
         stdin.lock(),
         io::stdout(),
