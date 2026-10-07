@@ -626,6 +626,30 @@ pub fn reconcile_interrupted_launch(
     Ok(true)
 }
 
+// Resident session custody can outlive an unreadable input. The trusted
+// session turns directory supplies the key; no prompt/digest reconstruction,
+// adapter admission, journal replay or durable state rewrite is needed.
+pub(crate) fn reconcile_recorded_launch(
+    state_root: &std::path::Path,
+    key: &str,
+) -> Result<(), LifecycleError> {
+    let launch_custody = RequestCustody::acquire(state_root, key)?;
+    let state = launch_custody
+        .load_state()?
+        .ok_or(CustodyError::InvalidState)?;
+    let paired_actor = state.actor_id.is_some() == state.incarnation.is_some();
+    let valid_phase = match state.phase.as_str() {
+        custody::PHASE_PREPARED => state.actor_id.is_none(),
+        custody::PHASE_RUNNING => state.actor_id.is_some(),
+        custody::PHASE_COMPLETE => state.actor_id.is_none(),
+        _ => false,
+    };
+    if !paired_actor || !valid_phase {
+        return Err(CustodyError::InvalidState.into());
+    }
+    reconcile_actor(&state)
+}
+
 fn reconcile_actor(state: &LaunchState) -> Result<(), LifecycleError> {
     if let (Some(process_group_id), Some(incarnation)) =
         (state.actor_id, state.incarnation.as_ref())

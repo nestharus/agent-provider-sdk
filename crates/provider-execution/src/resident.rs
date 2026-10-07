@@ -61,7 +61,10 @@
 //!   consumption is unknown is refused rather than rerun.
 //!
 //! Connection end (input EOF) or a recorded `SIGTERM`/`SIGINT` stops every
-//! running turn, settles it, refuses queued inputs and returns. Each session
+//! running turn, refuses queued inputs and joins workers. Unresolved session
+//! launch custody returns an I/O error, including after a refused close. Input
+//! uncertainty survives physical actor settlement and successful close/EOF.
+//! Each session
 //! is held by one process at a time through an exclusive lock. Logical
 //! session ancestry, admission, scheduling and delivery policy remain the
 //! host's; this endpoint keeps only the provider-native session record its
@@ -204,8 +207,9 @@ pub enum ServeEnd {
 
 /// Serves one ACP v2 connection until it closes or the process is asked to
 /// terminate. `state_root` must be a trusted provider-private directory; it
-/// is created if missing. Returns after every session's running turn has
-/// settled.
+/// is created if missing. Returns after joining every session worker. Unresolved
+/// session custody, including an earlier refused close, returns an I/O error;
+/// success does not clear earlier input/insertion uncertainty.
 pub fn serve<T, R, W>(turns: Arc<T>, state_root: &Path, input: R, output: W) -> io::Result<ServeEnd>
 where
     T: ResidentTurns,
@@ -224,6 +228,7 @@ where
         wire: wire.clone(),
         initialized: false,
         sessions: HashMap::new(),
+        unsettled_closed: std::collections::HashSet::new(),
     };
     let end = loop {
         if let Some(signal) = cancellation::termination_signal() {
@@ -241,7 +246,7 @@ where
             Err(mpsc::RecvTimeoutError::Timeout) => {}
         }
     };
-    endpoint.shutdown();
+    endpoint.shutdown()?;
     Ok(end)
 }
 
@@ -457,6 +462,8 @@ struct Endpoint<T: ResidentTurns> {
     wire: Wire,
     initialized: bool,
     sessions: HashMap<String, OpenSession>,
+    /// A refused close releases ownership but must not turn later EOF clean.
+    unsettled_closed: std::collections::HashSet<String>,
 }
 
 struct OpenSession {
@@ -484,6 +491,8 @@ struct SessionShared {
 #[derive(Default)]
 struct SessionInputs {
     unreadable: Vec<String>,
+    /// Session launch records not established as physically settled.
+    unsettled_launches: Vec<String>,
     by_id: HashMap<String, InputRecord>,
     by_key: HashMap<String, String>,
     /// Prompt requests waiting for the insertion acknowledgement.
@@ -850,8 +859,10 @@ impl<T: ResidentTurns> Endpoint<T> {
             .is_some_and(|worker| worker.join().unwrap_or(false));
         drop(session);
         if settled {
+            self.unsettled_closed.remove(session_id);
             Ok(Some(json!({})))
         } else {
+            self.unsettled_closed.insert(session_id.to_owned());
             Err((SESSION_UNAVAILABLE, "native custody is not settled".into()))
         }
     }
@@ -875,16 +886,27 @@ impl<T: ResidentTurns> Endpoint<T> {
         json!({"sessions":sessions})
     }
 
-    fn shutdown(&mut self) {
+    fn shutdown(&mut self) -> io::Result<()> {
         for session in self.sessions.values_mut() {
             session.shared.closed.store(true, Ordering::SeqCst);
             cancel(&session.shared);
             session.jobs.take();
         }
-        for session in self.sessions.values_mut() {
-            if let Some(worker) = session.worker.take() {
-                let _ = worker.join();
+        for (id, session) in &mut self.sessions {
+            let settled = session
+                .worker
+                .take()
+                .is_some_and(|worker| worker.join().unwrap_or(false));
+            if settled {
+                self.unsettled_closed.remove(id);
+            } else {
+                self.unsettled_closed.insert(id.clone());
             }
+        }
+        if self.unsettled_closed.is_empty() {
+            Ok(())
+        } else {
+            Err(io::Error::other("native session custody is not settled"))
         }
     }
 }
@@ -1091,20 +1113,19 @@ fn refuse(shared: &SessionShared, wire: &Wire, message_id: &str, reason: &str) {
 /// Dispatch-bound native selection is reused; current template changes cannot
 /// prevent physical actor discharge or authorize a new native attempt.
 fn has_unsettled_custody(shared: &SessionShared) -> bool {
-    shared
-        .inputs
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .by_id
-        .values()
-        .any(|input| input.value["native_turn"]["custody"] == json!("incomplete"))
+    let inputs = shared.inputs.lock().unwrap_or_else(|e| e.into_inner());
+    !inputs.unsettled_launches.is_empty()
+        || inputs
+            .by_id
+            .values()
+            .any(|input| input.value["native_turn"]["custody"] == json!("incomplete"))
 }
 
 fn recovery_uncertainty(shared: &SessionShared) -> Option<String> {
     let inputs = shared.inputs.lock().unwrap_or_else(|e| e.into_inner());
     if !inputs.unreadable.is_empty() {
         return Some(format!(
-            "input evidence unreadable; new input blocked and continuity uncertain; readable actors settled: {}",
+            "input evidence unreadable; new input blocked and continuity uncertain; input records retained: {}",
             inputs.unreadable.join("; ")
         ));
     }
@@ -1189,6 +1210,47 @@ fn settle_unfinished<T: ResidentTurns>(turns: &T, shared: &SessionShared) {
             not_started(shared, &message_id);
         }
     }
+    let unsettled = settle_recorded_launches(&shared.dir.join("turns"));
+    shared
+        .inputs
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .unsettled_launches = unsettled;
+}
+
+// Session custody is independent of reconstructable input/insertion evidence.
+// Scan only this owned session's durable launch records after its live work has
+// settled, and continue past unreadable records to discharge readable actors.
+fn settle_recorded_launches(turns: &Path) -> Vec<String> {
+    let mut unsettled = Vec::new();
+    let entries = match fs::read_dir(turns) {
+        Ok(entries) => entries,
+        Err(error) => return vec![format!("{}: {error}", turns.display())],
+    };
+    for entry in entries {
+        let path = match entry {
+            Ok(entry) => entry.path(),
+            Err(error) => {
+                unsettled.push(error.to_string());
+                continue;
+            }
+        };
+        match path.extension().and_then(|e| e.to_str()) {
+            Some("json") => {}
+            // An orphaned journal is evidence of a launch, not evidence of no actor.
+            Some("jsonl") if !path.with_extension("json").is_file() => {}
+            _ => continue,
+        }
+        let key = path.file_stem().and_then(|n| n.to_str()).unwrap_or("");
+        if key.len() != 64 || !key.bytes().all(|b| b.is_ascii_hexdigit()) {
+            unsettled.push(format!("{}: invalid custody key", path.display()));
+            continue;
+        }
+        if let Err(error) = crate::lifecycle::reconcile_recorded_launch(turns, key) {
+            unsettled.push(format!("{}: {error}", path.display()));
+        }
+    }
+    unsettled
 }
 
 fn not_started(shared: &SessionShared, message_id: &str) {
