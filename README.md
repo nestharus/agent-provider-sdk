@@ -339,6 +339,20 @@ Claude adapters both run their launches through `lifecycle::run_launch`:
   synchronization, bounded reads and digests, base64, SHA-256, bounded text,
   and canonical JSON.
 
+Directory creation syncs each missing directory and its containing parent before
+creating the next level. An existing target is synced itself (after mode 0700 for
+private creation); pre-existing ancestors are not reopened or synced. Creators
+must publish pre-existing ancestor links durably before handing them over if
+crash durability is required. This includes caller-created state roots: existence
+alone is not a durability receipt. A containing parent of a newly created link
+must be readable for directory sync on Linux, even if search/write permissions
+allowed creation. Denial and other sync errors remain failures, possibly after
+visible partial creation. The creator must repair failed publication, including
+the failed containing-parent sync, before relying on a subsequent creation call;
+that call does not repair pre-existing ancestry. The former eight-level ancestor
+sweep and its implicit retry repair are removed. File publication, custody and
+lock ordering retain their existing semantics.
+
 Native argv, authentication, account and config roots, model aliases, tool
 restrictions, native session formats, and native event translation remain in
 adapters. It does not depend on `agent-provider-contract` (its tests do) and
