@@ -74,7 +74,7 @@ use crate::encoding::{decode_base64, now_unix_ms, sha256_hex};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::io::{self, BufRead, Read, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
@@ -118,6 +118,10 @@ const INPUT_UNCERTAIN: i64 = -32011;
 const SESSION_UNAVAILABLE: i64 = -32012;
 const MAX_SESSION_RECORD_BYTES: usize = 64 * 1024;
 const MAX_INPUT_RECORD_BYTES: usize = 16 * 1024 * 1024;
+// Leave room for dispatch, insertion and terminal metadata in the recovery record.
+const MAX_ACCEPTED_INPUT_BYTES: usize = 8 * 1024 * 1024;
+const MAX_WIRE_LINE_BYTES: usize = 32 * 1024 * 1024;
+const MAX_JOURNAL_RECORD_BYTES: usize = 16 * 1024 * 1024;
 
 /// One native turn the adapter runs as one provider/v1 launch.
 #[derive(Clone, Debug)]
@@ -212,7 +216,7 @@ where
     let sessions_root = state_root.join("sessions");
     create_private_directories(&sessions_root)?;
     let wire = Wire::new(output);
-    let (lines, receive) = mpsc::channel::<Option<String>>();
+    let (lines, receive) = mpsc::sync_channel::<io::Result<Option<String>>>(1);
     std::thread::spawn(move || read_lines(input, lines));
     let mut endpoint = Endpoint {
         turns,
@@ -226,8 +230,12 @@ where
             break ServeEnd::Terminated(signal);
         }
         match receive.recv_timeout(Duration::from_millis(100)) {
-            Ok(Some(line)) => endpoint.dispatch(&line),
-            Ok(None) | Err(mpsc::RecvTimeoutError::Disconnected) => {
+            Ok(Ok(Some(line))) => endpoint.dispatch(&line),
+            Ok(Err(error)) => {
+                wire.error(&Value::Null, INVALID_PARAMS, &error.to_string(), None);
+                break ServeEnd::ConnectionClosed;
+            }
+            Ok(Ok(None)) | Err(mpsc::RecvTimeoutError::Disconnected) => {
                 break ServeEnd::ConnectionClosed
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {}
@@ -237,19 +245,47 @@ where
     Ok(end)
 }
 
-fn read_lines<R: BufRead>(mut input: R, lines: mpsc::Sender<Option<String>>) {
+// A bounded record reader shared by ACP ingress and interrupted evidence.
+// A partial record is returned at EOF so callers can distinguish it from absence.
+fn read_record<R: BufRead>(input: &mut R, maximum: usize) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
     loop {
-        let mut line = String::new();
-        match input.read_line(&mut line) {
-            Ok(0) | Err(_) => {
-                let _ = lines.send(None);
-                return;
+        let available = input.fill_buf()?;
+        if available.is_empty() {
+            return Ok(bytes);
+        }
+        let count = available
+            .iter()
+            .position(|b| *b == b'\n')
+            .map_or(available.len(), |i| i + 1);
+        if count > maximum.saturating_sub(bytes.len()) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "record exceeds declared byte bound",
+            ));
+        }
+        bytes.extend_from_slice(&available[..count]);
+        input.consume(count);
+        if bytes.last() == Some(&b'\n') {
+            return Ok(bytes);
+        }
+    }
+}
+
+fn read_lines<R: BufRead>(mut input: R, lines: mpsc::SyncSender<io::Result<Option<String>>>) {
+    loop {
+        let line = read_record(&mut input, MAX_WIRE_LINE_BYTES).and_then(|bytes| {
+            if bytes.is_empty() {
+                Ok(None)
+            } else {
+                String::from_utf8(bytes)
+                    .map(Some)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
             }
-            Ok(_) => {
-                if !line.trim().is_empty() && lines.send(Some(line)).is_err() {
-                    return;
-                }
-            }
+        });
+        let end = !matches!(line, Ok(Some(_)));
+        if lines.send(line).is_err() || end {
+            return;
         }
     }
 }
@@ -306,10 +342,42 @@ impl Wire {
 
 fn publish_json(directory: &Path, name: &str, value: &Value) -> io::Result<()> {
     let mut file = tempfile::NamedTempFile::new_in(directory)?;
-    serde_json::to_writer(&mut file, value)?;
+    let maximum = if name == "session.json" {
+        MAX_SESSION_RECORD_BYTES
+    } else {
+        MAX_INPUT_RECORD_BYTES
+    };
+    serde_json::to_writer(
+        BoundedWriter {
+            inner: &mut file,
+            remaining: maximum,
+        },
+        value,
+    )?;
     file.as_file().sync_all()?;
     file.persist(directory.join(name)).map_err(|e| e.error)?;
     sync_directory(directory)
+}
+
+struct BoundedWriter<W> {
+    inner: W,
+    remaining: usize,
+}
+impl<W: Write> Write for BoundedWriter<W> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if bytes.len() > self.remaining {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "JSON record exceeds declared byte bound",
+            ));
+        }
+        let count = self.inner.write(bytes)?;
+        self.remaining -= count;
+        Ok(count)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
 }
 
 fn read_json(path: &Path, maximum_bytes: usize) -> io::Result<Value> {
@@ -415,6 +483,7 @@ struct SessionShared {
 
 #[derive(Default)]
 struct SessionInputs {
+    unreadable: Vec<String>,
     by_id: HashMap<String, InputRecord>,
     by_key: HashMap<String, String>,
     /// Prompt requests waiting for the insertion acknowledgement.
@@ -555,7 +624,41 @@ impl<T: ResidentTurns> Endpoint<T> {
             if path.extension().and_then(|e| e.to_str()) != Some("json") {
                 continue;
             }
-            let value = read_json(&path, MAX_INPUT_RECORD_BYTES).map_err(internal)?;
+            let value = match read_json(&path, MAX_INPUT_RECORD_BYTES).and_then(|value| {
+                let message_id = value["message_id"].as_str().unwrap_or_default();
+                let expected_request = format!("resident-{id}-{message_id}");
+                if message_id.len() != 20
+                    || !message_id.starts_with("msg_")
+                    || !message_id[4..].bytes().all(|b| b.is_ascii_hexdigit())
+                    || path.file_stem().and_then(|n| n.to_str()) != Some(message_id)
+                    || value["request_id"].as_str() != Some(expected_request.as_str())
+                    || !value["prompt"].is_string()
+                    || !matches!(
+                        value["phase"].as_str(),
+                        Some(
+                            phase::ACCEPTED
+                                | phase::INSERTED
+                                | phase::ENDED
+                                | phase::NOT_INSERTED
+                                | phase::UNCERTAIN
+                        )
+                    )
+                {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "invalid input identity or phase",
+                    ));
+                }
+                Ok(value)
+            }) {
+                Ok(value) => value,
+                Err(error) => {
+                    inputs
+                        .unreadable
+                        .push(format!("{}: {error}", path.display()));
+                    continue;
+                }
+            };
             let input = InputRecord { value };
             inputs.last_message = inputs.last_message.max(message_number(input.message_id()));
             if let Some(key) = input.key() {
@@ -569,6 +672,9 @@ impl<T: ResidentTurns> Endpoint<T> {
         settle_unfinished(&*self.turns, &shared);
         if has_unsettled_custody(&shared) {
             return Err((SESSION_UNAVAILABLE, "native custody is not settled".into()));
+        }
+        if let Some(error) = recovery_uncertainty(&shared) {
+            return Err((SESSION_UNAVAILABLE, error));
         }
         Ok(json!({}))
     }
@@ -652,6 +758,20 @@ impl<T: ResidentTurns> Endpoint<T> {
                 key.as_deref(),
             );
         }
+        if !inputs.unreadable.is_empty() {
+            return Err((
+                SESSION_UNAVAILABLE,
+                "input evidence unreadable; new input is blocked".into(),
+            ));
+        }
+        if shared.record.lock().unwrap_or_else(|e| e.into_inner())["native_session_uncertain"]
+            .is_string()
+        {
+            return Err((
+                SESSION_UNAVAILABLE,
+                "journal evidence unreadable; native session identity is uncertain".into(),
+            ));
+        }
         let number = next_message_number(inputs.last_message);
         inputs.last_message = number;
         let message_id = format!("msg_{number:016x}");
@@ -668,6 +788,19 @@ impl<T: ResidentTurns> Endpoint<T> {
                 native["create_native_session_id"].clone() } else { Value::Null },
             "dispatched":false,
             "phase":phase::ACCEPTED,"accepted_unix_ms":now_unix_ms()});
+        serde_json::to_writer(
+            BoundedWriter {
+                inner: io::sink(),
+                remaining: MAX_ACCEPTED_INPUT_BYTES,
+            },
+            &value,
+        )
+        .map_err(|_| {
+            (
+                INVALID_PARAMS,
+                "input exceeds the 8 MiB serialized admission bound".to_owned(),
+            )
+        })?;
         // Durable before any native effect of this input.
         publish_json(
             &shared.dir.join("inputs"),
@@ -886,6 +1019,10 @@ fn work<T: ResidentTurns>(
                         continue;
                     }
                 }
+                if let Some(error) = recovery_uncertainty(shared) {
+                    refuse(shared, wire, &message_id, &error);
+                    continue;
+                }
                 run(turns, shared, Some(wire), &message_id);
                 if has_unsettled_custody(shared) {
                     settle_unfinished(turns, shared);
@@ -961,6 +1098,55 @@ fn has_unsettled_custody(shared: &SessionShared) -> bool {
         .by_id
         .values()
         .any(|input| input.value["native_turn"]["custody"] == json!("incomplete"))
+}
+
+fn recovery_uncertainty(shared: &SessionShared) -> Option<String> {
+    let inputs = shared.inputs.lock().unwrap_or_else(|e| e.into_inner());
+    if !inputs.unreadable.is_empty() {
+        return Some(format!(
+            "input evidence unreadable; new input blocked and continuity uncertain; readable actors settled: {}",
+            inputs.unreadable.join("; ")
+        ));
+    }
+    let record = shared.record.lock().unwrap_or_else(|e| e.into_inner());
+    record["native_session_uncertain"].as_str().map(|reason| {
+        format!("journal evidence unreadable; native session identity is uncertain: {reason}")
+    })
+}
+
+// Streaming evidence recovery never allocates the whole journal and never
+// redelivers output. Any missing, malformed, cut or over-bound record is evidence
+// uncertainty; valid prefix markers still preserve known insertion.
+fn recover_markers(sink: &mut TurnSink<'_>, journal: &Path) -> io::Result<()> {
+    let mut reader = BufReader::new(File::open(journal)?);
+    loop {
+        let bytes = read_record(&mut reader, MAX_JOURNAL_RECORD_BYTES)?;
+        if bytes.is_empty() {
+            return Ok(());
+        }
+        if bytes.last() != Some(&b'\n') {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "interrupted journal has a cut record",
+            ));
+        }
+        let event: Value = serde_json::from_slice(&bytes)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        if !event["kind"].is_string()
+            || (event["kind"] == "marker" && !event["name"].is_string())
+            || (event["kind"] == "marker"
+                && event["name"] == PROVIDER_SESSION_MARKER
+                && event["value"]["provider_session_id"]
+                    .as_str()
+                    .is_none_or(str::is_empty))
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid interrupted journal event",
+            ));
+        }
+        sink.event(event);
+    }
 }
 
 fn settle_unfinished<T: ResidentTurns>(turns: &T, shared: &SessionShared) {
@@ -1114,6 +1300,7 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
         turns.run_turn(&request, &shared.stop, &mut sink)
     };
     sink.drain_line();
+    let mut evidence_error = None;
     if matches!(&result, Err(failure) if failure.kind == TurnFailureKind::ReconciliationRequired) {
         // The interrupted launch's journal precedes its delivery, so its
         // markers are the best evidence of native session identity and
@@ -1123,10 +1310,22 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
             "{}.jsonl",
             custody::request_key(None, &request.request_id)
         ));
-        if let Ok(bytes) = crate::durable_fs::read_file_bounded(&journal, MAX_INPUT_RECORD_BYTES) {
-            let _ = sink.write(&bytes);
-            sink.buffer.push(b'\n');
-            sink.drain_line();
+        if let Err(error) = recover_markers(&mut sink, &journal) {
+            let reason = format!("{}: {error}", journal.display());
+            evidence_error = Some(reason.clone());
+            let mut record = shared.record.lock().unwrap_or_else(|e| e.into_inner());
+            let mut updated = record.clone();
+            updated["native_session_id"] = Value::Null;
+            updated["create_native_session_id"] = Value::Null;
+            updated["native_session_uncertain"] = json!(reason);
+            // Block this process even if publication fails; a reopen encounters
+            // the same retained unreadable evidence and repeats recovery.
+            *record = updated;
+            if let Err(error) = publish_json(&shared.dir, "session.json", &record) {
+                sink.record_error = Some(format!(
+                    "cannot publish native session uncertainty: {error}"
+                ));
+            }
         }
     }
     if let Some(error) = &sink.record_error {
@@ -1215,6 +1414,18 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
             }
         }
     };
+    if let Some(error) = evidence_error {
+        if sink.record_error.is_some() {
+            let failure_message = native_turn["failure"]["message"]
+                .as_str()
+                .unwrap_or_default();
+            native_turn["failure"]["message"] = json!(format!(
+                "{failure_message}; journal evidence unreadable: {error}"
+            ));
+        } else {
+            native_turn["failure"] = json!({"code":"journal_evidence_unreadable","message":error});
+        }
+    }
     let settled = native_turn["custody"] != json!("incomplete");
     let not_consumed_but_known = !consumption_seen
         && match &result {

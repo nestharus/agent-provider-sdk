@@ -61,7 +61,7 @@ fn main() {
         Some("--resident") => std::process::exit(serve(&args[2])),
         _ => {}
     }
-    let tests: [(&str, fn()); 18] = [
+    let tests: [(&str, fn()); 25] = [
         (
             "initialize_serves_only_v2_with_dedup_and_resident_contract",
             initialize_serves_only_v2_with_dedup_and_resident_contract,
@@ -131,9 +131,43 @@ fn main() {
             "refused_preparation_is_not_an_insertion",
             refused_preparation_is_not_an_insertion,
         ),
+        (
+            "bounds_admission_refuses_before_effects",
+            bounds_admission_refuses_before_effects,
+        ),
+        (
+            "bounds_unreadable_input_does_not_block_other_actor",
+            bounds_unreadable_input_does_not_block_other_actor,
+        ),
+        (
+            "bounds_large_journal_recovers_consumption",
+            bounds_large_journal_recovers_consumption,
+        ),
+        (
+            "bounds_large_journal_recovers_native_session",
+            bounds_large_journal_recovers_native_session,
+        ),
+        (
+            "bounds_corrupt_journal_preserves_known_insertion_and_reports_uncertainty",
+            bounds_corrupt_journal_preserves_known_insertion_and_reports_uncertainty,
+        ),
+        (
+            "bounds_wire_limit_settles_running_actor",
+            bounds_wire_limit_settles_running_actor,
+        ),
+        (
+            "bounds_missing_marker_differs_from_unreadable_journal",
+            bounds_missing_marker_differs_from_unreadable_journal,
+        ),
     ];
+    let filter = args.get(1).map(String::as_str).unwrap_or("");
+    let mut selected = 0;
     let mut failed = 0;
     for (name, test) in tests {
+        if !name.contains(filter) {
+            continue;
+        }
+        selected += 1;
         match std::panic::catch_unwind(test) {
             Ok(()) => println!("test {name} ... ok"),
             Err(_) => {
@@ -145,7 +179,7 @@ fn main() {
     println!(
         "\ntest result: {}. {} passed; {failed} failed",
         if failed == 0 { "ok" } else { "FAILED" },
-        tests.len() - failed
+        selected - failed
     );
     std::process::exit(i32::from(failed != 0));
 }
@@ -338,7 +372,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let dir = tempfile::Builder::new()
-            .prefix("u92-correction-resident-")
+            .prefix("u108-resident-bounds-fixture-")
             .tempdir_in("/tmp")
             .unwrap();
         std::fs::create_dir(dir.path().join("work")).unwrap();
@@ -357,6 +391,29 @@ impl Fixture {
     }
     fn start(&self) -> Client {
         Client::start(&self.state())
+    }
+}
+
+// Optional construction-witness export, kept separate from test assertions.
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        if let Some(root) = std::env::var_os("U108_EVIDENCE_DIR") {
+            fn copy(from: &Path, to: &Path) {
+                std::fs::create_dir_all(to).unwrap();
+                for entry in std::fs::read_dir(from).unwrap() {
+                    let entry = entry.unwrap();
+                    let target = to.join(entry.file_name());
+                    if entry.file_type().unwrap().is_dir() {
+                        copy(&entry.path(), &target);
+                    } else {
+                        std::fs::copy(entry.path(), target).unwrap();
+                    }
+                }
+            }
+            let to = PathBuf::from(root).join(self.dir.path().file_name().unwrap());
+            copy(self.dir.path(), &to);
+            println!("fixture evidence: {}", to.display());
+        }
     }
 }
 
@@ -379,10 +436,23 @@ impl Client {
             .spawn()
             .unwrap();
         let stdout = child.stdout.take().unwrap();
+        let observations = std::env::var_os("U108_EVIDENCE_DIR").map(|_| {
+            std::fs::File::create(
+                state
+                    .parent()
+                    .unwrap()
+                    .join(format!("connection-{}.jsonl", child.id())),
+            )
+            .unwrap()
+        });
         let (send, messages) = mpsc::channel();
         std::thread::spawn(move || {
+            let mut observations = observations;
             for line in BufReader::new(stdout).lines() {
                 let Ok(line) = line else { return };
+                if let Some(file) = observations.as_mut() {
+                    writeln!(file, "{line}").unwrap();
+                }
                 let value: Value = serde_json::from_str(&line).expect("one JSON message per line");
                 if send.send(value).is_err() {
                     return;
@@ -1139,4 +1209,335 @@ fn recovery_precedes_current_adapter_admission() {
         json!("reconciled")
     );
     assert_eq!(fixture.runs(), 1);
+}
+
+// Each actor is task-owned; this guard also closes it if a red assertion fails.
+struct LostActor {
+    leader: i32,
+    descendant: i32,
+}
+impl Drop for LostActor {
+    fn drop(&mut self) {
+        if alive(self.descendant) {
+            unsafe {
+                libc::kill(self.descendant, libc::SIGKILL);
+                if alive(self.leader) {
+                    libc::kill(self.leader, libc::SIGKILL);
+                }
+            }
+        }
+    }
+}
+
+fn bounds_lost(fixture: &Fixture) -> (String, String, LostActor) {
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    let marks = fixture.dir.path().join("bounds-hang");
+    std::fs::create_dir(&marks).unwrap();
+    let request = first.prompt(
+        &session,
+        &format!("hang {}", marks.display()),
+        Some("bounds-lost"),
+    );
+    let id = message_id(&first.response(request));
+    first.update("waiting after session marker", |u| {
+        u["sessionUpdate"] == json!("agent_message")
+    });
+    let actor = LostActor {
+        leader: wait_for(&marks.join("leader.pid")),
+        descendant: wait_for(&marks.join("descendant.pid")),
+    };
+    first.child.kill().unwrap();
+    first.child.wait().unwrap();
+    assert!(
+        alive(actor.descendant),
+        "real actor survives actual provider kill"
+    );
+    (session, id, actor)
+}
+
+fn bounds_resume(fixture: &Fixture, session: &str) -> (Client, Value) {
+    let mut client = fixture.start();
+    client.call(
+        "initialize",
+        json!({"protocolVersion":2,"info":{"name":"bounds","version":"0"}}),
+    );
+    let response = client.call(
+        "session/resume",
+        json!({"sessionId":session,"cwd":fixture.cwd()}),
+    );
+    (client, response)
+}
+
+fn bounds_dir(fixture: &Fixture, session: &str) -> PathBuf {
+    fixture.state().join("sessions").join(session)
+}
+fn bounds_input(fixture: &Fixture, session: &str, id: &str) -> PathBuf {
+    bounds_dir(fixture, session)
+        .join("inputs")
+        .join(format!("{id}.json"))
+}
+fn bounds_journal(fixture: &Fixture, session: &str, id: &str) -> PathBuf {
+    let request = format!("resident-{session}-{id}");
+    bounds_dir(fixture, session).join("turns").join(format!(
+        "{}.jsonl",
+        agent_provider_execution::custody::request_key(None, &request)
+    ))
+}
+fn bounds_read(path: &Path) -> Value {
+    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+}
+fn bounds_write(path: &Path, value: &Value) {
+    std::fs::write(path, value.to_string()).unwrap();
+}
+
+fn bounds_admission_refuses_before_effects() {
+    let fixture = Fixture::new();
+    let mut client = fixture.start();
+    let session = client.open(&fixture.cwd());
+    // Fits the wire envelope but leaves no room in the durable input envelope.
+    let request = client.prompt(&session, &"x".repeat(16 * 1024 * 1024), Some("too-large"));
+    let response = client.response(request);
+    assert_eq!(response["error"]["code"], json!(-32602), "{response}");
+    assert_eq!(
+        std::fs::read_dir(bounds_dir(&fixture, &session).join("inputs"))
+            .unwrap()
+            .count(),
+        0
+    );
+    assert_eq!(fixture.runs(), 0, "refusal precedes native effects");
+    let ordinary = client.prompt(&session, "reply after refusal", Some("too-large"));
+    let id = message_id(&client.response(ordinary));
+    client.idle_for(&id);
+    assert_eq!(fixture.runs(), 1, "refusal did not reserve the key");
+    assert!(client.end().success());
+    let (mut resumed, result) = bounds_resume(&fixture, &session);
+    assert_eq!(result["result"], json!({}));
+    let duplicate = resumed.prompt(&session, "reply after refusal", Some("too-large"));
+    assert_eq!(message_id(&resumed.response(duplicate)), id);
+    resumed.idle_for(&id);
+    assert_eq!(fixture.runs(), 1);
+}
+
+fn bounds_unreadable_input_does_not_block_other_actor() {
+    let fixture = Fixture::new();
+    let (session, id, actor) = bounds_lost(&fixture);
+    // Inject a separate corrupt historical record; do not confuse injection with interruption.
+    let corrupt = bounds_input(&fixture, &session, "msg_0000000000000002");
+    std::fs::write(&corrupt, b"{not json").unwrap();
+    let (mut second, response) = bounds_resume(&fixture, &session);
+    assert_dies(actor.descendant);
+    assert_eq!(response["error"]["code"], json!(-32012));
+    assert!(response["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("input evidence unreadable"));
+    let duplicate = second.prompt(&session, "ignored duplicate", Some("bounds-lost"));
+    assert_eq!(message_id(&second.response(duplicate)), id);
+    second.idle_for(&id);
+    let new = second.prompt(&session, "whoami", None);
+    assert_eq!(second.response(new)["error"]["code"], json!(-32012));
+    assert_eq!(fixture.runs(), 1);
+    assert_eq!(std::fs::read(corrupt).unwrap(), b"{not json");
+}
+
+fn bounds_large_journal(identity: bool) {
+    let fixture = Fixture::new();
+    let (session, id, actor) = bounds_lost(&fixture);
+    let path = bounds_input(&fixture, &session, &id);
+    let mut input = bounds_read(&path);
+    // Inject an earlier durable input snapshot to make the journal the sole evidence.
+    input["phase"] = json!("accepted");
+    input["consumption_seen"] = json!(false);
+    bounds_write(&path, &input);
+    let session_path = bounds_dir(&fixture, &session).join("session.json");
+    let mut record = bounds_read(&session_path);
+    let native = record["native_session_id"].clone();
+    assert!(native.as_str().unwrap().starts_with("native-"));
+    if identity {
+        record["native_session_id"] = json!("stale-id");
+        bounds_write(&session_path, &record);
+    }
+    let journal = bounds_journal(&fixture, &session, &id);
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&journal)
+        .unwrap();
+    let filler = json!({"kind":"stderr","data_base64":"x".repeat(4096)}).to_string() + "\n";
+    for _ in 0..4200 {
+        file.write_all(filler.as_bytes()).unwrap();
+    }
+    file.sync_all().unwrap();
+    drop(file);
+    let before = std::fs::read(&journal).unwrap();
+    assert!(before.len() > 16 * 1024 * 1024);
+    println!(
+        "large interrupted journal bytes={} identity={identity}",
+        before.len()
+    );
+    let (mut second, response) = bounds_resume(&fixture, &session);
+    assert_eq!(response["result"], json!({}), "{response}");
+    assert_dies(actor.descendant);
+    let duplicate = second.prompt(&session, "ignored", Some("bounds-lost"));
+    assert_eq!(message_id(&second.response(duplicate)), id);
+    let idle = second.idle_for(&id);
+    assert_eq!(
+        idle["_meta"]["oulipoly.ai/nativeTurn"]["custody"],
+        json!("reconciled")
+    );
+    assert_eq!(
+        std::fs::read(&journal).unwrap(),
+        before,
+        "recovery preserves all custody bytes"
+    );
+    assert_eq!(fixture.runs(), 1, "recovery never reruns");
+    if identity {
+        assert_eq!(bounds_read(&session_path)["native_session_id"], native);
+        let request = second.prompt(&session, "whoami", None);
+        let next = message_id(&second.response(request));
+        let text = second.update("native identity", |u| {
+            u["sessionUpdate"] == json!("agent_message")
+        });
+        assert_eq!(
+            text["update"]["content"][0]["text"],
+            json!(format!("native={}", native.as_str().unwrap()))
+        );
+        second.idle_for(&next);
+        assert_eq!(fixture.runs(), 2);
+    }
+}
+fn bounds_large_journal_recovers_consumption() {
+    bounds_large_journal(false);
+}
+fn bounds_large_journal_recovers_native_session() {
+    bounds_large_journal(true);
+}
+
+fn bounds_corrupt_journal_preserves_known_insertion_and_reports_uncertainty() {
+    let fixture = Fixture::new();
+    let (session, id, actor) = bounds_lost(&fixture);
+    let journal = bounds_journal(&fixture, &session, &id);
+    // A deliberately injected torn record, following valid early markers.
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&journal)
+        .unwrap();
+    file.write_all(b"{torn").unwrap();
+    drop(file);
+    let before = std::fs::read(&journal).unwrap();
+    let (mut second, response) = bounds_resume(&fixture, &session);
+    assert_dies(actor.descendant);
+    assert_eq!(response["error"]["code"], json!(-32012));
+    assert!(response["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("journal evidence unreadable"));
+    let duplicate = second.prompt(&session, "ignored", Some("bounds-lost"));
+    assert_eq!(message_id(&second.response(duplicate)), id);
+    let idle = second.idle_for(&id);
+    assert_eq!(
+        idle["_meta"]["oulipoly.ai/nativeTurn"]["custody"],
+        json!("reconciled")
+    );
+    assert_eq!(
+        idle["_meta"]["oulipoly.ai/nativeTurn"]["failure"]["code"],
+        json!("journal_evidence_unreadable")
+    );
+    let record = bounds_read(&bounds_dir(&fixture, &session).join("session.json"));
+    assert!(record["native_session_id"].is_null());
+    assert!(record["native_session_uncertain"].is_string());
+    let new = second.prompt(&session, "whoami", None);
+    assert_eq!(second.response(new)["error"]["code"], json!(-32012));
+    assert_eq!(fixture.runs(), 1);
+    assert_eq!(std::fs::read(&journal).unwrap(), before);
+    assert!(second.end().success());
+    let (mut third, response) = bounds_resume(&fixture, &session);
+    assert_eq!(response["error"]["code"], json!(-32012));
+    let new = third.prompt(&session, "whoami", None);
+    assert_eq!(third.response(new)["error"]["code"], json!(-32012));
+    assert_eq!(fixture.runs(), 1);
+}
+
+fn bounds_wire_limit_settles_running_actor() {
+    let fixture = Fixture::new();
+    let mut client = fixture.start();
+    let session = client.open(&fixture.cwd());
+    let marks = fixture.dir.path().join("wire-hang");
+    std::fs::create_dir(&marks).unwrap();
+    let request = client.prompt(&session, &format!("hang {}", marks.display()), None);
+    let id = message_id(&client.response(request));
+    let actor = LostActor {
+        leader: wait_for(&marks.join("leader.pid")),
+        descendant: wait_for(&marks.join("descendant.pid")),
+    };
+    let bytes = vec![b'x'; 1024 * 1024];
+    for _ in 0..33 {
+        if client.stdin.as_mut().unwrap().write_all(&bytes).is_err() {
+            break;
+        }
+    }
+    let error = client.wait("wire bound error", |m| m["error"]["code"] == json!(-32602));
+    assert!(
+        error["id"].is_null(),
+        "over-bound line has no trustworthy request ID"
+    );
+    client.idle_for(&id);
+    assert_dies(actor.descendant);
+    assert_eq!(fixture.runs(), 1);
+    assert!(client.end().success());
+}
+
+fn bounds_missing_marker_differs_from_unreadable_journal() {
+    for unreadable in [false, true] {
+        let fixture = Fixture::new();
+        let (session, id, actor) = bounds_lost(&fixture);
+        let input_path = bounds_input(&fixture, &session, &id);
+        let mut input = bounds_read(&input_path);
+        input["phase"] = json!("accepted");
+        input["consumption_seen"] = json!(false);
+        bounds_write(&input_path, &input);
+        let journal = bounds_journal(&fixture, &session, &id);
+        let original = std::fs::read_to_string(&journal).unwrap();
+        // Deliberate evidence cut: native insertion really occurred, but this
+        // issued disk condition cannot prove it. Never infer non-insertion.
+        let retained: String = original
+            .lines()
+            .filter(|line| {
+                let event: Value = serde_json::from_str(line).unwrap();
+                event["name"] != json!("oulipoly.submitted_user_turn")
+            })
+            .map(|line| format!("{line}\n"))
+            .collect();
+        let issued = if unreadable {
+            retained.clone() + "{cut"
+        } else {
+            retained
+        };
+        std::fs::write(&journal, &issued).unwrap();
+        let (mut second, response) = bounds_resume(&fixture, &session);
+        assert_dies(actor.descendant);
+        if unreadable {
+            assert_eq!(response["error"]["code"], json!(-32012));
+            assert!(response["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("journal evidence unreadable"));
+        } else {
+            assert_eq!(response["result"], json!({}));
+        }
+        let duplicate = second.prompt(&session, "ignored", Some("bounds-lost"));
+        assert_eq!(second.response(duplicate)["error"]["code"], json!(-32011));
+        second.assert_silent(100, |m| {
+            m["params"]["update"]["state"] == json!("idle")
+                || m["params"]["update"]["sessionUpdate"] == json!("user_message")
+        });
+        assert_eq!(bounds_read(&input_path)["phase"], json!("uncertain"));
+        assert_eq!(
+            bounds_read(&input_path)["native_turn"]["custody"],
+            json!("reconciled")
+        );
+        assert_eq!(std::fs::read_to_string(&journal).unwrap(), issued);
+        assert_eq!(fixture.runs(), 1, "unproved insertion is never rerun");
+        assert!(second.end().success());
+    }
 }
