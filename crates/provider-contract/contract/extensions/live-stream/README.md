@@ -240,6 +240,7 @@ They do not establish any of the following:
 - host adoption or refresh after a replacement.
 
 Those belong to the capture, broker, subscription and conformance work.
-Incident reports, pause and resume acknowledgements, and recovery
-authorization are not defined here. They wait on the Runner decisions they
-would encode.
+Incident reports and recovery authorization are not defined here. Control
+claims, including input hold/release acknowledgements, are defined by
+[`session-control/v1`](../session-control/README.md); a live-stream
+`ControlFact` stays report-only.

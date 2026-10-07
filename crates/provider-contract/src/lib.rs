@@ -14,6 +14,7 @@ pub mod negotiation;
 pub mod operations;
 pub mod resident_session;
 pub mod schemas;
+pub mod session_control;
 pub mod terminal_unavailable;
 pub mod tool_mediation;
 
@@ -48,6 +49,10 @@ pub mod fixtures {
         include_str!("../tests/fixtures/negotiation/exploration_v1.json");
     /// Golden live_stream/v1 payloads, selection, follow and replay vectors.
     pub const LIVE_STREAM_V1_JSON: &str = include_str!("../tests/fixtures/live_stream/v1.json");
+    /// Golden session_control/v1 payloads, selection, repetition, trace and
+    /// settlement-reading vectors.
+    pub const SESSION_CONTROL_V1_JSON: &str =
+        include_str!("../tests/fixtures/session_control/v1.json");
 
     pub fn invalid_contract_v1() -> Value {
         serde_json::from_str(INVALID_CONTRACT_V1_JSON)

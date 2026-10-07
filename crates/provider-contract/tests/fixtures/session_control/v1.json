@@ -1,0 +1,4793 @@
+{
+  "protocol": "oulipoly.session_control/v1",
+  "note": "Language-independent v1 vectors. invalid_structural is refused by raw schema; invalid_semantic passes raw schema but violates normative admission. selection/repetition/agreement/traces/settlement are context-dependent semantics over claims. Records are claims: no vector establishes producer truth, authorization, enforcement, durability or actor custody. No runtime qualification.",
+  "valid": {
+    "Record": [
+      {
+        "name": "hold request with present reason",
+        "claim": "requester intent only",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7"
+          },
+          "reason": {
+            "state": "present",
+            "text": "operator maintenance"
+          }
+        }
+      },
+      {
+        "name": "release request narrowed to a logical child",
+        "claim": "scope is logical; child admission only",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-rel-c",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_release",
+          "scope": {
+            "root": "root-7",
+            "child": "child-2"
+          }
+        }
+      },
+      {
+        "name": "request with redacted reason",
+        "claim": "redaction is explicit and distinct from missing",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-red",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7"
+          },
+          "reason": {
+            "state": "redacted"
+          }
+        }
+      },
+      {
+        "name": "request with missing reason",
+        "claim": "missing carries why; it is not a negative",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-miss",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7"
+          },
+          "reason": {
+            "state": "missing",
+            "reason": "not_captured"
+          }
+        }
+      },
+      {
+        "name": "non-durable transport receipt",
+        "claim": "queued-not-admitted durable=false is receipt only",
+        "value": {
+          "kind": "receipt",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "durable": false,
+          "observed_at_unix_ms": 1760000000100
+        }
+      },
+      {
+        "name": "durable transport receipt",
+        "claim": "a durability claim still is not admission",
+        "value": {
+          "kind": "receipt",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "durable": true,
+          "observed_at_unix_ms": 1760000000100
+        }
+      },
+      {
+        "name": "admission by the addressed authority",
+        "claim": "admission is not the transition",
+        "value": {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "observed_at_unix_ms": 1760000000200
+        }
+      },
+      {
+        "name": "hold acknowledgment",
+        "claim": "input admission held; running work not claimed",
+        "value": {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "from": "input_open",
+          "to": "input_held",
+          "observed_at_unix_ms": 1760000000300
+        }
+      },
+      {
+        "name": "idempotent hold acknowledgment from an already held state",
+        "claim": "state repetition: from equals to",
+        "value": {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "from": "input_held",
+          "to": "input_held",
+          "observed_at_unix_ms": 1760000000300
+        }
+      },
+      {
+        "name": "release acknowledgment from unknown prior state",
+        "claim": "prior hold state may be unknown",
+        "value": {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-release-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_release",
+          "from": "unknown",
+          "to": "input_open",
+          "observed_at_unix_ms": 1760000000300
+        }
+      },
+      {
+        "name": "admission-stage stale_authority refusal from the successor generation",
+        "claim": "staleness is recognizable and refused, not acknowledged",
+        "value": {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "admission",
+          "reason": "stale_authority",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g13",
+            "incarnation": "inc-4a0"
+          }
+        }
+      },
+      {
+        "name": "stale_authority refusal without a responder",
+        "claim": "responder identity may be absent",
+        "value": {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "admission",
+          "reason": "stale_authority",
+          "observed_at_unix_ms": 1760000000250
+        }
+      },
+      {
+        "name": "key_conflict refusal with detail",
+        "claim": "repeated key with different content",
+        "value": {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "admission",
+          "reason": "key_conflict",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "detail": {
+            "state": "present",
+            "text": "key reused with different content"
+          }
+        }
+      },
+      {
+        "name": "transition-stage already_terminal refusal",
+        "claim": "a refusal is an outcome, not an absent acknowledgment",
+        "value": {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "transition",
+          "reason": "already_terminal",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          }
+        }
+      },
+      {
+        "name": "acknowledged outcome",
+        "value": {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "acknowledged",
+          "observed_at_unix_ms": 1760000000400
+        }
+      },
+      {
+        "name": "refused outcome",
+        "value": {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "refused",
+          "observed_at_unix_ms": 1760000000400
+        }
+      },
+      {
+        "name": "unknown outcome after authority change",
+        "claim": "uncertainty is retained explicitly",
+        "value": {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "unknown",
+          "observed_at_unix_ms": 1760000000400,
+          "uncertainty": "authority_changed"
+        }
+      },
+      {
+        "name": "insertion acknowledged with exact process and stream evidence",
+        "claim": "logical subject with attached actor evidence",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500,
+          "evidence": [
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "live_stream",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "0123456789abcdef0123456789abcdef"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "tagged end absent (a real negative)",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "tagged_end",
+            "state": "absent"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      },
+      {
+        "name": "logical debt owed",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "logical_settlement",
+            "state": "owed"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      },
+      {
+        "name": "physical exit with wait completed and legacy/incomplete evidence",
+        "claim": "physical custody/wait, not logical settlement",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "physical_custody",
+            "state": "exited_waited"
+          },
+          "observed_at_unix_ms": 1760000000500,
+          "evidence": [
+            {
+              "actor": "provider_session",
+              "exactness": "legacy",
+              "ref": {
+                "state": "redacted"
+              }
+            },
+            {
+              "actor": "bash_handle",
+              "exactness": "incomplete",
+              "ref": {
+                "state": "missing",
+                "reason": "access_denied"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "insertion evidence missing for access",
+        "claim": "missing is not not_inserted",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "missing",
+            "missing_reason": "access_denied"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      },
+      {
+        "name": "tagged end redacted",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "tagged_end",
+            "state": "redacted"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      },
+      {
+        "name": "insertion uncertain",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "uncertain"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      },
+      {
+        "name": "observation on a bare root subject",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7"
+          },
+          "fact": {
+            "type": "physical_custody",
+            "state": "unsettled"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      }
+    ]
+  },
+  "invalid_structural": {
+    "Record": [
+      {
+        "name": "provider/v1 launch event is not a control record",
+        "value": {
+          "contract": "oulipoly.provider/v1",
+          "request_id": "r1",
+          "seq": 1,
+          "time_unix_ms": 1,
+          "kind": "exit",
+          "exit_code": 0
+        }
+      },
+      {
+        "name": "live_stream control fact is not a control record",
+        "value": {
+          "kind": "control",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "seq": 1,
+          "observed_at_unix_ms": 1,
+          "fact": {
+            "type": "heartbeat"
+          }
+        }
+      },
+      {
+        "name": "execution pause is not a v1 operation",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "pause",
+          "scope": {
+            "root": "root-7"
+          }
+        }
+      },
+      {
+        "name": "drain is not a v1 operation",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "drain",
+          "scope": {
+            "root": "root-7"
+          }
+        }
+      },
+      {
+        "name": "provider-native session cannot be the logical scope",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7",
+            "provider_session": "sess-abc"
+          }
+        }
+      },
+      {
+        "name": "request without addressed authority",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7"
+          }
+        }
+      },
+      {
+        "name": "authority without incarnation",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7"
+          }
+        }
+      },
+      {
+        "name": "request carrying a SECRETVALUE field",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7"
+          },
+          "secret": "SECRETVALUE"
+        }
+      },
+      {
+        "name": "request key over 128 characters",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7"
+          }
+        }
+      },
+      {
+        "name": "host value with a space",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli user",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7"
+          }
+        }
+      },
+      {
+        "name": "reason text over 512 characters",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7"
+          },
+          "reason": {
+            "state": "present",
+            "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        }
+      },
+      {
+        "name": "redaction marker carrying the redacted text",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7"
+          },
+          "reason": {
+            "state": "redacted",
+            "text": "leak"
+          }
+        }
+      },
+      {
+        "name": "missing marker without its reason",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7"
+          },
+          "reason": {
+            "state": "missing"
+          }
+        }
+      },
+      {
+        "name": "receipt without durability claim",
+        "value": {
+          "kind": "receipt",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "observed_at_unix_ms": 1760000000100
+        }
+      },
+      {
+        "name": "receipt claiming admission",
+        "value": {
+          "kind": "receipt",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "durable": false,
+          "observed_at_unix_ms": 1760000000100,
+          "admitted": true
+        }
+      },
+      {
+        "name": "acknowledgment claiming running work paused",
+        "value": {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "from": "input_open",
+          "to": "input_held",
+          "observed_at_unix_ms": 1760000000300,
+          "running_work": "paused"
+        }
+      },
+      {
+        "name": "acknowledgment to unknown state",
+        "value": {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "from": "input_open",
+          "to": "unknown",
+          "observed_at_unix_ms": 1760000000300
+        }
+      },
+      {
+        "name": "refusal without reason",
+        "value": {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "admission",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          }
+        }
+      },
+      {
+        "name": "unknown outcome without uncertainty",
+        "value": {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "unknown",
+          "observed_at_unix_ms": 1760000000400
+        }
+      },
+      {
+        "name": "acknowledged outcome with uncertainty",
+        "value": {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "acknowledged",
+          "observed_at_unix_ms": 1760000000400,
+          "uncertainty": "transport_lost"
+        }
+      },
+      {
+        "name": "insertion fact with a tagged-end state",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "observed"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      },
+      {
+        "name": "physical custody fact with a logical state",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "physical_custody",
+            "state": "settled"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      },
+      {
+        "name": "missing fact without missing_reason",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "tagged_end",
+            "state": "missing"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      },
+      {
+        "name": "present fact with a missing_reason",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "tagged_end",
+            "state": "observed",
+            "missing_reason": "not_captured"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      },
+      {
+        "name": "incident severity is outside this slice",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500,
+          "severity": "s0"
+        }
+      },
+      {
+        "name": "OOM cause is not an actor evidence kind",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "physical_custody",
+            "state": "exited_waited"
+          },
+          "observed_at_unix_ms": 1760000000500,
+          "evidence": [
+            {
+              "actor": "oom_kill",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "x"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "seventeen evidence items",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500,
+          "evidence": [
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            },
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "observation carrying a request key",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500,
+          "request_key": "k-hold-1"
+        }
+      }
+    ]
+  },
+  "invalid_semantic": {
+    "Record": [
+      {
+        "name": "scope root differs from addressed root",
+        "value": {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-8"
+          }
+        }
+      },
+      {
+        "name": "admission by a successor generation",
+        "value": {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g13",
+            "incarnation": "inc-4a0"
+          },
+          "observed_at_unix_ms": 1760000000200
+        }
+      },
+      {
+        "name": "acknowledgment by a stale or successor authority",
+        "value": {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g13",
+            "incarnation": "inc-4a0"
+          },
+          "operation": "input_hold",
+          "from": "input_open",
+          "to": "input_held",
+          "observed_at_unix_ms": 1760000000300
+        }
+      },
+      {
+        "name": "hold acknowledged as input_open",
+        "value": {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "from": "input_open",
+          "to": "input_open",
+          "observed_at_unix_ms": 1760000000300
+        }
+      },
+      {
+        "name": "release acknowledged as input_held",
+        "value": {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-release-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_release",
+          "from": "input_open",
+          "to": "input_held",
+          "observed_at_unix_ms": 1760000000300
+        }
+      },
+      {
+        "name": "transition reason at admission stage",
+        "value": {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "admission",
+          "reason": "already_terminal",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          }
+        }
+      },
+      {
+        "name": "admission reason at transition stage",
+        "value": {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "transition",
+          "reason": "not_permitted",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          }
+        }
+      },
+      {
+        "name": "stale_authority from the addressed authority itself",
+        "value": {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "admission",
+          "reason": "stale_authority",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          }
+        }
+      },
+      {
+        "name": "stale_authority from another root",
+        "value": {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "admission",
+          "reason": "stale_authority",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-8",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          }
+        }
+      },
+      {
+        "name": "non-stale refusal by another authority",
+        "value": {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "admission",
+          "reason": "not_permitted",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g13",
+            "incarnation": "inc-4a0"
+          }
+        }
+      },
+      {
+        "name": "exact actor evidence with redacted reference",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500,
+          "evidence": [
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "redacted"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "exact actor evidence with missing reference",
+        "value": {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500,
+          "evidence": [
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "missing",
+                "reason": "not_captured"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "selection": [
+    {
+      "name": "common v1 intersects operations and facts",
+      "local": {
+        "operations": [
+          "input_hold",
+          "input_release"
+        ],
+        "facts": [
+          "insertion",
+          "tagged_end",
+          "logical_settlement",
+          "physical_custody"
+        ]
+      },
+      "remote": {
+        "oulipoly.session_control/v1": {
+          "operations": [
+            "input_release",
+            "input_hold"
+          ],
+          "facts": [
+            "physical_custody",
+            "insertion"
+          ]
+        }
+      },
+      "expect": {
+        "selected": {
+          "protocol": "oulipoly.session_control/v1",
+          "operations": [
+            "input_hold",
+            "input_release"
+          ],
+          "facts": [
+            "insertion",
+            "physical_custody"
+          ]
+        }
+      }
+    },
+    {
+      "name": "unknown and newer entries are ignored",
+      "local": {
+        "operations": [
+          "input_hold"
+        ],
+        "facts": []
+      },
+      "remote": {
+        "oulipoly.session_control/v2": {
+          "anything": 1
+        },
+        "x.vendor/v9": [],
+        "oulipoly.session_control/v1": {
+          "operations": [
+            "input_hold"
+          ],
+          "facts": [
+            "insertion"
+          ]
+        }
+      },
+      "expect": {
+        "selected": {
+          "protocol": "oulipoly.session_control/v1",
+          "operations": [
+            "input_hold"
+          ],
+          "facts": []
+        }
+      }
+    },
+    {
+      "name": "absent control capability is no_common_version, not provider unavailability",
+      "local": {
+        "operations": [
+          "input_hold"
+        ],
+        "facts": []
+      },
+      "remote": {
+        "oulipoly.live_stream/v1": {
+          "channels": [
+            "stdout"
+          ],
+          "audiences": [
+            "owner"
+          ],
+          "max_data_bytes": 1
+        }
+      },
+      "expect": {
+        "unavailable": "no_common_version"
+      }
+    },
+    {
+      "name": "empty advertisement",
+      "local": {
+        "operations": [
+          "input_hold"
+        ],
+        "facts": []
+      },
+      "remote": {},
+      "expect": {
+        "unavailable": "no_common_version"
+      }
+    },
+    {
+      "name": "no common operation",
+      "local": {
+        "operations": [
+          "input_hold"
+        ],
+        "facts": [
+          "insertion"
+        ]
+      },
+      "remote": {
+        "oulipoly.session_control/v1": {
+          "operations": [
+            "input_release"
+          ],
+          "facts": [
+            "insertion"
+          ]
+        }
+      },
+      "expect": {
+        "unavailable": "no_common_capability"
+      }
+    },
+    {
+      "name": "facts may be empty while operations agree",
+      "local": {
+        "operations": [
+          "input_hold",
+          "input_release"
+        ],
+        "facts": [
+          "insertion"
+        ]
+      },
+      "remote": {
+        "oulipoly.session_control/v1": {
+          "operations": [
+            "input_hold",
+            "input_release"
+          ],
+          "facts": []
+        }
+      },
+      "expect": {
+        "selected": {
+          "protocol": "oulipoly.session_control/v1",
+          "operations": [
+            "input_hold",
+            "input_release"
+          ],
+          "facts": []
+        }
+      }
+    },
+    {
+      "name": "malformed v1 entry is refused, not skipped",
+      "local": {
+        "operations": [
+          "input_hold"
+        ],
+        "facts": []
+      },
+      "remote": {
+        "oulipoly.session_control/v1": {
+          "operations": [
+            "pause"
+          ],
+          "facts": []
+        }
+      },
+      "expect": {
+        "unavailable": "invalid_advertisement"
+      }
+    },
+    {
+      "name": "v1 entry with an extra field is refused",
+      "local": {
+        "operations": [
+          "input_hold"
+        ],
+        "facts": []
+      },
+      "remote": {
+        "oulipoly.session_control/v1": {
+          "operations": [
+            "input_hold"
+          ],
+          "facts": [],
+          "binary_sha256": "ab"
+        }
+      },
+      "expect": {
+        "unavailable": "invalid_advertisement"
+      }
+    },
+    {
+      "name": "advertisement that is not an object",
+      "local": {
+        "operations": [
+          "input_hold"
+        ],
+        "facts": []
+      },
+      "remote": [
+        "oulipoly.session_control/v1"
+      ],
+      "expect": {
+        "unavailable": "invalid_advertisement"
+      }
+    },
+    {
+      "name": "invalid local offer",
+      "local": {
+        "operations": [],
+        "facts": []
+      },
+      "remote": {
+        "oulipoly.session_control/v1": {
+          "operations": [
+            "input_hold"
+          ],
+          "facts": []
+        }
+      },
+      "expect": {
+        "unavailable": "invalid_advertisement"
+      }
+    }
+  ],
+  "repetition": [
+    {
+      "name": "byte-identical retry is the same request",
+      "first": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "again": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "expect": "same_request"
+    },
+    {
+      "name": "same key, different operation",
+      "first": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "again": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_release",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "expect": "key_conflict"
+    },
+    {
+      "name": "same key re-addressed to a successor generation",
+      "first": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "again": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g13",
+          "incarnation": "inc-4a0"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "expect": "key_conflict"
+    },
+    {
+      "name": "same key, reason now redacted",
+      "first": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "again": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        },
+        "reason": {
+          "state": "redacted"
+        }
+      },
+      "expect": "key_conflict"
+    },
+    {
+      "name": "new key for the same hold is independent",
+      "first": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "again": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-2",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "expect": "distinct"
+    },
+    {
+      "name": "same key from another requester",
+      "first": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "again": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1001",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "expect": "distinct"
+    },
+    {
+      "name": "same key at another root",
+      "first": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "again": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-8",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-8"
+        }
+      },
+      "expect": "distinct"
+    }
+  ],
+  "agreement": [
+    {
+      "name": "selected hold request agrees",
+      "selected": {
+        "protocol": "oulipoly.session_control/v1",
+        "operations": [
+          "input_hold"
+        ],
+        "facts": []
+      },
+      "record": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "expect": "agrees"
+    },
+    {
+      "name": "unselected release request is a capability diagnostic",
+      "selected": {
+        "protocol": "oulipoly.session_control/v1",
+        "operations": [
+          "input_hold"
+        ],
+        "facts": []
+      },
+      "record": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-release-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_release",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "expect": "no_common_capability"
+    },
+    {
+      "name": "unselected fact type",
+      "selected": {
+        "protocol": "oulipoly.session_control/v1",
+        "operations": [
+          "input_hold"
+        ],
+        "facts": [
+          "insertion"
+        ]
+      },
+      "record": {
+        "kind": "observation",
+        "protocol": "oulipoly.session_control/v1",
+        "reporter": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "subject": {
+          "root": "root-7",
+          "child": "child-2",
+          "work": "work-5",
+          "input": "input-9"
+        },
+        "fact": {
+          "type": "physical_custody",
+          "state": "live"
+        },
+        "observed_at_unix_ms": 1760000000500
+      },
+      "expect": "no_common_capability"
+    },
+    {
+      "name": "selected fact type agrees",
+      "selected": {
+        "protocol": "oulipoly.session_control/v1",
+        "operations": [
+          "input_hold"
+        ],
+        "facts": [
+          "insertion"
+        ]
+      },
+      "record": {
+        "kind": "observation",
+        "protocol": "oulipoly.session_control/v1",
+        "reporter": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "subject": {
+          "root": "root-7",
+          "child": "child-2",
+          "work": "work-5",
+          "input": "input-9"
+        },
+        "fact": {
+          "type": "insertion",
+          "state": "uncertain"
+        },
+        "observed_at_unix_ms": 1760000000500
+      },
+      "expect": "agrees"
+    },
+    {
+      "name": "selection naming another protocol",
+      "selected": {
+        "protocol": "oulipoly.session_control/v2",
+        "operations": [
+          "input_hold"
+        ],
+        "facts": []
+      },
+      "record": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "expect": "protocol_violation"
+    }
+  ],
+  "traces": [
+    {
+      "name": "full ladder: receipt, admission, hold acknowledgment, outcome",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "receipt",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "durable": false,
+          "observed_at_unix_ms": 1760000000100
+        },
+        {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "observed_at_unix_ms": 1760000000200
+        },
+        {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "from": "input_open",
+          "to": "input_held",
+          "observed_at_unix_ms": 1760000000300
+        },
+        {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "acknowledged",
+          "observed_at_unix_ms": 1760000000400
+        }
+      ],
+      "expect": [
+        {
+          "step": "received",
+          "durable": false
+        },
+        {
+          "step": "admitted"
+        },
+        {
+          "step": "acknowledged",
+          "from": "input_open",
+          "to": "input_held"
+        },
+        {
+          "step": "concluded",
+          "result": "acknowledged"
+        }
+      ]
+    },
+    {
+      "name": "queued-not-admitted receipt is not admission or acknowledgment",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "receipt",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "durable": false,
+          "observed_at_unix_ms": 1760000000100
+        },
+        {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "acknowledged",
+          "observed_at_unix_ms": 1760000000400
+        }
+      ],
+      "expect": [
+        {
+          "step": "received",
+          "durable": false
+        },
+        {
+          "violation": true
+        }
+      ]
+    },
+    {
+      "name": "acknowledgment before admission is a violation",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "from": "input_open",
+          "to": "input_held",
+          "observed_at_unix_ms": 1760000000300
+        }
+      ],
+      "expect": [
+        {
+          "violation": true
+        }
+      ]
+    },
+    {
+      "name": "redelivered records are duplicates, a late receipt is still receipt",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "observed_at_unix_ms": 1760000000200
+        },
+        {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "observed_at_unix_ms": 1760000000200
+        },
+        {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "from": "input_open",
+          "to": "input_held",
+          "observed_at_unix_ms": 1760000000300
+        },
+        {
+          "kind": "receipt",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "durable": true,
+          "observed_at_unix_ms": 1760000000100
+        },
+        {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "from": "input_open",
+          "to": "input_held",
+          "observed_at_unix_ms": 1760000000300
+        },
+        {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7"
+          }
+        },
+        {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "acknowledged",
+          "observed_at_unix_ms": 1760000000400
+        },
+        {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "acknowledged",
+          "observed_at_unix_ms": 1760000000400
+        },
+        {
+          "kind": "receipt",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "durable": true,
+          "observed_at_unix_ms": 1760000000100
+        }
+      ],
+      "expect": [
+        {
+          "step": "admitted"
+        },
+        {
+          "step": "duplicate"
+        },
+        {
+          "step": "acknowledged",
+          "from": "input_open",
+          "to": "input_held"
+        },
+        {
+          "step": "received",
+          "durable": true
+        },
+        {
+          "step": "duplicate"
+        },
+        {
+          "step": "duplicate"
+        },
+        {
+          "step": "concluded",
+          "result": "acknowledged"
+        },
+        {
+          "step": "duplicate"
+        },
+        {
+          "step": "duplicate"
+        }
+      ]
+    },
+    {
+      "name": "contradictory second acknowledgment",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "observed_at_unix_ms": 1760000000200
+        },
+        {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "from": "input_open",
+          "to": "input_held",
+          "observed_at_unix_ms": 1760000000300
+        },
+        {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "from": "input_held",
+          "to": "input_held",
+          "observed_at_unix_ms": 1760000000300
+        }
+      ],
+      "expect": [
+        {
+          "step": "admitted"
+        },
+        {
+          "step": "acknowledged",
+          "from": "input_open",
+          "to": "input_held"
+        },
+        {
+          "violation": true
+        }
+      ]
+    },
+    {
+      "name": "stale authority refusal then refused outcome",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "admission",
+          "reason": "stale_authority",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g13",
+            "incarnation": "inc-4a0"
+          }
+        },
+        {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "refused",
+          "observed_at_unix_ms": 1760000000400
+        }
+      ],
+      "expect": [
+        {
+          "step": "refused",
+          "stage": "admission",
+          "reason": "stale_authority"
+        },
+        {
+          "step": "concluded",
+          "result": "refused"
+        }
+      ]
+    },
+    {
+      "name": "refusal cannot follow an acknowledgment",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "observed_at_unix_ms": 1760000000200
+        },
+        {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "from": "input_open",
+          "to": "input_held",
+          "observed_at_unix_ms": 1760000000300
+        },
+        {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "transition",
+          "reason": "transition_failed",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "step": "admitted"
+        },
+        {
+          "step": "acknowledged",
+          "from": "input_open",
+          "to": "input_held"
+        },
+        {
+          "violation": true
+        }
+      ]
+    },
+    {
+      "name": "admission-stage refusal after admission",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "observed_at_unix_ms": 1760000000200
+        },
+        {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "admission",
+          "reason": "not_permitted",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "step": "admitted"
+        },
+        {
+          "violation": true
+        }
+      ]
+    },
+    {
+      "name": "transition-stage refusal before admission",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "stage": "transition",
+          "reason": "already_terminal",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "violation": true
+        }
+      ]
+    },
+    {
+      "name": "acknowledged hold whose authority later changed stays acknowledged with retained uncertainty",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "observed_at_unix_ms": 1760000000200
+        },
+        {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "from": "input_open",
+          "to": "input_held",
+          "observed_at_unix_ms": 1760000000300
+        },
+        {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "unknown",
+          "observed_at_unix_ms": 1760000000400,
+          "uncertainty": "authority_changed"
+        },
+        {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "acknowledged",
+          "observed_at_unix_ms": 1760000000500
+        }
+      ],
+      "expect": [
+        {
+          "step": "admitted"
+        },
+        {
+          "step": "acknowledged",
+          "from": "input_open",
+          "to": "input_held"
+        },
+        {
+          "step": "concluded",
+          "result": "unknown"
+        },
+        {
+          "violation": true
+        }
+      ]
+    },
+    {
+      "name": "refused outcome without a refusal",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "observed_at_unix_ms": 1760000000200
+        },
+        {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "refused",
+          "observed_at_unix_ms": 1760000000400
+        }
+      ],
+      "expect": [
+        {
+          "step": "admitted"
+        },
+        {
+          "violation": true
+        }
+      ]
+    },
+    {
+      "name": "transport lost before any answer",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "receipt",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "durable": false,
+          "observed_at_unix_ms": 1760000000100
+        },
+        {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "unknown",
+          "observed_at_unix_ms": 1760000000400,
+          "uncertainty": "transport_lost"
+        }
+      ],
+      "expect": [
+        {
+          "step": "received",
+          "durable": false
+        },
+        {
+          "step": "concluded",
+          "result": "unknown"
+        }
+      ]
+    },
+    {
+      "name": "records answering another key, another generation or an observation are refused",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-other",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "observed_at_unix_ms": 1760000000200
+        },
+        {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g13",
+            "incarnation": "inc-4a0"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g13",
+            "incarnation": "inc-4a0"
+          },
+          "observed_at_unix_ms": 1760000000200
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "request",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "scope": {
+            "root": "root-7"
+          },
+          "reason": {
+            "state": "redacted"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "violation": true
+        },
+        {
+          "violation": true
+        },
+        {
+          "violation": true
+        },
+        {
+          "violation": true
+        }
+      ]
+    },
+    {
+      "name": "acknowledgment of another operation under the same key",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "observed_at_unix_ms": 1760000000200
+        },
+        {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_release",
+          "from": "input_open",
+          "to": "input_open",
+          "observed_at_unix_ms": 1760000000300
+        }
+      ],
+      "expect": [
+        {
+          "step": "admitted"
+        },
+        {
+          "violation": true
+        }
+      ]
+    },
+    {
+      "name": "release acknowledgment is idempotent from an open state",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-release-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_release",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "admission",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-release-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "observed_at_unix_ms": 1760000000200
+        },
+        {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-release-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_release",
+          "from": "input_open",
+          "to": "input_open",
+          "observed_at_unix_ms": 1760000000300
+        },
+        {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-release-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "acknowledged",
+          "observed_at_unix_ms": 1760000000400
+        }
+      ],
+      "expect": [
+        {
+          "step": "admitted"
+        },
+        {
+          "step": "acknowledged",
+          "from": "input_open",
+          "to": "input_open"
+        },
+        {
+          "step": "concluded",
+          "result": "acknowledged"
+        }
+      ]
+    },
+    {
+      "name": "different receipt after the outcome",
+      "request": {
+        "kind": "request",
+        "protocol": "oulipoly.session_control/v1",
+        "request_key": "k-hold-1",
+        "requester": "cli:user-1000",
+        "addressed": {
+          "root": "root-7",
+          "owner": "owner-a",
+          "generation": "g12",
+          "incarnation": "inc-3f9"
+        },
+        "operation": "input_hold",
+        "scope": {
+          "root": "root-7"
+        }
+      },
+      "records": [
+        {
+          "kind": "receipt",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "durable": false,
+          "observed_at_unix_ms": 1760000000100
+        },
+        {
+          "kind": "outcome",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "result": "unknown",
+          "observed_at_unix_ms": 1760000000400,
+          "uncertainty": "evidence_unavailable"
+        },
+        {
+          "kind": "receipt",
+          "protocol": "oulipoly.session_control/v1",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "durable": false,
+          "observed_at_unix_ms": 1760000000999
+        }
+      ],
+      "expect": [
+        {
+          "step": "received",
+          "durable": false
+        },
+        {
+          "step": "concluded",
+          "result": "unknown"
+        },
+        {
+          "violation": true
+        }
+      ]
+    }
+  ],
+  "settlement": [
+    {
+      "name": "ACK, tagged end and settled debt is logically settled",
+      "subject": {
+        "root": "root-7",
+        "child": "child-2",
+        "work": "work-5",
+        "input": "input-9"
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "tagged_end",
+            "state": "observed"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "logical_settlement",
+            "state": "settled"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      ],
+      "expect": {
+        "insertion": {
+          "reading": "reported",
+          "state": "acknowledged"
+        },
+        "tagged_end": {
+          "reading": "reported",
+          "state": "observed"
+        },
+        "logical_settlement": {
+          "reading": "reported",
+          "state": "settled"
+        },
+        "physical_custody": {
+          "reading": "not_observed"
+        },
+        "logical": "settled"
+      }
+    },
+    {
+      "name": "U112 case: ACK with absent tagged end, debt owed, then peer exit and wait",
+      "subject": {
+        "root": "root-7",
+        "child": "child-2",
+        "work": "work-5",
+        "input": "input-9"
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "tagged_end",
+            "state": "absent"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "logical_settlement",
+            "state": "owed"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "physical_custody",
+            "state": "exited_waited"
+          },
+          "observed_at_unix_ms": 1760000000500,
+          "evidence": [
+            {
+              "actor": "os_process",
+              "exactness": "exact",
+              "ref": {
+                "state": "present",
+                "ref": "pid:4242/boot:9c1e/start:88123"
+              }
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "insertion": {
+          "reading": "reported",
+          "state": "acknowledged"
+        },
+        "tagged_end": {
+          "reading": "reported",
+          "state": "absent"
+        },
+        "logical_settlement": {
+          "reading": "reported",
+          "state": "owed"
+        },
+        "physical_custody": {
+          "reading": "reported",
+          "state": "exited_waited"
+        },
+        "logical": "owed"
+      }
+    },
+    {
+      "name": "ACK with absent tagged end and no debt report is still owed",
+      "subject": {
+        "root": "root-7",
+        "child": "child-2",
+        "work": "work-5",
+        "input": "input-9"
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "tagged_end",
+            "state": "absent"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "physical_custody",
+            "state": "exited_waited"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      ],
+      "expect": {
+        "insertion": {
+          "reading": "reported",
+          "state": "acknowledged"
+        },
+        "tagged_end": {
+          "reading": "reported",
+          "state": "absent"
+        },
+        "logical_settlement": {
+          "reading": "not_observed"
+        },
+        "physical_custody": {
+          "reading": "reported",
+          "state": "exited_waited"
+        },
+        "logical": "owed"
+      }
+    },
+    {
+      "name": "physical exit and wait alone are not logical settlement",
+      "subject": {
+        "root": "root-7",
+        "child": "child-2",
+        "work": "work-5",
+        "input": "input-9"
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "physical_custody",
+            "state": "exited_waited"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      ],
+      "expect": {
+        "insertion": {
+          "reading": "not_observed"
+        },
+        "tagged_end": {
+          "reading": "not_observed"
+        },
+        "logical_settlement": {
+          "reading": "not_observed"
+        },
+        "physical_custody": {
+          "reading": "reported",
+          "state": "exited_waited"
+        },
+        "logical": "unknown"
+      }
+    },
+    {
+      "name": "missing insertion evidence is not non-insertion",
+      "subject": {
+        "root": "root-7",
+        "child": "child-2",
+        "work": "work-5",
+        "input": "input-9"
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "missing",
+            "missing_reason": "access_denied"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "physical_custody",
+            "state": "exited_waited"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      ],
+      "expect": {
+        "insertion": {
+          "reading": "reported",
+          "state": "missing"
+        },
+        "tagged_end": {
+          "reading": "not_observed"
+        },
+        "logical_settlement": {
+          "reading": "not_observed"
+        },
+        "physical_custody": {
+          "reading": "reported",
+          "state": "exited_waited"
+        },
+        "logical": "unknown"
+      }
+    },
+    {
+      "name": "positive non-insertion",
+      "subject": {
+        "root": "root-7",
+        "child": "child-2",
+        "work": "work-5",
+        "input": "input-9"
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "not_inserted"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "physical_custody",
+            "state": "exited_waited"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      ],
+      "expect": {
+        "insertion": {
+          "reading": "reported",
+          "state": "not_inserted"
+        },
+        "tagged_end": {
+          "reading": "not_observed"
+        },
+        "logical_settlement": {
+          "reading": "not_observed"
+        },
+        "physical_custody": {
+          "reading": "reported",
+          "state": "exited_waited"
+        },
+        "logical": "not_inserted"
+      }
+    },
+    {
+      "name": "insertion uncertainty is retained",
+      "subject": {
+        "root": "root-7",
+        "child": "child-2",
+        "work": "work-5",
+        "input": "input-9"
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "uncertain"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "tagged_end",
+            "state": "absent"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      ],
+      "expect": {
+        "insertion": {
+          "reading": "reported",
+          "state": "uncertain"
+        },
+        "tagged_end": {
+          "reading": "reported",
+          "state": "absent"
+        },
+        "logical_settlement": {
+          "reading": "not_observed"
+        },
+        "physical_custody": {
+          "reading": "not_observed"
+        },
+        "logical": "unknown"
+      }
+    },
+    {
+      "name": "a successor's not_inserted report does not erase an earlier ACK; the disagreement is retained",
+      "subject": {
+        "root": "root-7",
+        "child": "child-2",
+        "work": "work-5",
+        "input": "input-9"
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g13",
+            "incarnation": "inc-4a0"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "not_inserted"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "tagged_end",
+            "state": "observed"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "logical_settlement",
+            "state": "settled"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      ],
+      "expect": {
+        "insertion": {
+          "reading": "conflicting"
+        },
+        "tagged_end": {
+          "reading": "reported",
+          "state": "observed"
+        },
+        "logical_settlement": {
+          "reading": "reported",
+          "state": "settled"
+        },
+        "physical_custody": {
+          "reading": "not_observed"
+        },
+        "logical": "unknown"
+      }
+    },
+    {
+      "name": "earlier generation ACK is read alongside a successor's tagged end",
+      "subject": {
+        "root": "root-7",
+        "child": "child-2",
+        "work": "work-5",
+        "input": "input-9"
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g13",
+            "incarnation": "inc-4a0"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "tagged_end",
+            "state": "observed"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g13",
+            "incarnation": "inc-4a0"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "logical_settlement",
+            "state": "settled"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      ],
+      "expect": {
+        "insertion": {
+          "reading": "reported",
+          "state": "acknowledged"
+        },
+        "tagged_end": {
+          "reading": "reported",
+          "state": "observed"
+        },
+        "logical_settlement": {
+          "reading": "reported",
+          "state": "settled"
+        },
+        "physical_custody": {
+          "reading": "not_observed"
+        },
+        "logical": "settled"
+      }
+    },
+    {
+      "name": "redacted tagged end leaves logical settlement unknown",
+      "subject": {
+        "root": "root-7",
+        "child": "child-2",
+        "work": "work-5",
+        "input": "input-9"
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "tagged_end",
+            "state": "redacted"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "logical_settlement",
+            "state": "settled"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      ],
+      "expect": {
+        "insertion": {
+          "reading": "reported",
+          "state": "acknowledged"
+        },
+        "tagged_end": {
+          "reading": "reported",
+          "state": "redacted"
+        },
+        "logical_settlement": {
+          "reading": "reported",
+          "state": "settled"
+        },
+        "physical_custody": {
+          "reading": "not_observed"
+        },
+        "logical": "unknown"
+      }
+    },
+    {
+      "name": "contradictory ACK, absent end and settled debt stays unknown",
+      "subject": {
+        "root": "root-7",
+        "child": "child-2",
+        "work": "work-5",
+        "input": "input-9"
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "tagged_end",
+            "state": "absent"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "logical_settlement",
+            "state": "settled"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      ],
+      "expect": {
+        "insertion": {
+          "reading": "reported",
+          "state": "acknowledged"
+        },
+        "tagged_end": {
+          "reading": "reported",
+          "state": "absent"
+        },
+        "logical_settlement": {
+          "reading": "reported",
+          "state": "settled"
+        },
+        "physical_custody": {
+          "reading": "not_observed"
+        },
+        "logical": "unknown"
+      }
+    },
+    {
+      "name": "observations of another logical input are not read",
+      "subject": {
+        "root": "root-7",
+        "child": "child-2",
+        "work": "work-5",
+        "input": "input-9"
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-10"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7"
+          },
+          "fact": {
+            "type": "tagged_end",
+            "state": "observed"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      ],
+      "expect": {
+        "insertion": {
+          "reading": "not_observed"
+        },
+        "tagged_end": {
+          "reading": "not_observed"
+        },
+        "logical_settlement": {
+          "reading": "not_observed"
+        },
+        "physical_custody": {
+          "reading": "not_observed"
+        },
+        "logical": "unknown"
+      }
+    },
+    {
+      "name": "live process with owed debt",
+      "subject": {
+        "root": "root-7",
+        "child": "child-2",
+        "work": "work-5",
+        "input": "input-9"
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "insertion",
+            "state": "acknowledged"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "logical_settlement",
+            "state": "owed"
+          },
+          "observed_at_unix_ms": 1760000000500
+        },
+        {
+          "kind": "observation",
+          "protocol": "oulipoly.session_control/v1",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "subject": {
+            "root": "root-7",
+            "child": "child-2",
+            "work": "work-5",
+            "input": "input-9"
+          },
+          "fact": {
+            "type": "physical_custody",
+            "state": "live"
+          },
+          "observed_at_unix_ms": 1760000000500
+        }
+      ],
+      "expect": {
+        "insertion": {
+          "reading": "reported",
+          "state": "acknowledged"
+        },
+        "tagged_end": {
+          "reading": "not_observed"
+        },
+        "logical_settlement": {
+          "reading": "reported",
+          "state": "owed"
+        },
+        "physical_custody": {
+          "reading": "reported",
+          "state": "live"
+        },
+        "logical": "owed"
+      }
+    }
+  ]
+}
