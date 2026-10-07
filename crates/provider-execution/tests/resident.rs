@@ -61,7 +61,11 @@ fn main() {
         Some("--resident") => std::process::exit(serve(&args[2])),
         _ => {}
     }
-    let tests: [(&str, fn()); 28] = [
+    let tests: [(&str, fn()); 29] = [
+        (
+            "queued_refusal_recovers_non_start_after_unlock",
+            queued_refusal_recovers_non_start_after_unlock,
+        ),
         (
             "initialize_serves_only_v2_with_dedup_and_resident_contract",
             initialize_serves_only_v2_with_dedup_and_resident_contract,
@@ -856,6 +860,56 @@ fn cancel_stops_the_turn_settles_descendants_and_refuses_queued_input() {
     let after = client.prompt(&session, "reply after", None);
     let after = message_id(&client.response(after));
     assert_eq!(client.idle_for(&after)["stopReason"], json!("end_turn"));
+}
+
+fn queued_refusal_recovers_non_start_after_unlock() {
+    let fixture = Fixture::new();
+    let mut client = fixture.start();
+    let session = client.open(&fixture.cwd());
+    let (running, _marks) = barrier(&fixture, &mut client, &session);
+    let queued = client.prompt(&session, "reply must not run", Some("queued"));
+    let dir = bounds_dir(&fixture, &session);
+    let deadline = Instant::now() + TIMEOUT;
+    let input_path = loop {
+        let found = std::fs::read_dir(dir.join("inputs"))
+            .unwrap()
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .find(|path| bounds_read(path)["message_key"] == json!("queued"));
+        if let Some(path) = found {
+            break path;
+        }
+        assert!(Instant::now() < deadline, "queued input was not published");
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    let input = bounds_read(&input_path);
+    assert_eq!(input["dispatched"], json!(false));
+    let key =
+        agent_provider_execution::custody::request_key(None, input["request_id"].as_str().unwrap());
+    let lock = RequestCustody::acquire(&dir.join("turns"), &key).unwrap();
+    client.send(json!({"jsonrpc":"2.0","method":"session/cancel","params":{"sessionId":session}}));
+    client.response(running);
+    assert_eq!(client.response(queued)["error"]["code"], json!(-32011));
+    assert_eq!(bounds_read(&input_path)["phase"], json!("uncertain"));
+    assert_eq!(
+        client.call("session/close", json!({"sessionId":session}))["error"]["code"],
+        json!(-32012)
+    );
+    assert!(!client.end().success());
+    drop(lock);
+    let (mut client, resumed) = bounds_resume(&fixture, &session);
+    assert_eq!(resumed["result"], json!({}));
+    let duplicate = client.prompt(&session, "ignored", Some("queued"));
+    assert_eq!(client.response(duplicate)["error"]["code"], json!(-32010));
+    assert_eq!(bounds_read(&input_path)["phase"], json!("not_inserted"));
+    assert!(!dir.join("turns").join(format!("{key}.json")).exists());
+    assert!(!dir.join("turns").join(format!("{key}.jsonl")).exists());
+    assert_eq!(fixture.runs(), 1, "queued input was never dispatched");
+    assert_eq!(
+        client.call("session/close", json!({"sessionId":session}))["result"],
+        json!({})
+    );
+    assert!(client.end().success());
 }
 
 fn connection_end_settles_the_running_turn() {
