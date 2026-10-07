@@ -372,22 +372,25 @@ does not change the pinned v1 snapshot.
   ended turn's tagged idle (outputs are not re-sent). This attests key identity
   only; a duplicate ACK does not accept the current prompt bytes. `session/cancel` stops
   only that session's running turn (process group terminated and drained) and
-  refuses its queued inputs; `session/close` answers success only after settlement
-  and lock release, with its worker joined and live resources dropped;
-  connection end or `SIGTERM`/`SIGINT` stops and settles every running turn.
+  refuses its queued inputs; `session/close` answers success after settling
+  reconstructed inputs and releasing the lock, with its worker joined and
+  worker resources dropped. Connection end or `SIGTERM`/`SIGINT` stops and
+  settles currently running turns; the unreadable-input limit below still applies.
   `session/resume` (same working directory, one holding process per session
-  through an exclusive lock) settles inputs an earlier process left unfinished
-  through the lifecycle without readmission: a complete equal-request journal
-  replays without native effects; an interrupted one has its recorded process
-  group discharged before any current-template digest comparison,
+  through an exclusive lock) reconstructs readable inputs an earlier process
+  left unfinished and settles them through the lifecycle without readmission:
+  a complete equal-request journal replays without native effects; an interrupted
+  one has its recorded process group discharged before any current-template
+  digest comparison,
   and the interrupted journal's markers recover native session identity and
   consumption. Native create/resume selection is bound and persisted at
   dispatch from the preceding settled session state, so queued turns continue
   it. Native-session publication errors surface as failures; incomplete custody
   stays unsettled, without an ended record or idle completion. Immediate
-  reconciliation may discharge it; unresolved settlement refuses subsequent
-  native dispatch and successful close/resume. Config content hashes protect
-  private prepare records, not compatibility or recovery admission. Limits: no per-turn deadline or silence kill; only text prompt
+  reconciliation may discharge it; unresolved custody in reconstructed inputs
+  refuses subsequent native dispatch and successful close/resume. Config content
+  hashes protect private prepare records, not compatibility or recovery admission.
+  Limits: no per-turn deadline or silence kill; only text prompt
   content. ACP records are bounded at 32 MiB (including newline); an over-bound
   record receives an error with null request ID and closes the connection after
   settling its running turns. Ingress buffering holds at most one queued record.
@@ -400,12 +403,17 @@ does not change the pinned v1 snapshot.
   clears the native ID and blocks new input. Resume settles readable inputs even
   alongside an unreadable input, then reports `-32012`; known duplicate ACK/end
   remains available, while new input is blocked. No corrupt evidence is deleted.
+  An unreadable input is not reconstructed; its own actor may remain live even
+  after `session/close` returns `{}` and provider EOF exits 0. Neither establishes
+  that every recorded actor settled or clears earlier `-32012` uncertainty.
+  Correcting this SDK custody gap is owed before native recovery qualification.
   These errors do not prove non-insertion. These are per-record bounds, not a
   session-count or retention policy. Outputs are not replayed to a later
   connection; session records and
   turn journals are never pruned; the provider's own process loss leaves
-  descendants outside a PID namespace running until a later resume discharges
-  them; Linux-tested only.
+  descendants outside a PID namespace running; later resume reconciles only
+  reconstructed inputs, subject to the unreadable-evidence limits above;
+  Linux-tested only.
 
 Adapters that compose the individual modules instead of `run_launch` own the
 lifecycle themselves: keep request custody held, check the digest
