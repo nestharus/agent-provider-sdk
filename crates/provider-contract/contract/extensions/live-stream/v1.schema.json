@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:oulipoly:live-stream:v1",
   "title": "Oulipoly Live Stream v1",
-  "description": "Provider-neutral, optional, bounded live-output observation records exchanged between a publisher, a broker and subscribers. Selected by peer advertisement of oulipoly.live_stream/v1, not by provider describe, CLI, binary, package or source identity. It is not launch output, request custody, completed replay, a session transcript page or a durable store: completed turns stay canonical in the host's normal durable session storage, named here only by opaque host-owned references. Any failure of this plane is a live_unavailable observability diagnostic, never a launch, terminalization or completion failure.",
+  "description": "Provider-neutral, optional, bounded live-output observation records exchanged between a publisher, a broker and subscribers. Selected by peer advertisement of oulipoly.live_stream/v1, not by provider describe, CLI, binary, package or source identity. It is not launch output, request custody, completed replay, a session transcript page or a durable store: completed turns stay canonical in the host's normal durable session storage, named here only by opaque host-owned references. Contract refusals are live_unavailable diagnostics. Structural schema and the adjacent README normative semantic rules together define conformance; raw schema validation alone is insufficient.",
   "$defs": {
     "Protocol": { "const": "oulipoly.live_stream/v1" },
     "Id128": {
@@ -227,13 +227,14 @@
       ]
     },
     "Cursor": {
-      "description": "Caller-owned replay position. Not a session transcript page token or a retained-output offset.",
+      "description": "Caller-owned position and terminal knowledge. Persist the whole cursor. Terminal identity and sequence must match its containing cursor. Not a session transcript page token or retained-output offset.",
       "type": "object",
       "properties": {
         "protocol": { "$ref": "#/$defs/Protocol" },
         "stream_id": { "$ref": "#/$defs/StreamId" },
         "incarnation": { "$ref": "#/$defs/Incarnation" },
-        "after_seq": { "$ref": "#/$defs/AfterSeq" }
+        "after_seq": { "$ref": "#/$defs/AfterSeq" },
+        "terminal": { "$ref": "#/$defs/Terminal" }
       },
       "required": ["protocol", "stream_id", "incarnation", "after_seq"],
       "additionalProperties": false
@@ -260,6 +261,91 @@
       "type": "object",
       "maxProperties": 32,
       "propertyNames": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "Terminal": {
+      "description": "Complete retained terminal knowledge. Its identity and sequence must match its containing cursor/window.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/FinalizedFrame"
+        },
+        {
+          "$ref": "#/$defs/EndedFrame"
+        }
+      ]
+    },
+    "PreviousIncarnation": {
+      "type": "object",
+      "properties": {
+        "incarnation": {
+          "$ref": "#/$defs/Incarnation"
+        },
+        "last_seq": {
+          "$ref": "#/$defs/AfterSeq"
+        }
+      },
+      "required": [
+        "incarnation"
+      ],
+      "additionalProperties": false
+    },
+    "ReplayStart": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740992,
+      "description": "Next delivery position; maximum is the sentinel one beyond the last valid sequence, never a publisher sequence."
+    },
+    "RetainedWindow": {
+      "type": "object",
+      "properties": {
+        "stream_id": {
+          "$ref": "#/$defs/StreamId"
+        },
+        "incarnation": {
+          "$ref": "#/$defs/Incarnation"
+        },
+        "first_retained": {
+          "$ref": "#/$defs/ReplayStart"
+        },
+        "last_published": {
+          "$ref": "#/$defs/AfterSeq"
+        },
+        "terminal": {
+          "$ref": "#/$defs/Terminal"
+        },
+        "previous": {
+          "$ref": "#/$defs/PreviousIncarnation"
+        }
+      },
+      "required": [
+        "stream_id",
+        "incarnation",
+        "first_retained",
+        "last_published"
+      ],
+      "additionalProperties": false
+    },
+    "ReplayPlan": {
+      "type": "object",
+      "properties": {
+        "prefix": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/Record"
+          }
+        },
+        "deliver_from": {
+          "$ref": "#/$defs/ReplayStart"
+        },
+        "terminal": {
+          "$ref": "#/$defs/Terminal"
+        }
+      },
+      "required": [
+        "prefix",
+        "deliver_from"
+      ],
+      "additionalProperties": false
     },
     "LiveUnavailable": {
       "description": "Observability diagnostic: live viewing is unavailable for the stated reason. It disables live viewing only and is not a provider error, launch event or completion outcome.",

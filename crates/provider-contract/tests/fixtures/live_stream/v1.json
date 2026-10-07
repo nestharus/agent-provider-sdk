@@ -1,6 +1,6 @@
 {
  "protocol": "oulipoly.live_stream/v1",
- "note": "Golden oulipoly.live_stream/v1 vectors. Expectations state the contract's intended outcome; they are not runtime, broker or enforcement evidence.",
+ "note": "Language-independent v1 vectors: invalid_structural is refused by raw schema; invalid_semantic passes raw schema but violates normative admission. Selection/follow/replay are context-dependent semantics. No runtime qualification.",
  "valid": {
   "Record": [
    {
@@ -236,6 +236,20 @@
     "stream_id": "0123456789abcdef0123456789abcdef",
     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     "after_seq": 9007199254740991
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 20,
+    "terminal": {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
    }
   ],
   "Offer": [
@@ -321,9 +335,48 @@
   "DurableReference": [
    "/var/lib/runner/session.jsonl",
    "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  ],
+  "RetainedWindow": [
+   {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 20,
+    "last_published": 20,
+    "terminal": {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
+   }
+  ],
+  "ReplayPlan": [
+   {
+    "prefix": [
+     {
+      "kind": "finalized",
+      "stream_id": "0123456789abcdef0123456789abcdef",
+      "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "seq": 20,
+      "observed_at_unix_ms": 0,
+      "durable_reference": "runner:session/7f3a/turn/12"
+     }
+    ],
+    "deliver_from": 21,
+    "terminal": {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
+   }
   ]
  },
- "invalid": {
+ "invalid_structural": {
   "Record": [
    {
     "contract": "oulipoly.provider/v1",
@@ -407,15 +460,6 @@
     "data_base64": "aGVs*G8K"
    },
    {
-    "kind": "data",
-    "stream_id": "0123456789abcdef0123456789abcdef",
-    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "seq": 1,
-    "observed_at_unix_ms": 1760000000001,
-    "channel": "stdout",
-    "data_base64": "aGVsbG9="
-   },
-   {
     "kind": "control",
     "stream_id": "0123456789abcdef0123456789abcdef",
     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -496,14 +540,6 @@
     "kind": "gap",
     "stream_id": "0123456789abcdef0123456789abcdef",
     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "first": 5,
-    "last": 4,
-    "reason": "evicted"
-   },
-   {
-    "kind": "gap",
-    "stream_id": "0123456789abcdef0123456789abcdef",
-    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "first": 1,
     "last": 2,
     "reason": "lagged"
@@ -516,21 +552,6 @@
     "last": 2,
     "reason": "evicted",
     "seq": 3
-   },
-   {
-    "kind": "discontinuity",
-    "stream_id": "0123456789abcdef0123456789abcdef",
-    "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "after_seq": 3,
-    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-   },
-   {
-    "kind": "discontinuity",
-    "stream_id": "0123456789abcdef0123456789abcdef",
-    "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "after_seq": 3,
-    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    "previous_last_seq": 2
    },
    {
     "kind": "resume",
@@ -570,22 +591,6 @@
      "scope": "root:42",
      "channels": [
       "stdout"
-     ]
-    }
-   },
-   {
-    "protocol": "oulipoly.live_stream/v1",
-    "stream_id": "0123456789abcdef0123456789abcdef",
-    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "channels": [
-     "stdout"
-    ],
-    "max_data_bytes": 65536,
-    "visibility": {
-     "audience": "same_user",
-     "channels": [
-      "stdout",
-      "pty"
      ]
     }
    },
@@ -883,6 +888,76 @@
    "",
    "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
    "with space"
+  ]
+ },
+ "invalid_semantic": {
+  "Record": [
+   {
+    "kind": "data",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "channel": "stdout",
+    "data_base64": "aGVsbG9="
+   },
+   {
+    "kind": "gap",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "first": 5,
+    "last": 4,
+    "reason": "evicted"
+   },
+   {
+    "kind": "discontinuity",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3,
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   {
+    "kind": "discontinuity",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3,
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "previous_last_seq": 2
+   }
+  ],
+  "Descriptor": [
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout"
+    ],
+    "max_data_bytes": 65536,
+    "visibility": {
+     "audience": "same_user",
+     "channels": [
+      "stdout",
+      "pty"
+     ]
+    }
+   }
+  ],
+  "Cursor": [
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 19,
+    "terminal": {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
+   }
   ]
  },
  "selection": [
@@ -1329,7 +1404,15 @@
     "protocol": "oulipoly.live_stream/v1",
     "stream_id": "0123456789abcdef0123456789abcdef",
     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "after_seq": 4
+    "after_seq": 4,
+    "terminal": {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 4,
+     "observed_at_unix_ms": 1760000000004,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
    }
   },
   {
@@ -1842,7 +1925,14 @@
     "protocol": "oulipoly.live_stream/v1",
     "stream_id": "0123456789abcdef0123456789abcdef",
     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "after_seq": 2
+    "after_seq": 2,
+    "terminal": {
+     "kind": "ended",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 2,
+     "observed_at_unix_ms": 1760000000002
+    }
    }
   },
   {
@@ -2085,7 +2175,15 @@
     "protocol": "oulipoly.live_stream/v1",
     "stream_id": "0123456789abcdef0123456789abcdef",
     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "after_seq": 2
+    "after_seq": 2,
+    "terminal": {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 2,
+     "observed_at_unix_ms": 1760000000002,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
    }
   }
  ],
@@ -2388,7 +2486,15 @@
     "stream_id": "0123456789abcdef0123456789abcdef",
     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     "first_retained": 20,
-    "last_published": 20
+    "last_published": 20,
+    "terminal": {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
    },
    "cursor": {
     "protocol": "oulipoly.live_stream/v1",
@@ -2408,9 +2514,41 @@
        "reason": "evicted"
       }
      ],
-     "deliver_from": 20
+     "deliver_from": 20,
+     "terminal": {
+      "kind": "finalized",
+      "stream_id": "0123456789abcdef0123456789abcdef",
+      "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "seq": 20,
+      "observed_at_unix_ms": 0,
+      "durable_reference": "runner:session/7f3a/turn/12"
+     }
+    },
+    "terminal_cursor": {
+     "protocol": "oulipoly.live_stream/v1",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "after_seq": 20,
+     "terminal": {
+      "kind": "finalized",
+      "stream_id": "0123456789abcdef0123456789abcdef",
+      "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "seq": 20,
+      "observed_at_unix_ms": 0,
+      "durable_reference": "runner:session/7f3a/turn/12"
+     }
     }
-   }
+   },
+   "deliver_records": [
+    {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
+   ]
   },
   {
    "name": "nothing published yet",
@@ -2446,6 +2584,304 @@
     "stream_id": "0123456789abcdef0123456789abcdef",
     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     "after_seq": 0
+   },
+   "expect": {
+    "unavailable": "protocol_violation"
+   }
+  },
+  {
+   "name": "finalized at final cursor with unknown terminal metadata",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 20,
+    "last_published": 20,
+    "terminal": {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 20
+   },
+   "expect": {
+    "plan": {
+     "prefix": [
+      {
+       "kind": "finalized",
+       "stream_id": "0123456789abcdef0123456789abcdef",
+       "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "seq": 20,
+       "observed_at_unix_ms": 0,
+       "durable_reference": "runner:session/7f3a/turn/12"
+      }
+     ],
+     "deliver_from": 21,
+     "terminal": {
+      "kind": "finalized",
+      "stream_id": "0123456789abcdef0123456789abcdef",
+      "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "seq": 20,
+      "observed_at_unix_ms": 0,
+      "durable_reference": "runner:session/7f3a/turn/12"
+     }
+    },
+    "terminal_cursor": {
+     "protocol": "oulipoly.live_stream/v1",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "after_seq": 20,
+     "terminal": {
+      "kind": "finalized",
+      "stream_id": "0123456789abcdef0123456789abcdef",
+      "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "seq": 20,
+      "observed_at_unix_ms": 0,
+      "durable_reference": "runner:session/7f3a/turn/12"
+     }
+    }
+   }
+  },
+  {
+   "name": "finalized at final cursor with known terminal metadata",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 20,
+    "last_published": 20,
+    "terminal": {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 20,
+    "terminal": {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
+   },
+   "expect": {
+    "plan": {
+     "prefix": [
+      {
+       "kind": "finalized",
+       "stream_id": "0123456789abcdef0123456789abcdef",
+       "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "seq": 20,
+       "observed_at_unix_ms": 0,
+       "durable_reference": "runner:session/7f3a/turn/12"
+      }
+     ],
+     "deliver_from": 21,
+     "terminal": {
+      "kind": "finalized",
+      "stream_id": "0123456789abcdef0123456789abcdef",
+      "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "seq": 20,
+      "observed_at_unix_ms": 0,
+      "durable_reference": "runner:session/7f3a/turn/12"
+     }
+    },
+    "terminal_cursor": {
+     "protocol": "oulipoly.live_stream/v1",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "after_seq": 20,
+     "terminal": {
+      "kind": "finalized",
+      "stream_id": "0123456789abcdef0123456789abcdef",
+      "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "seq": 20,
+      "observed_at_unix_ms": 0,
+      "durable_reference": "runner:session/7f3a/turn/12"
+     }
+    }
+   }
+  },
+  {
+   "name": "finalized cannot be evicted as an ordinary empty window",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 21,
+    "last_published": 20,
+    "terminal": {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 20
+   },
+   "expect": {
+    "unavailable": "protocol_violation"
+   }
+  },
+  {
+   "name": "ended at final cursor with unknown terminal metadata",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 20,
+    "last_published": 20,
+    "terminal": {
+     "kind": "ended",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 20
+   },
+   "expect": {
+    "plan": {
+     "prefix": [
+      {
+       "kind": "ended",
+       "stream_id": "0123456789abcdef0123456789abcdef",
+       "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "seq": 20,
+       "observed_at_unix_ms": 0
+      }
+     ],
+     "deliver_from": 21,
+     "terminal": {
+      "kind": "ended",
+      "stream_id": "0123456789abcdef0123456789abcdef",
+      "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "seq": 20,
+      "observed_at_unix_ms": 0
+     }
+    },
+    "terminal_cursor": {
+     "protocol": "oulipoly.live_stream/v1",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "after_seq": 20,
+     "terminal": {
+      "kind": "ended",
+      "stream_id": "0123456789abcdef0123456789abcdef",
+      "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "seq": 20,
+      "observed_at_unix_ms": 0
+     }
+    }
+   }
+  },
+  {
+   "name": "ended at final cursor with known terminal metadata",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 20,
+    "last_published": 20,
+    "terminal": {
+     "kind": "ended",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 20,
+    "terminal": {
+     "kind": "ended",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0
+    }
+   },
+   "expect": {
+    "plan": {
+     "prefix": [
+      {
+       "kind": "ended",
+       "stream_id": "0123456789abcdef0123456789abcdef",
+       "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "seq": 20,
+       "observed_at_unix_ms": 0
+      }
+     ],
+     "deliver_from": 21,
+     "terminal": {
+      "kind": "ended",
+      "stream_id": "0123456789abcdef0123456789abcdef",
+      "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "seq": 20,
+      "observed_at_unix_ms": 0
+     }
+    },
+    "terminal_cursor": {
+     "protocol": "oulipoly.live_stream/v1",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "after_seq": 20,
+     "terminal": {
+      "kind": "ended",
+      "stream_id": "0123456789abcdef0123456789abcdef",
+      "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "seq": 20,
+      "observed_at_unix_ms": 0
+     }
+    }
+   }
+  },
+  {
+   "name": "ended cannot be evicted as an ordinary empty window",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 21,
+    "last_published": 20,
+    "terminal": {
+     "kind": "ended",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 20,
+     "observed_at_unix_ms": 0
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 20
    },
    "expect": {
     "unavailable": "protocol_violation"

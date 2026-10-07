@@ -12,8 +12,11 @@ exchange the following about live output:
 - caller-owned cursors;
 - advertised visibility claims.
 
-[v1.schema.json](v1.schema.json) is the wire authority, and the
-`live_stream` module is its typed projection and admission.
+[v1.schema.json](v1.schema.json) defines structural validation. That schema
+**plus the normative semantic rules below** defines v1 conformance in every
+language. Raw JSON Schema validation alone is insufficient. `live_stream`
+implements both layers and their context-dependent agreement/follow/replay
+operations. Raw Serde deserialization supplies representation only.
 
 Status: defined and unadopted. No publisher, broker, host or provider uses this
 contract yet. Capture, rings, the broker, subscription surfaces and retention
@@ -36,7 +39,7 @@ normal durable session storage. A `finalized` frame names that storage only by
 an opaque `durable_reference`. It adds no permanent output journal or event
 database.
 
-Every failure of this plane is a `live_unavailable` diagnostic: an absent
+Contract refusals are `live_unavailable` diagnostics: an absent
 broker, no common version, a malformed advertisement or record, a protocol
 violation or an unknown stream. The diagnostic disables live viewing only. It
 is not a provider error response, a launch event or a completion outcome, and
@@ -89,7 +92,9 @@ A `Descriptor` declares the following for one incarnation:
   `generation` and `epoch`.
 
 The SDK compares correlations only for equality. It is not their authority and
-keeps no registry of them.
+keeps no registry of them. The correlation slots are closed. Hosts must encode
+spaces or Unicode into the admitted non-space ASCII alphabet before carrying
+such identifiers; the SDK does not select or interpret that host encoding.
 
 ## Channels
 
@@ -103,7 +108,8 @@ keeps no registry of them.
   - `heartbeat`;
   - `channel_closed`;
   - `exit_observed`, with an optional `code` or `signal`. An observed exit is
-    not completion.
+    not completion. `channel_closed` reports an observation; it does not
+    prohibit subsequent data or change follower channel state.
 
   A control fact never commands, authorizes or acknowledges anything, and its
   receipt is not a semantic acknowledgement. Pause, resume and incident
@@ -120,16 +126,37 @@ keeps no registry of them.
   - exact, when `previous_last_seq` is known;
   - nothing, when `previous_last_seq` equals the cursor;
   - unknown, when `previous_last_seq` is absent.
-- **`Cursor {stream_id, incarnation, after_seq}`.** The caller owns it.
-  Redelivery is at-least-once and is deduplicated by sequence.
+- **`Cursor {stream_id, incarnation, after_seq, terminal?}`.** The caller owns
+  and persists the whole cursor. `terminal`, when present, is the complete
+  `finalized` or `ended` frame at exactly `after_seq` for this identity.
+  Reconstructing a follower preserves this knowledge and its durable reference.
+  `Duplicate` is positional suppression at or behind the cursor, including
+  positions advanced through a gap. It establishes neither identical content,
+  duplicate purity nor broker truth. A terminal frame at the current position
+  can supply previously unknown terminal knowledge; contradictory terminal
+  metadata is refused. Ordinary old content is not compared or rechecked
+  against selected channel/byte limits after structural and semantic admission.
 - **`finalized`.** This ends an incarnation. It is published only after the
   host's normal durable publication and carries the durable reference.
-  - Brokers keep the finalized frame while they know the stream, so a cursor
-    behind eviction reaches it after an exact gap.
-- **`ended`.** This ends an incarnation that claims no durable reference.
+  - Brokers must retain the terminal frame while they know the stream, so a
+    cursor behind eviction reaches it after an exact gap. `RetainedWindow`
+    carries the complete terminal frame once the incarnation ends. Its window
+    cannot claim the terminal position was evicted. Actual retention and durable
+    publication remain runtime obligations.
+- **`ended`.** This ends an incarnation that claims no durable reference and
+  carries the same resumable terminal knowledge without inventing a reference.
 
-Two pure functions give the reference semantics:
+An ended/finalized follow context is terminal. It cannot silently move to a
+later publisher run, even via discontinuity. Following a later observation
+context requires explicit descriptor/follow setup with a fresh cursor; it does
+not infer logical work continuity.
 
+The following APIs give the reference semantics:
+
+- **`Descriptor::agree` / `Follower::from_descriptor`** join descriptor admission
+  with a selected protocol, channels, byte limit and audience support. A supported
+  advertised audience shape is compatible; this does not authorize an observer.
+  `Follower::new` is a validated low-level setup for already-composed contexts.
 - **`live_stream::Follower`** checks delivery from a cursor. It enforces three
   rules:
   - every sequence is delivered, covered by a gap, or redelivered;
@@ -138,7 +165,37 @@ Two pure functions give the reference semantics:
   - nothing follows the end.
 - **`live_stream::plan_replay`** gives what a broker owes a cursor against its
   retained window: an exact eviction gap, a discontinuity, or a diagnostic. It
-  never produces content the window does not hold.
+  never produces content the window does not hold. The plan carries retained
+  terminal metadata even at an already-final cursor. At that position its prefix
+  reoffers the complete terminal frame to restore unknown knowledge, rather than
+  returning an ordinary empty replay. For a lagging cursor, `deliver_from` still
+  names retained delivery; the follower learns terminal state when that frame
+  is delivered, not merely from planning metadata.
+
+## Normative semantic rules
+
+Conforming implementations apply these rules in addition to the structural
+schema. Diagnostic reasons describe optional observation failure only.
+
+| Operation | Required semantic checks / result |
+| --- | --- |
+| Record admission | Standard padded canonical base64 decodes to 1–65536 bytes. `gap.first <= gap.last`. A discontinuity changes incarnation; known `previous_last_seq >= after_seq`. Record lines are at most 90112 UTF-8 bytes before parsing. |
+| Descriptor admission | `visibility.channels` is a subset of declared `channels`. This checks the claim, not enforcement. |
+| Cursor admission | Any terminal frame matches the cursor's stream/incarnation and has `seq == after_seq`. Persist all terminal metadata. |
+| Selection | The serialized advertisement is at most 16384 UTF-8 bytes. Validate the local offer and the advertised v1 entry; ignore unknown/newer entries. Intersect channels and audiences (both nonempty); choose the smaller byte limit. |
+| Joined agreement | Selected protocol is v1 and its offer fields are structurally valid. Descriptor channels are a subset of selected channels, descriptor byte limit is no greater than selected limit, and its audience is supported by the selection. The cursor names the descriptor stream. A terminal cursor cannot start following another incarnation. |
+| Typed follower/replay entry | Validate public typed inputs even if constructed directly or through raw Serde. Malformations return bounded diagnostics before state mutation or generated output. |
+| Follow | Stream/incarnation must match; incarnation changes only through a matching discontinuity. Forward sequence is exactly `after_seq + 1`; fresh gaps start there and advance through their last sequence. Old sequenced positions / fully covered gaps are positional duplicates. Fresh data/control uses declared channels; fresh data respects the context byte limit; closure facts name declared data channels. Learn terminal knowledge at its position, retain it in the cursor, and refuse conflicting terminal knowledge or forward frames/gaps/discontinuities after it. |
+| Discontinuity | It answers the cursor's incarnation and position. Known old last equal to the cursor means nothing lost; a greater value yields the exact remaining range; absent means unknown. Reset only an open follow context to the new incarnation and position zero. |
+| Retained window | `1 <= first_retained <= last_published + 1`; `last_published` fits the sequence ceiling. Previous incarnation differs from current and known previous last fits the ceiling. Terminal metadata, required once ended, matches window identity and last published sequence; the terminal position is retained (`first_retained <= last_published`). |
+| Replay | Refuse a cursor ahead of known publication, another stream, or a window contradicting terminal cursor knowledge (including a later incarnation). An open old cursor gets a discontinuity with known/unknown old tail, then any exact eviction gap. `deliver_from` is the next retained position or the sentinel `last_published + 1`. Terminal metadata is retained in the plan; at-final replay reoffers the terminal frame in its prefix. |
+
+The sentinel may equal 2^53 at the maximum sequence. It is an exactly
+representable delivery position, never a legal publisher sequence. A publisher
+must end within the sequence ceiling; no wraparound or implicit new incarnation
+is defined. Timestamps are bounded host observations, not ordered clocks or
+cross-pipe causal evidence. Gaps and terminal metadata are publisher/broker
+assertions: validation cannot prove their truth, publication or reference existence.
 
 ## Bounds
 
@@ -151,15 +208,23 @@ Two pure functions give the reference semantics:
 | Durable reference | 1–1024 printable non-space ASCII characters |
 | Diagnostic detail | 512 characters |
 
-Diagnostic details name schema locations and keywords only. They never repeat
-submitted values.
+SDK-generated validation details use schema keywords or fixed diagnostic text
+and do not echo submitted values, including arbitrary property names.
+`LiveUnavailable::new` bounds arbitrary caller detail to 512 characters; it does
+not sanitize or redact that detail. Valid captured bytes are preserved unchanged.
+The caller/host owns any content handling and authorization.
+
+The 64 KiB data and 90112-byte line ceilings are provisional contract choices,
+not runtime-qualified thresholds. Peers can lower the data limit; a higher
+ceiling requires a newly selected schema family if later benchmarks warrant it.
 
 ## Limits
 
 The golden vectors in `tests/fixtures/live_stream/v1.json` and their tests
 establish the following:
 
-- schema, DTO and fixture agreement;
+- classified structural acceptance versus normative semantic admission and DTO
+  projections (including vectors deliberately accepted by raw schema);
 - the bounds above;
 - the gap, cursor, incarnation and finalization outcomes;
 - version selection;
