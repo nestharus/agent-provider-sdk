@@ -178,6 +178,25 @@ The [`exploration/v1` extension](crates/provider-contract/contract/extensions/ex
   Route labels carry no provider, model or account
   meaning here, and a child is never offered exploration.
 
+The [`live-stream/v1` contract](crates/provider-contract/contract/extensions/live-stream/README.md)
+(`live_stream` module) is the record vocabulary of the optional live-output
+plane. It is defined but not adopted yet.
+- **What it covers.** Stream identity, publisher incarnation and sequence;
+  `stdout`, `stderr`, `pty` and typed `control` channels; exact gaps and
+  restarts; the opaque durable reference a stream finalizes to; caller-owned
+  cursors; and visibility claims.
+- **Selection.** Peers select it by a bounded advertisement, not provider
+  `describe`. Unknown or newer entries are ignored, and the selected v1 entry
+  and records are strict.
+- **Failures.** Every failure is a `live_unavailable` observability
+  diagnostic, never a provider error, launch event or completion outcome.
+- **What it does not replace.** Launch events and request custody, resident
+  records, transcript page tokens and retained Bash output stay as they are,
+  and the contract stores nothing.
+- **Not established.** Capture, the broker, enforcement of visibility and
+  runtime non-blocking behaviour remain later work. Incident and control
+  DTOs are not yet defined.
+
 The independently versioned
 [`terminal-unavailable/v1` extension](crates/provider-contract/contract/extensions/terminal-unavailable/README.md)
 adds an explicitly selected `provider_unavailable` terminal result for temporary

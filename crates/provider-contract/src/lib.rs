@@ -9,6 +9,7 @@
 pub mod exploration;
 pub mod generated;
 pub mod launch_stream;
+pub mod live_stream;
 pub mod negotiation;
 pub mod operations;
 pub mod resident_session;
@@ -45,6 +46,8 @@ pub mod fixtures {
     /// Valid and invalid exploration/v1 extension payloads.
     pub const EXPLORATION_V1_JSON: &str =
         include_str!("../tests/fixtures/negotiation/exploration_v1.json");
+    /// Golden live_stream/v1 payloads, selection, follow and replay vectors.
+    pub const LIVE_STREAM_V1_JSON: &str = include_str!("../tests/fixtures/live_stream/v1.json");
 
     pub fn invalid_contract_v1() -> Value {
         serde_json::from_str(INVALID_CONTRACT_V1_JSON)

@@ -1,0 +1,2455 @@
+{
+ "protocol": "oulipoly.live_stream/v1",
+ "note": "Golden oulipoly.live_stream/v1 vectors. Expectations state the contract's intended outcome; they are not runtime, broker or enforcement evidence.",
+ "valid": {
+  "Record": [
+   {
+    "kind": "data",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "channel": "stdout",
+    "data_base64": "aGVsbG8K"
+   },
+   {
+    "kind": "data",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 2,
+    "observed_at_unix_ms": 1760000000002,
+    "channel": "stderr",
+    "data_base64": "aGVsbG8K"
+   },
+   {
+    "kind": "data",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 3,
+    "observed_at_unix_ms": 1760000000003,
+    "channel": "pty",
+    "data_base64": "aGVsbG8K"
+   },
+   {
+    "kind": "control",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 4,
+    "observed_at_unix_ms": 1760000000004,
+    "fact": {
+     "type": "heartbeat"
+    }
+   },
+   {
+    "kind": "control",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 5,
+    "observed_at_unix_ms": 1760000000005,
+    "fact": {
+     "type": "channel_closed",
+     "channel": "stdout"
+    }
+   },
+   {
+    "kind": "control",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 6,
+    "observed_at_unix_ms": 1760000000006,
+    "fact": {
+     "type": "exit_observed",
+     "code": 0
+    }
+   },
+   {
+    "kind": "control",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 7,
+    "observed_at_unix_ms": 1760000000007,
+    "fact": {
+     "type": "exit_observed",
+     "signal": 9
+    }
+   },
+   {
+    "kind": "control",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 8,
+    "observed_at_unix_ms": 1760000000008,
+    "fact": {
+     "type": "exit_observed"
+    }
+   },
+   {
+    "kind": "finalized",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 9,
+    "observed_at_unix_ms": 1760000000009,
+    "durable_reference": "runner:session/7f3a/turn/12"
+   },
+   {
+    "kind": "ended",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 9,
+    "observed_at_unix_ms": 1760000000009
+   },
+   {
+    "kind": "gap",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "first": 1,
+    "last": 5,
+    "reason": "evicted"
+   },
+   {
+    "kind": "gap",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "first": 3,
+    "last": 3,
+    "reason": "capture_overflow"
+   },
+   {
+    "kind": "discontinuity",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3,
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "previous_last_seq": 7
+   },
+   {
+    "kind": "discontinuity",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3,
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   {
+    "kind": "discontinuity",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0,
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "previous_last_seq": 0
+   },
+   {
+    "kind": "finalized",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "durable_reference": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   }
+  ],
+  "Descriptor": [
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "max_data_bytes": 4096,
+    "visibility": {
+     "audience": "scoped",
+     "scope": "root:42",
+     "channels": [
+      "stdout",
+      "control"
+     ]
+    },
+    "correlation": {
+     "root": "root:42",
+     "session": "sess-1",
+     "work": "w/9",
+     "generation": "g3",
+     "epoch": "e5"
+    }
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout"
+    ],
+    "max_data_bytes": 65536,
+    "visibility": {
+     "audience": "same_user",
+     "channels": [
+      "stdout"
+     ]
+    }
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "pty"
+    ],
+    "max_data_bytes": 65536,
+    "visibility": {
+     "audience": "owner",
+     "channels": [
+      "pty"
+     ]
+    }
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "max_data_bytes": 65536,
+    "visibility": {
+     "audience": "same_user",
+     "channels": [
+      "stdout",
+      "stderr",
+      "control"
+     ]
+    },
+    "correlation": {}
+   }
+  ],
+  "Cursor": [
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 9007199254740991
+   }
+  ],
+  "Offer": [
+   {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner",
+     "same_user"
+    ],
+    "max_data_bytes": 65536
+   },
+   {
+    "channels": [
+     "pty"
+    ],
+    "audiences": [
+     "scoped"
+    ],
+    "max_data_bytes": 1
+   }
+  ],
+  "Advertisement": [
+   {
+    "oulipoly.live_stream/v1": {
+     "channels": [
+      "stdout",
+      "stderr",
+      "control"
+     ],
+     "audiences": [
+      "owner",
+      "same_user"
+     ],
+     "max_data_bytes": 65536
+    }
+   },
+   {
+    "oulipoly.live_stream/v1": {
+     "channels": [
+      "stdout",
+      "stderr",
+      "control"
+     ],
+     "audiences": [
+      "owner",
+      "same_user"
+     ],
+     "max_data_bytes": 65536
+    },
+    "oulipoly.live_stream/v2": {
+     "anything": [
+      "new"
+     ]
+    },
+    "x.other/v3": 5
+   },
+   {}
+  ],
+  "LiveUnavailable": [
+   {
+    "diagnostic": "live_unavailable",
+    "reason": "broker_absent"
+   },
+   {
+    "diagnostic": "live_unavailable",
+    "reason": "no_common_version",
+    "detail": "peer advertised 2 other protocol entries"
+   },
+   {
+    "diagnostic": "live_unavailable",
+    "reason": "protocol_violation"
+   }
+  ],
+  "HostRef": [
+   "a",
+   "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+   "runner:root/1"
+  ],
+  "DurableReference": [
+   "/var/lib/runner/session.jsonl",
+   "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  ]
+ },
+ "invalid": {
+  "Record": [
+   {
+    "contract": "oulipoly.provider/v1",
+    "request_id": "r1",
+    "seq": 1,
+    "time_unix_ms": 1760000000000,
+    "kind": "stdout",
+    "data_base64": "aGVsbG8K"
+   },
+   {
+    "contract": "oulipoly.provider/v1",
+    "request_id": "r1",
+    "seq": 2,
+    "time_unix_ms": 1760000000000,
+    "kind": "exit",
+    "exit_code": 0
+   },
+   {
+    "kind": "data",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "channel": "stdout",
+    "data_base64": "aGVsbG8K",
+    "secret": "sk-live-SECRETVALUE"
+   },
+   {
+    "kind": "data",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "channel": "stdout",
+    "data_base64": "aGVsbG8K",
+    "protocol": "oulipoly.live_stream/v1"
+   },
+   {
+    "kind": "data",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 0,
+    "observed_at_unix_ms": 1760000000000,
+    "channel": "stdout",
+    "data_base64": "aGVsbG8K"
+   },
+   {
+    "kind": "data",
+    "stream_id": "0123456789ABCDEF0123456789ABCDEF",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "channel": "stdout",
+    "data_base64": "aGVsbG8K"
+   },
+   {
+    "kind": "data",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "channel": "control",
+    "data_base64": "aGVsbG8K"
+   },
+   {
+    "kind": "data",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "channel": "stdout",
+    "data_base64": ""
+   },
+   {
+    "kind": "data",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "channel": "stdout",
+    "data_base64": "aGVs*G8K"
+   },
+   {
+    "kind": "data",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "channel": "stdout",
+    "data_base64": "aGVsbG9="
+   },
+   {
+    "kind": "control",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "fact": {
+     "type": "pause"
+    }
+   },
+   {
+    "kind": "control",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "fact": {
+     "type": "pause_ack",
+     "epoch": "e5"
+    }
+   },
+   {
+    "kind": "control",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "fact": {
+     "type": "heartbeat",
+     "command": "pause"
+    }
+   },
+   {
+    "kind": "control",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "fact": {
+     "type": "exit_observed",
+     "signal": 0
+    }
+   },
+   {
+    "kind": "control",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "fact": {
+     "type": "channel_closed",
+     "channel": "control"
+    }
+   },
+   {
+    "kind": "finalized",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001
+   },
+   {
+    "kind": "finalized",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "durable_reference": "has space"
+   },
+   {
+    "kind": "finalized",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "seq": 1,
+    "observed_at_unix_ms": 1760000000001,
+    "durable_reference": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   },
+   {
+    "kind": "gap",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "first": 5,
+    "last": 4,
+    "reason": "evicted"
+   },
+   {
+    "kind": "gap",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "first": 1,
+    "last": 2,
+    "reason": "lagged"
+   },
+   {
+    "kind": "gap",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "first": 1,
+    "last": 2,
+    "reason": "evicted",
+    "seq": 3
+   },
+   {
+    "kind": "discontinuity",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3,
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   },
+   {
+    "kind": "discontinuity",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3,
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "previous_last_seq": 2
+   },
+   {
+    "kind": "resume",
+    "stream_id": "0123456789abcdef0123456789abcdef"
+   }
+  ],
+  "Descriptor": [
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "max_data_bytes": 65536,
+    "visibility": {
+     "audience": "scoped",
+     "channels": [
+      "stdout"
+     ]
+    }
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "max_data_bytes": 65536,
+    "visibility": {
+     "audience": "same_user",
+     "scope": "root:42",
+     "channels": [
+      "stdout"
+     ]
+    }
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout"
+    ],
+    "max_data_bytes": 65536,
+    "visibility": {
+     "audience": "same_user",
+     "channels": [
+      "stdout",
+      "pty"
+     ]
+    }
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "max_data_bytes": 65537,
+    "visibility": {
+     "audience": "same_user",
+     "channels": [
+      "stdout",
+      "stderr",
+      "control"
+     ]
+    }
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "max_data_bytes": 0,
+    "visibility": {
+     "audience": "same_user",
+     "channels": [
+      "stdout",
+      "stderr",
+      "control"
+     ]
+    }
+   },
+   {
+    "protocol": "oulipoly.live_stream/v2",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "max_data_bytes": 65536,
+    "visibility": {
+     "audience": "same_user",
+     "channels": [
+      "stdout",
+      "stderr",
+      "control"
+     ]
+    }
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "max_data_bytes": 65536,
+    "visibility": {
+     "audience": "same_user",
+     "channels": [
+      "stdout",
+      "stderr",
+      "control"
+     ]
+    },
+    "correlation": {
+     "provider": "codex"
+    }
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "max_data_bytes": 65536,
+    "visibility": {
+     "audience": "same_user",
+     "channels": [
+      "stdout",
+      "stderr",
+      "control"
+     ]
+    },
+    "correlation": {
+     "root": "a\nb"
+    }
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [],
+    "max_data_bytes": 65536,
+    "visibility": {
+     "audience": "same_user",
+     "channels": []
+    }
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout",
+     "stdout"
+    ],
+    "max_data_bytes": 65536,
+    "visibility": {
+     "audience": "same_user",
+     "channels": [
+      "stdout",
+      "stdout"
+     ]
+    }
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "max_data_bytes": 65536,
+    "visibility": {
+     "audience": "same_user",
+     "channels": [
+      "stdout",
+      "stderr",
+      "control"
+     ]
+    },
+    "authorized": true
+   }
+  ],
+  "Cursor": [
+   {
+    "protocol": "oulipoly.live_stream/v2",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0
+   },
+   "page-token-abc",
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": -1
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0,
+    "page_token": "p1"
+   },
+   {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "after_seq": 0
+   }
+  ],
+  "Offer": [
+   {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner"
+    ],
+    "max_data_bytes": 0
+   },
+   {
+    "channels": [
+     "tty"
+    ],
+    "audiences": [
+     "owner"
+    ],
+    "max_data_bytes": 1
+   },
+   {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [],
+    "max_data_bytes": 1
+   },
+   {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner",
+     "same_user"
+    ],
+    "max_data_bytes": 65536,
+    "binary_version": "1.2.3"
+   }
+  ],
+  "Advertisement": [
+   {
+    "x.family0/v1": true,
+    "x.family1/v1": true,
+    "x.family2/v1": true,
+    "x.family3/v1": true,
+    "x.family4/v1": true,
+    "x.family5/v1": true,
+    "x.family6/v1": true,
+    "x.family7/v1": true,
+    "x.family8/v1": true,
+    "x.family9/v1": true,
+    "x.family10/v1": true,
+    "x.family11/v1": true,
+    "x.family12/v1": true,
+    "x.family13/v1": true,
+    "x.family14/v1": true,
+    "x.family15/v1": true,
+    "x.family16/v1": true,
+    "x.family17/v1": true,
+    "x.family18/v1": true,
+    "x.family19/v1": true,
+    "x.family20/v1": true,
+    "x.family21/v1": true,
+    "x.family22/v1": true,
+    "x.family23/v1": true,
+    "x.family24/v1": true,
+    "x.family25/v1": true,
+    "x.family26/v1": true,
+    "x.family27/v1": true,
+    "x.family28/v1": true,
+    "x.family29/v1": true,
+    "x.family30/v1": true,
+    "x.family31/v1": true,
+    "x.family32/v1": true
+   },
+   {
+    "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk": true
+   },
+   [
+    "oulipoly.live_stream/v1"
+   ]
+  ],
+  "LiveUnavailable": [
+   {
+    "diagnostic": "live_unavailable",
+    "reason": "launch_failed"
+   },
+   {
+    "diagnostic": "error",
+    "reason": "broker_absent"
+   },
+   {
+    "diagnostic": "live_unavailable",
+    "reason": "broker_absent",
+    "detail": "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+   },
+   {
+    "diagnostic": "live_unavailable",
+    "reason": "broker_absent",
+    "exit_code": 1
+   }
+  ],
+  "HostRef": [
+   "",
+   "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+   "a b",
+   "a\u0000"
+  ],
+  "DurableReference": [
+   "",
+   "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+   "with space"
+  ]
+ },
+ "selection": [
+  {
+   "name": "common v1 intersects channels and audiences and lowers the frame limit",
+   "local": {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner",
+     "same_user"
+    ],
+    "max_data_bytes": 65536
+   },
+   "remote": {
+    "oulipoly.live_stream/v1": {
+     "channels": [
+      "stdout",
+      "pty",
+      "control"
+     ],
+     "audiences": [
+      "same_user"
+     ],
+     "max_data_bytes": 4096
+    }
+   },
+   "expect": {
+    "selected": {
+     "protocol": "oulipoly.live_stream/v1",
+     "channels": [
+      "stdout",
+      "control"
+     ],
+     "audiences": [
+      "same_user"
+     ],
+     "max_data_bytes": 4096
+    }
+   }
+  },
+  {
+   "name": "unknown newer versions and other families are ignored",
+   "local": {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner",
+     "same_user"
+    ],
+    "max_data_bytes": 65536
+   },
+   "remote": {
+    "oulipoly.live_stream/v1": {
+     "channels": [
+      "stdout",
+      "pty",
+      "control"
+     ],
+     "audiences": [
+      "same_user"
+     ],
+     "max_data_bytes": 4096
+    },
+    "oulipoly.live_stream/v2": {
+     "channels": "anything"
+    },
+    "x.other/v3": 5
+   },
+   "expect": {
+    "selected": {
+     "protocol": "oulipoly.live_stream/v1",
+     "channels": [
+      "stdout",
+      "control"
+     ],
+     "audiences": [
+      "same_user"
+     ],
+     "max_data_bytes": 4096
+    }
+   }
+  },
+  {
+   "name": "only a newer version is no common version",
+   "local": {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner",
+     "same_user"
+    ],
+    "max_data_bytes": 65536
+   },
+   "remote": {
+    "oulipoly.live_stream/v2": {
+     "channels": [
+      "stdout"
+     ]
+    }
+   },
+   "expect": {
+    "unavailable": "no_common_version"
+   }
+  },
+  {
+   "name": "empty advertisement is no common version",
+   "local": {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner",
+     "same_user"
+    ],
+    "max_data_bytes": 65536
+   },
+   "remote": {},
+   "expect": {
+    "unavailable": "no_common_version"
+   }
+  },
+  {
+   "name": "malformed selected v1 entry is refused, not tolerated",
+   "local": {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner",
+     "same_user"
+    ],
+    "max_data_bytes": 65536
+   },
+   "remote": {
+    "oulipoly.live_stream/v1": {
+     "channels": [
+      "stdout",
+      "pty",
+      "control"
+     ],
+     "audiences": [
+      "same_user"
+     ],
+     "max_data_bytes": 4096,
+     "extra": 1
+    },
+    "oulipoly.live_stream/v2": {}
+   },
+   "expect": {
+    "unavailable": "invalid_advertisement"
+   }
+  },
+  {
+   "name": "v1 entry above the frame bound is refused",
+   "local": {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner",
+     "same_user"
+    ],
+    "max_data_bytes": 65536
+   },
+   "remote": {
+    "oulipoly.live_stream/v1": {
+     "channels": [
+      "stdout"
+     ],
+     "audiences": [
+      "owner"
+     ],
+     "max_data_bytes": 70000
+    }
+   },
+   "expect": {
+    "unavailable": "invalid_advertisement"
+   }
+  },
+  {
+   "name": "no common channel",
+   "local": {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner",
+     "same_user"
+    ],
+    "max_data_bytes": 65536
+   },
+   "remote": {
+    "oulipoly.live_stream/v1": {
+     "channels": [
+      "pty"
+     ],
+     "audiences": [
+      "owner"
+     ],
+     "max_data_bytes": 1024
+    }
+   },
+   "expect": {
+    "unavailable": "no_common_capability"
+   }
+  },
+  {
+   "name": "no common audience",
+   "local": {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner",
+     "same_user"
+    ],
+    "max_data_bytes": 65536
+   },
+   "remote": {
+    "oulipoly.live_stream/v1": {
+     "channels": [
+      "stdout"
+     ],
+     "audiences": [
+      "scoped"
+     ],
+     "max_data_bytes": 1024
+    }
+   },
+   "expect": {
+    "unavailable": "no_common_capability"
+   }
+  },
+  {
+   "name": "non-object advertisement",
+   "local": {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner",
+     "same_user"
+    ],
+    "max_data_bytes": 65536
+   },
+   "remote": [
+    "oulipoly.live_stream/v1"
+   ],
+   "expect": {
+    "unavailable": "invalid_advertisement"
+   }
+  },
+  {
+   "name": "too many families",
+   "local": {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner",
+     "same_user"
+    ],
+    "max_data_bytes": 65536
+   },
+   "remote": {
+    "x.family0/v1": true,
+    "x.family1/v1": true,
+    "x.family2/v1": true,
+    "x.family3/v1": true,
+    "x.family4/v1": true,
+    "x.family5/v1": true,
+    "x.family6/v1": true,
+    "x.family7/v1": true,
+    "x.family8/v1": true,
+    "x.family9/v1": true,
+    "x.family10/v1": true,
+    "x.family11/v1": true,
+    "x.family12/v1": true,
+    "x.family13/v1": true,
+    "x.family14/v1": true,
+    "x.family15/v1": true,
+    "x.family16/v1": true,
+    "x.family17/v1": true,
+    "x.family18/v1": true,
+    "x.family19/v1": true,
+    "x.family20/v1": true,
+    "x.family21/v1": true,
+    "x.family22/v1": true,
+    "x.family23/v1": true,
+    "x.family24/v1": true,
+    "x.family25/v1": true,
+    "x.family26/v1": true,
+    "x.family27/v1": true,
+    "x.family28/v1": true,
+    "x.family29/v1": true,
+    "x.family30/v1": true,
+    "x.family31/v1": true,
+    "oulipoly.live_stream/v1": {
+     "channels": [
+      "stdout",
+      "pty",
+      "control"
+     ],
+     "audiences": [
+      "same_user"
+     ],
+     "max_data_bytes": 4096
+    }
+   },
+   "expect": {
+    "unavailable": "invalid_advertisement"
+   }
+  },
+  {
+   "name": "oversized unknown entry bounds the whole advertisement",
+   "local": {
+    "channels": [
+     "stdout",
+     "stderr",
+     "control"
+    ],
+    "audiences": [
+     "owner",
+     "same_user"
+    ],
+    "max_data_bytes": 65536
+   },
+   "remote": {
+    "oulipoly.live_stream/v1": {
+     "channels": [
+      "stdout",
+      "pty",
+      "control"
+     ],
+     "audiences": [
+      "same_user"
+     ],
+     "max_data_bytes": 4096
+    },
+    "x.other/v9": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+   },
+   "expect": {
+    "unavailable": "invalid_advertisement"
+   }
+  }
+ ],
+ "follow": [
+  {
+   "name": "contiguous frames end in a durable reference",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 1,
+     "observed_at_unix_ms": 1760000000001,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    },
+    {
+     "kind": "control",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 2,
+     "observed_at_unix_ms": 1760000000002,
+     "fact": {
+      "type": "heartbeat"
+     }
+    },
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 3,
+     "observed_at_unix_ms": 1760000000003,
+     "channel": "stderr",
+     "data_base64": "aGVsbG8K"
+    },
+    {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 4,
+     "observed_at_unix_ms": 1760000000004,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
+   ],
+   "expect": [
+    {
+     "accepted": "frame",
+     "seq": 1
+    },
+    {
+     "accepted": "frame",
+     "seq": 2
+    },
+    {
+     "accepted": "frame",
+     "seq": 3
+    },
+    {
+     "accepted": "finalized",
+     "seq": 4,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
+   ],
+   "final_cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 4
+   }
+  },
+  {
+   "name": "exact eviction gap then frames",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "gap",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "first": 1,
+     "last": 5,
+     "reason": "evicted"
+    },
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 6,
+     "observed_at_unix_ms": 1760000000006,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    }
+   ],
+   "expect": [
+    {
+     "accepted": "gap",
+     "first": 1,
+     "last": 5
+    },
+    {
+     "accepted": "frame",
+     "seq": 6
+    }
+   ],
+   "final_cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 6
+   }
+  },
+  {
+   "name": "hidden gap is refused",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 1,
+     "observed_at_unix_ms": 1760000000001,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    },
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 3,
+     "observed_at_unix_ms": 1760000000003,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    }
+   ],
+   "expect": [
+    {
+     "accepted": "frame",
+     "seq": 1
+    },
+    {
+     "unavailable": "protocol_violation"
+    }
+   ],
+   "error_at": 1
+  },
+  {
+   "name": "at-least-once redelivery is a duplicate",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 2
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 1,
+     "observed_at_unix_ms": 1760000000001,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    },
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 2,
+     "observed_at_unix_ms": 1760000000002,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    },
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 3,
+     "observed_at_unix_ms": 1760000000003,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    }
+   ],
+   "expect": [
+    {
+     "accepted": "duplicate"
+    },
+    {
+     "accepted": "duplicate"
+    },
+    {
+     "accepted": "frame",
+     "seq": 3
+    }
+   ],
+   "final_cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3
+   }
+  },
+  {
+   "name": "incarnation change without discontinuity is refused",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 1,
+     "observed_at_unix_ms": 1760000000001,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    }
+   ],
+   "expect": [
+    {
+     "unavailable": "protocol_violation"
+    }
+   ],
+   "error_at": 0
+  },
+  {
+   "name": "restart reports the exact lost tail",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "discontinuity",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "after_seq": 3,
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "previous_last_seq": 7
+    },
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 1,
+     "observed_at_unix_ms": 1760000000001,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    }
+   ],
+   "expect": [
+    {
+     "accepted": "restarted",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "lost": "exact",
+     "first": 4,
+     "last": 7
+    },
+    {
+     "accepted": "frame",
+     "seq": 1
+    }
+   ],
+   "final_cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 1
+   }
+  },
+  {
+   "name": "restart with unknown lost extent then a gap",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "discontinuity",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "after_seq": 3,
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+     "kind": "gap",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "first": 1,
+     "last": 2,
+     "reason": "evicted"
+    },
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "seq": 3,
+     "observed_at_unix_ms": 1760000000003,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    }
+   ],
+   "expect": [
+    {
+     "accepted": "restarted",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "lost": "unknown"
+    },
+    {
+     "accepted": "gap",
+     "first": 1,
+     "last": 2
+    },
+    {
+     "accepted": "frame",
+     "seq": 3
+    }
+   ],
+   "final_cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 3
+   }
+  },
+  {
+   "name": "restart with nothing lost",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "discontinuity",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "after_seq": 3,
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "previous_last_seq": 3
+    }
+   ],
+   "expect": [
+    {
+     "accepted": "restarted",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "lost": "nothing"
+    }
+   ],
+   "final_cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 0
+   }
+  },
+  {
+   "name": "discontinuity that does not answer the cursor is refused",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "discontinuity",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "after_seq": 2,
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "previous_last_seq": 7
+    }
+   ],
+   "expect": [
+    {
+     "unavailable": "protocol_violation"
+    }
+   ],
+   "error_at": 0
+  },
+  {
+   "name": "old incarnation after a restart is refused",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "discontinuity",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "after_seq": 3,
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 4,
+     "observed_at_unix_ms": 1760000000004,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    }
+   ],
+   "expect": [
+    {
+     "accepted": "restarted",
+     "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "lost": "unknown"
+    },
+    {
+     "unavailable": "protocol_violation"
+    }
+   ],
+   "error_at": 1
+  },
+  {
+   "name": "nothing follows finalization",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 1,
+     "observed_at_unix_ms": 1760000000001,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    },
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 2,
+     "observed_at_unix_ms": 1760000000002,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    }
+   ],
+   "expect": [
+    {
+     "accepted": "finalized",
+     "seq": 1,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    },
+    {
+     "unavailable": "protocol_violation"
+    }
+   ],
+   "error_at": 1
+  },
+  {
+   "name": "ended without a durable reference",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 1,
+     "observed_at_unix_ms": 1760000000001,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    },
+    {
+     "kind": "ended",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 2,
+     "observed_at_unix_ms": 1760000000002
+    }
+   ],
+   "expect": [
+    {
+     "accepted": "frame",
+     "seq": 1
+    },
+    {
+     "accepted": "ended",
+     "seq": 2
+    }
+   ],
+   "final_cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 2
+   }
+  },
+  {
+   "name": "gap overlapping held frames is refused",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 3
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "gap",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "first": 2,
+     "last": 5,
+     "reason": "evicted"
+    }
+   ],
+   "expect": [
+    {
+     "unavailable": "protocol_violation"
+    }
+   ],
+   "error_at": 0
+  },
+  {
+   "name": "gap already covered is a duplicate",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 5
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "gap",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "first": 1,
+     "last": 5,
+     "reason": "evicted"
+    }
+   ],
+   "expect": [
+    {
+     "accepted": "duplicate"
+    }
+   ],
+   "final_cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 5
+   }
+  },
+  {
+   "name": "data on an undeclared channel is refused",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 1,
+     "observed_at_unix_ms": 1760000000001,
+     "channel": "pty",
+     "data_base64": "aGVsbG8K"
+    }
+   ],
+   "expect": [
+    {
+     "unavailable": "protocol_violation"
+    }
+   ],
+   "error_at": 0
+  },
+  {
+   "name": "record for another stream is refused",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "data",
+     "stream_id": "fedcba9876543210fedcba9876543210",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 1,
+     "observed_at_unix_ms": 1760000000001,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    }
+   ],
+   "expect": [
+    {
+     "unavailable": "protocol_violation"
+    }
+   ],
+   "error_at": 0
+  },
+  {
+   "name": "data above the selected frame limit is refused",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0
+   },
+   "channels": [
+    "stdout",
+    "stderr",
+    "control"
+   ],
+   "max_data_bytes": 4,
+   "records": [
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 1,
+     "observed_at_unix_ms": 1760000000001,
+     "channel": "stdout",
+     "data_base64": "aGVsbG8K"
+    }
+   ],
+   "expect": [
+    {
+     "unavailable": "protocol_violation"
+    }
+   ],
+   "error_at": 0
+  },
+  {
+   "name": "control fact without a control channel is refused",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0
+   },
+   "channels": [
+    "stdout"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "control",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 1,
+     "observed_at_unix_ms": 1760000000001,
+     "fact": {
+      "type": "heartbeat"
+     }
+    }
+   ],
+   "expect": [
+    {
+     "unavailable": "protocol_violation"
+    }
+   ],
+   "error_at": 0
+  },
+  {
+   "name": "pty may be declared and carried without a control channel",
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 0
+   },
+   "channels": [
+    "pty"
+   ],
+   "max_data_bytes": 65536,
+   "records": [
+    {
+     "kind": "data",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 1,
+     "observed_at_unix_ms": 1760000000001,
+     "channel": "pty",
+     "data_base64": "aGVsbG8K"
+    },
+    {
+     "kind": "finalized",
+     "stream_id": "0123456789abcdef0123456789abcdef",
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "seq": 2,
+     "observed_at_unix_ms": 1760000000002,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
+   ],
+   "expect": [
+    {
+     "accepted": "frame",
+     "seq": 1
+    },
+    {
+     "accepted": "finalized",
+     "seq": 2,
+     "durable_reference": "runner:session/7f3a/turn/12"
+    }
+   ],
+   "final_cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 2
+   }
+  }
+ ],
+ "replay": [
+  {
+   "name": "retained cursor resumes without a gap",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 10,
+    "last_published": 20,
+    "previous": {
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "last_seq": 7
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 15
+   },
+   "expect": {
+    "plan": {
+     "prefix": [],
+     "deliver_from": 16
+    }
+   }
+  },
+  {
+   "name": "cursor just before retention resumes without a gap",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 10,
+    "last_published": 20,
+    "previous": {
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "last_seq": 7
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 9
+   },
+   "expect": {
+    "plan": {
+     "prefix": [],
+     "deliver_from": 10
+    }
+   }
+  },
+  {
+   "name": "cursor behind eviction gets an exact gap",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 10,
+    "last_published": 20,
+    "previous": {
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "last_seq": 7
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 3
+   },
+   "expect": {
+    "plan": {
+     "prefix": [
+      {
+       "kind": "gap",
+       "stream_id": "0123456789abcdef0123456789abcdef",
+       "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "first": 4,
+       "last": 9,
+       "reason": "evicted"
+      }
+     ],
+     "deliver_from": 10
+    }
+   }
+  },
+  {
+   "name": "fresh cursor behind eviction",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 10,
+    "last_published": 20,
+    "previous": {
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "last_seq": 7
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 0
+   },
+   "expect": {
+    "plan": {
+     "prefix": [
+      {
+       "kind": "gap",
+       "stream_id": "0123456789abcdef0123456789abcdef",
+       "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "first": 1,
+       "last": 9,
+       "reason": "evicted"
+      }
+     ],
+     "deliver_from": 10
+    }
+   }
+  },
+  {
+   "name": "caught-up cursor",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 10,
+    "last_published": 20,
+    "previous": {
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "last_seq": 7
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 20
+   },
+   "expect": {
+    "plan": {
+     "prefix": [],
+     "deliver_from": 21
+    }
+   }
+  },
+  {
+   "name": "cursor ahead of the stream",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 10,
+    "last_published": 20,
+    "previous": {
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "last_seq": 7
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 21
+   },
+   "expect": {
+    "unavailable": "protocol_violation"
+   }
+  },
+  {
+   "name": "previous incarnation gets an exact discontinuity then a gap",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 10,
+    "last_published": 20,
+    "previous": {
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "last_seq": 7
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 5
+   },
+   "expect": {
+    "plan": {
+     "prefix": [
+      {
+       "kind": "discontinuity",
+       "stream_id": "0123456789abcdef0123456789abcdef",
+       "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+       "after_seq": 5,
+       "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "previous_last_seq": 7
+      },
+      {
+       "kind": "gap",
+       "stream_id": "0123456789abcdef0123456789abcdef",
+       "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "first": 1,
+       "last": 9,
+       "reason": "evicted"
+      }
+     ],
+     "deliver_from": 10
+    }
+   }
+  },
+  {
+   "name": "cursor ahead of its previous incarnation",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 10,
+    "last_published": 20,
+    "previous": {
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "last_seq": 7
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "after_seq": 8
+   },
+   "expect": {
+    "unavailable": "protocol_violation"
+   }
+  },
+  {
+   "name": "unknown incarnation gets a discontinuity of unknown extent",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 10,
+    "last_published": 20,
+    "previous": {
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "last_seq": 7
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "cccccccccccccccccccccccccccccccc",
+    "after_seq": 4
+   },
+   "expect": {
+    "plan": {
+     "prefix": [
+      {
+       "kind": "discontinuity",
+       "stream_id": "0123456789abcdef0123456789abcdef",
+       "previous_incarnation": "cccccccccccccccccccccccccccccccc",
+       "after_seq": 4,
+       "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      {
+       "kind": "gap",
+       "stream_id": "0123456789abcdef0123456789abcdef",
+       "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "first": 1,
+       "last": 9,
+       "reason": "evicted"
+      }
+     ],
+     "deliver_from": 10
+    }
+   }
+  },
+  {
+   "name": "another stream is unknown",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 10,
+    "last_published": 20,
+    "previous": {
+     "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "last_seq": 7
+    }
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "fedcba9876543210fedcba9876543210",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 0
+   },
+   "expect": {
+    "unavailable": "unknown_stream"
+   }
+  },
+  {
+   "name": "finalized redirect: only the finalized frame is retained",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 20,
+    "last_published": 20
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 2
+   },
+   "expect": {
+    "plan": {
+     "prefix": [
+      {
+       "kind": "gap",
+       "stream_id": "0123456789abcdef0123456789abcdef",
+       "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+       "first": 3,
+       "last": 19,
+       "reason": "evicted"
+      }
+     ],
+     "deliver_from": 20
+    }
+   }
+  },
+  {
+   "name": "nothing published yet",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 1,
+    "last_published": 0
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 0
+   },
+   "expect": {
+    "plan": {
+     "prefix": [],
+     "deliver_from": 1
+    }
+   }
+  },
+  {
+   "name": "inconsistent window",
+   "window": {
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "first_retained": 0,
+    "last_published": 3
+   },
+   "cursor": {
+    "protocol": "oulipoly.live_stream/v1",
+    "stream_id": "0123456789abcdef0123456789abcdef",
+    "incarnation": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "after_seq": 0
+   },
+   "expect": {
+    "unavailable": "protocol_violation"
+   }
+  }
+ ]
+}
