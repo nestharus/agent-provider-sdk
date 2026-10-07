@@ -422,3 +422,13 @@ and MCP children.
 ├── trunk/       # clean main integration checkout
 └── worktrees/   # isolated ticket branches
 ```
+
+The mediated bridge serializes requester spawn with cancellation/connection
+closure, collects each direct requester exit, and bounds stopped collection and
+post-exit pipe drain to two seconds (unconfirmed exit is an explicit bridge
+error). Requester termination does not revoke independently accepted owner work.
+Malformed waited/output/acceptance facts are unresolved; retained continuation
+uses the bytes actually displayed, including UTF-8 and hex display limits.
+Linux durable actor capture/recovery refuses a proc view whose own `NSpid` and
+`/proc/self` do not identify the caller's PID namespace. Hosts must supply a
+matching proc mount; the SDK does not translate namespace-local PIDs.

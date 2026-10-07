@@ -30,3 +30,7 @@ harness = false
 [[test]]
 name = "resident"
 harness = false
+
+[[test]]
+name = "proc_view"
+harness = false

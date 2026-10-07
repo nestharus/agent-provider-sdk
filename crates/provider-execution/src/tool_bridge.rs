@@ -38,12 +38,13 @@
 use crate::encoding::decode_base64;
 use agent_provider_contract::tool_mediation::{self, Decision, ToolMediation};
 use serde_json::{json, Map, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{self, BufRead, Read, Write};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 
 /// The provider subcommand that serves this bridge.
 pub const SUBCOMMAND: &str = "tool.bridge";
@@ -204,7 +205,27 @@ fn parse_call(arguments: &Value) -> Result<Call, String> {
 }
 
 /// Running requesters by MCP request id, so a cancellation can end one.
-type Running = Arc<Mutex<HashMap<String, Child>>>;
+#[derive(Default)]
+struct Requesters {
+    running: HashMap<String, Child>,
+    cancelled: HashSet<String>,
+    closed: bool,
+}
+
+type Running = Arc<Mutex<Requesters>>;
+
+impl Requesters {
+    fn stopped(&self, key: &str) -> bool {
+        self.closed || self.cancelled.contains(key)
+    }
+
+    fn close(&mut self) {
+        self.closed = true;
+        for child in self.running.values_mut() {
+            let _ = child.kill();
+        }
+    }
+}
 
 /// Serves one MCP connection. `lookup` reads this process's environment.
 pub fn serve<R, W>(
@@ -228,14 +249,16 @@ where
     let policy = Arc::new(policy);
     let lookup = Arc::new(lookup);
     let running: Running = Arc::default();
-    let cancelled: Arc<Mutex<Vec<String>>> = Arc::default();
     let mut calls = Vec::new();
     let mut input = input;
-    loop {
+    let read_result = loop {
         let mut line = Vec::new();
-        let read = (&mut input).take(MAX_LINE).read_until(b'\n', &mut line)?;
+        let read = match (&mut input).take(MAX_LINE).read_until(b'\n', &mut line) {
+            Ok(read) => read,
+            Err(error) => break Err(error),
+        };
         if read == 0 {
-            break;
+            break Ok(());
         }
         let Ok(message) = serde_json::from_slice::<Value>(&line) else {
             send(
@@ -247,8 +270,9 @@ where
         let id = message.get("id").cloned();
         if method == "notifications/cancelled" {
             let key = message["params"]["requestId"].to_string();
-            cancelled.lock().expect("cancelled").push(key.clone());
-            if let Some(child) = running.lock().expect("running").get_mut(&key) {
+            let mut custody = running.lock().expect("requesters");
+            custody.cancelled.insert(key.clone());
+            if let Some(child) = custody.running.get_mut(&key) {
                 let _ = child.kill();
             }
             continue;
@@ -275,20 +299,20 @@ where
                 }
                 let key = id.to_string();
                 let arguments = message["params"]["arguments"].clone();
-                let (policy, lookup, running, cancelled, send) = (
+                let (policy, lookup, running, send) = (
                     Arc::clone(&policy),
                     Arc::clone(&lookup),
                     Arc::clone(&running),
-                    Arc::clone(&cancelled),
                     send.clone(),
                 );
                 calls.push(thread::spawn(move || {
-                    let answer = call(&policy, &*lookup, &arguments, &key, &running);
-                    if cancelled.lock().expect("cancelled").contains(&key) {
-                        return;
+                    let answer = call(&policy, &*lookup, &arguments, &key, &running)?;
+                    if running.lock().expect("requesters").stopped(&key) {
+                        return Ok(());
                     }
                     send(json!({"jsonrpc":"2.0","id":id,"result":{
                         "content":[{"type":"text","text":answer.text}],"isError":answer.error}}));
+                    Ok::<(), io::Error>(())
                 }));
             }
             "resources/list" => send(reply(json!({"resources":[]}))),
@@ -298,15 +322,19 @@ where
                 json!({"jsonrpc":"2.0","id":id,"error":{"code":-32601,"message":"Method not found"}}),
             ),
         }
-    }
-    // Connection end: no caller remains for any running requester.
-    for child in running.lock().expect("running").values_mut() {
-        let _ = child.kill();
-    }
+    };
+    // Close the spawn gate before collecting workers, including on read failure.
+    running.lock().expect("requesters").close();
+    let mut result = read_result;
     for call in calls {
-        let _ = call.join();
+        let joined = call
+            .join()
+            .unwrap_or_else(|_| Err(io::Error::other("bridge worker panicked")));
+        if result.is_ok() {
+            result = joined;
+        }
     }
-    Ok(())
+    result
 }
 
 /// One tool call: decision, ingress, requester, rendering.
@@ -316,28 +344,28 @@ fn call(
     arguments: &Value,
     key: &str,
     running: &Running,
-) -> Answer {
+) -> io::Result<Answer> {
     let call = match parse_call(arguments) {
         Ok(call) => call,
         Err(reason) => {
-            return answer(
+            return Ok(answer(
                 format!("Invalid bash call ({reason}). Nothing was run."),
                 true,
-            )
+            ))
         }
     };
     if let Call::Run { command, .. } = &call {
         if let Decision::Refuse(text) = policy.decide(command) {
-            return answer(text, true);
+            return Ok(answer(text, true));
         }
     }
     let ingress = match policy.ingress(lookup) {
         Ok(ingress) => ingress,
         Err(error) => {
-            return answer(
+            return Ok(answer(
                 format!("Root Bash ingress unavailable: {error}. No requester was started."),
                 true,
-            )
+            ))
         }
     };
     let mut command = Command::new(&policy.requester);
@@ -376,10 +404,25 @@ fn call(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    // Cancellation/EOF and spawn+registration are one transition. A worker
+    // cannot publish a new child after shutdown's scan has finished.
+    let mut custody = running.lock().expect("requesters");
+    if custody.stopped(key) {
+        return Ok(answer(
+            "Requester cancelled before start. Nothing was run.",
+            true,
+        ));
+    }
+    if custody.running.contains_key(key) {
+        return Ok(answer(
+            "Duplicate active request id; no new requester started.",
+            true,
+        ));
+    }
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(error) => {
-            return answer(
+            return Ok(answer(
                 format!(
                     "Bash requester not started ({error}{}); nothing was run.",
                     match &call {
@@ -391,40 +434,157 @@ fn call(
                     }
                 ),
                 true,
-            )
+            ))
         }
     };
     let stdout = child.stdout.take().expect("piped stdout");
     let stderr = child.stderr.take().expect("piped stderr");
-    running
-        .lock()
-        .expect("running")
-        .insert(key.to_owned(), child);
-    let err = thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let _ = stderr.take(64 * 1024).read_to_end(&mut bytes);
-        String::from_utf8_lossy(&bytes).into_owned()
-    });
-    let mut bytes = Vec::new();
-    let read = stdout.take(RESULT_LIMIT as u64 + 1).read_to_end(&mut bytes);
-    let mut child = running
-        .lock()
-        .expect("running")
-        .remove(key)
-        .expect("requester registered");
-    if bytes.len() > RESULT_LIMIT {
+    custody.running.insert(key.to_owned(), child);
+    drop(custody);
+    let collected = collect(key, running, stdout, stderr);
+    // Keep the requester available to cancellation until its exit is collected.
+    let mut custody = running.lock().expect("requesters");
+    let mut child = custody.running.remove(key).expect("requester registered");
+    drop(custody);
+    if collected.is_err() {
         let _ = child.kill();
+        let started = Instant::now();
+        while child.try_wait()?.is_none() {
+            if started.elapsed() >= Duration::from_secs(2) {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "requester exit unconfirmed",
+                ));
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
     }
-    let status = child.wait();
-    let stderr = err.join().unwrap_or_default();
-    let code = match (&read, &status) {
-        (Ok(_), Ok(status)) if bytes.len() <= RESULT_LIMIT => status.code(),
-        _ => None,
-    };
-    match delivery {
+    // Collection (or bounded stop above) has already observed the exit, so
+    // wait returns its cached status and cannot block on a still-live child.
+    child.wait()?;
+    let (code, bytes, stderr) = collected?;
+    Ok(match delivery {
         Some(delivery) => render_run(code, &bytes, &stderr, delivery),
         None => render_output(code, &bytes, surface),
+    })
+}
+
+/// Nonblocking pipe collection keeps cancellation independent of pipe EOF.
+/// We collect the direct child even if a descendant holds a pipe open. Stops
+/// and post-exit pipe drain have a two-second bound; an uncollected exit is an
+/// explicit serve error rather than successful physical settlement.
+#[cfg(unix)]
+fn collect(
+    key: &str,
+    running: &Running,
+    mut stdout: std::process::ChildStdout,
+    mut stderr: std::process::ChildStderr,
+) -> io::Result<(Option<i32>, Vec<u8>, String)> {
+    use std::os::fd::AsRawFd;
+    let setup = |fd| {
+        let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        if flags == -1 || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } == -1
+        {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
+    };
+    let mut fault = setup(stdout.as_raw_fd())
+        .and_then(|()| setup(stderr.as_raw_fd()))
+        .err();
+    let mut bytes = Vec::new();
+    let mut errors = Vec::new();
+    let mut out_eof = false;
+    let mut err_eof = false;
+    let mut status = None;
+    let mut bound = None;
+    loop {
+        if fault.is_none() {
+            if let Err(error) = drain(&mut stdout, &mut bytes, RESULT_LIMIT + 1, &mut out_eof)
+                .and_then(|()| drain(&mut stderr, &mut errors, 64 * 1024, &mut err_eof))
+            {
+                fault = Some(error);
+            }
+        }
+        let stopped;
+        {
+            let mut custody = running.lock().expect("requesters");
+            stopped = custody.stopped(key);
+            let child = custody.running.get_mut(key).expect("requester registered");
+            if stopped || fault.is_some() || bytes.len() > RESULT_LIMIT {
+                let _ = child.kill();
+                bound.get_or_insert_with(Instant::now);
+            }
+            if status.is_none() {
+                status = child.try_wait()?;
+            }
+        }
+        if status.is_some() {
+            if stopped || fault.is_some() || (out_eof && err_eof) {
+                break;
+            }
+            bound.get_or_insert_with(Instant::now);
+        }
+        if bound.is_some_and(|start| start.elapsed() >= Duration::from_secs(2)) {
+            if status.is_none() {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "requester exit unconfirmed after stop",
+                ));
+            }
+            fault = Some(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "requester pipes did not close",
+            ));
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
     }
+    let code = if fault.is_none() && bytes.len() <= RESULT_LIMIT {
+        status.and_then(|status| status.code())
+    } else {
+        None
+    };
+    Ok((code, bytes, String::from_utf8_lossy(&errors).into_owned()))
+}
+
+#[cfg(unix)]
+fn drain(
+    reader: &mut impl Read,
+    bytes: &mut Vec<u8>,
+    limit: usize,
+    eof: &mut bool,
+) -> io::Result<()> {
+    let mut buffer = [0; 8192];
+    // Bound one pass so a continuously writing requester cannot starve stop.
+    for _ in 0..32 {
+        match reader.read(&mut buffer) {
+            Ok(0) => {
+                *eof = true;
+                break;
+            }
+            Ok(count) => {
+                bytes.extend_from_slice(&buffer[..count.min(limit.saturating_sub(bytes.len()))])
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn collect(
+    _key: &str,
+    _running: &Running,
+    _stdout: std::process::ChildStdout,
+    _stderr: std::process::ChildStderr,
+) -> io::Result<(Option<i32>, Vec<u8>, String)> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "requester custody requires Unix",
+    ))
 }
 
 fn unresolved(reason: &str, stderr: &str) -> Answer {
@@ -464,13 +624,21 @@ fn stages(value: &Value) -> String {
     }
 }
 
-fn shown(bytes: &[u8]) -> String {
+fn shown_count(bytes: &[u8]) -> usize {
+    if std::str::from_utf8(bytes).is_err() || bytes.contains(&0) {
+        return bytes.len().min(SHOWN_BYTES / 2);
+    }
     let mut cut = bytes.len().min(SHOWN_BYTES);
+    while cut < bytes.len() && cut > 0 && (bytes[cut] & 0xc0) == 0x80 {
+        cut -= 1;
+    }
+    cut
+}
+
+fn shown(bytes: &[u8]) -> String {
+    let cut = shown_count(bytes);
     match std::str::from_utf8(bytes) {
         Ok(_) if !bytes.contains(&0) => {
-            while cut < bytes.len() && cut > 0 && (bytes[cut] & 0xc0) == 0x80 {
-                cut -= 1;
-            }
             let more = bytes.len() - cut;
             format!(
                 "--- output (stderr joined; {cut} of {} bytes shown, utf8) ---\n{}{}",
@@ -484,7 +652,6 @@ fn shown(bytes: &[u8]) -> String {
             )
         }
         _ => {
-            let cut = cut.min(SHOWN_BYTES / 2);
             let hex: String = bytes[..cut].iter().map(|b| format!("{b:02x}")).collect();
             format!(
                 "--- output (stderr joined; {cut} of {} bytes shown, hex) ---\n{hex}",
@@ -496,7 +663,10 @@ fn shown(bytes: &[u8]) -> String {
 
 fn retention(output: &Value) -> String {
     let record = &output["retained"];
-    if let Some(identity) = record["identity"].as_str() {
+    if let Some(identity) = record["identity"]
+        .as_str()
+        .filter(|_| valid_retained(record))
+    {
         return format!(
             "\nOwner retention: {}, {} bytes; identity={identity}. Read more with {{\"output_identity\": \"{identity}\", \"output_offset\": 0, \"output_length\": 1024}}.",
             record["state"].as_str().unwrap_or("unknown"),
@@ -530,15 +700,12 @@ pub fn render_run(code: Option<i32>, stdout: &[u8], stderr: &str, delivery: &str
     }
     let stages = stages(&value);
     let output = &value["output"];
-    let bytes = output["base64"]
-        .as_str()
-        .map(decode_base64)
-        .transpose()
-        .unwrap_or(None)
-        .unwrap_or_default();
+
     let refusal = &value["refusal"];
     match (delivery, value["outcome"].as_str().unwrap_or_default()) {
-        (_, "refused") => answer(
+        (_, "refused") if value["effects_possible"] == json!(false)
+            && refusal["by"].as_str().is_some_and(|s| !s.is_empty())
+            && refusal["reason"].as_str().is_some_and(|s| !s.is_empty()) => answer(
             format!(
                 "Root v1 refused by {} ({}){}. Nothing was run.\n{stages}",
                 refusal["by"].as_str().unwrap_or("owner"),
@@ -550,7 +717,7 @@ pub fn render_run(code: Option<i32>, stdout: &[u8], stderr: &str, delivery: &str
             ),
             true,
         ),
-        (_, "not-started") => answer(
+        (_, "not-started") if value["effects_possible"] == json!(false) => answer(
             format!("Root v1 accepted the command, then reported a positive no-start; nothing was run.\n{stages}"),
             true,
         ),
@@ -562,19 +729,33 @@ pub fn render_run(code: Option<i32>, stdout: &[u8], stderr: &str, delivery: &str
             ),
             true,
         ),
-        ("async", "running") if value["effects_possible"] == json!(true) => answer(
+        ("async", "running") if value["effects_possible"] == json!(true)
+            && output["reference"].as_str().is_some_and(|s| s.starts_with("rv1w:") && s.len() > 5) => answer(
             format!(
                 "Root v1 background work accepted and started (reference={}); it is still running. Its end will arrive later in this conversation as a separate message; do not poll for it.\n{stages}",
                 output["reference"].as_str().unwrap_or("unknown")
             ),
             false,
         ),
-        ("sync", outcome @ ("ended" | "ended-output-unproven")) if value["wait"].is_object() => {
+        ("sync", outcome @ ("ended" | "ended-output-unproven")) => {
             let wait = &value["wait"];
-            let exit = match wait["exit"]["code"].as_i64() {
-                Some(code) => format!("exited with code {code}"),
-                None => format!("signaled with signal {}", wait["exit"]["signal"]),
+            let Some(exit) = waited_exit(wait) else {
+                return unresolved("missing or inconsistent waited exit", stderr);
             };
+            let Some(bytes) = output["base64"].as_str().and_then(|s| decode_base64(s).ok()) else {
+                return unresolved("invalid output bytes", stderr);
+            };
+            let Some(total) = output["bytes"].as_u64() else {
+                return unresolved("missing output byte count", stderr);
+            };
+            let delivery = output["delivery"].as_str();
+            if total < bytes.len() as u64
+                || (outcome == "ended" && !matches!(delivery, Some("complete" | "partial")))
+                || (delivery == Some("complete") && total != bytes.len() as u64)
+                || (outcome == "ended-output-unproven" && delivery != Some("unproven"))
+            {
+                return unresolved("output facts inconsistent", stderr);
+            }
             let delivered = if outcome == "ended" {
                 format!("output {}", output["delivery"].as_str().unwrap_or("unknown"))
             } else {
@@ -588,11 +769,67 @@ pub fn render_run(code: Option<i32>, stdout: &[u8], stderr: &str, delivery: &str
                     retention(output),
                     shown(&bytes)
                 ),
-                false,
+                outcome == "ended-output-unproven",
             )
         }
         _ => unresolved("result outcome inconsistent", stderr),
     }
+}
+
+fn waited_exit(wait: &Value) -> Option<String> {
+    let status = wait["status"].as_str()?;
+    if wait["observer"].as_str()?.is_empty() {
+        return None;
+    }
+    match (
+        wait["exit"]["code"].as_i64(),
+        wait["exit"]["signal"].as_i64(),
+    ) {
+        (Some(code), None)
+            if i32::try_from(code).is_ok()
+                && wait["exit"]["signal"].is_null()
+                && status == format!("code:{code}") =>
+        {
+            Some(format!("exited with code {code}"))
+        }
+        (None, Some(signal))
+            if signal > 0
+                && i32::try_from(signal).is_ok()
+                && wait["exit"]["code"].is_null()
+                && status == format!("signal:{signal}") =>
+        {
+            Some(format!("signaled with signal {signal}"))
+        }
+        _ => None,
+    }
+}
+
+/// The displayed retention identity must agree with its reported facts.
+fn valid_retained(record: &Value) -> bool {
+    let (Some(identity), Some(root), Some(work), Some(bytes), Some(hash)) = (
+        record["identity"].as_str(),
+        record["root_id"].as_str(),
+        record["work"].as_u64(),
+        record["bytes"].as_u64(),
+        record["sha256"].as_str(),
+    ) else {
+        return false;
+    };
+    !root.is_empty()
+        && root.len() <= 64
+        && root
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        && work > 0
+        && work <= i64::MAX as u64
+        && bytes <= RESULT_LIMIT as u64
+        && hash.len() == 64
+        && hash
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        && identity == format!("rv1o:{root}:{work}:{bytes}:{hash}")
+        && matches!(record["state"].as_str(), Some("complete" | "partial"))
+        && record["losses"].is_array()
 }
 
 /// Renders a `native-output` / `native-accept` result object.
@@ -612,25 +849,33 @@ pub fn render_output(code: Option<i32>, stdout: &[u8], surface: &str) -> Answer 
     }
     let reply = &value["reply"];
     match value["outcome"].as_str().unwrap_or_default() {
-        "accepted" => answer(
+        "accepted" if valid_retained(&reply["retained"])
+            && reply["event"] == json!("output-accepted")
+            && reply["durable"] == json!(true) && reply["repeat"].is_boolean()
+            && ["root_id", "work", "bytes", "sha256"].iter()
+                .all(|key| reply["receipt"][*key] == reply["retained"][*key]) => answer(
             format!(
                 "Root v1 exact local acceptance: {}; durable={}; repeat={}. Not an input ACK, processing, remote settlement or drain.",
                 reply["retained"]["identity"], reply["durable"], reply["repeat"]
             ),
             false,
         ),
-        "read" => {
-            let bytes = reply["b64"]
-                .as_str()
-                .map(decode_base64)
-                .transpose()
-                .unwrap_or(None)
-                .unwrap_or_default();
+        "read" if valid_retained(&reply["retained"]) && reply["event"] == json!("output-range") => {
+            let Some(bytes) = reply["b64"].as_str().and_then(|s| decode_base64(s).ok()) else { return unknown };
+            let (Some(offset), Some(next), Some(length), Some(eof)) = (
+                reply["offset"].as_u64(), reply["next_offset"].as_u64(),
+                reply["length"].as_u64(), reply["eof"].as_bool(),
+            ) else { return unknown };
+            let total = reply["retained"]["bytes"].as_u64().expect("validated retained bytes");
+            if offset.checked_add(length) != Some(next) || length != bytes.len() as u64
+                || next > total || eof != (next == total)
+            { return unknown }
+            let visible_next = offset + shown_count(&bytes) as u64;
+            let visible_eof = eof && visible_next == next;
             answer(
                 format!(
-                    "Root v1 retained range: identity={}; offset={}; next_offset={}; eof={}. No local acceptance was recorded by this read.\n{}",
-                    reply["retained"]["identity"], reply["offset"], reply["next_offset"], reply["eof"],
-                    shown(&bytes)
+                    "Root v1 retained range: identity={}; offset={offset}; next_offset={visible_next}; eof={visible_eof}. Continuation follows displayed bytes; requester range ended at {next}. No local acceptance was recorded by this read.\n{}",
+                    reply["retained"]["identity"], shown(&bytes)
                 ),
                 false,
             )
@@ -675,6 +920,54 @@ pub fn main() -> i32 {
         Err(error) => {
             eprintln!("tool bridge failed: {error}");
             1
+        }
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stop_before_spawn_blocks_late_registration_for_cancel_and_eof() {
+        for eof in [false, true] {
+            let policy = ToolMediation::decode(
+                &json!({"protocol":tool_mediation::PROTOCOL,
+                "bash":{"authority":"trusted-task"}, "requester":"/must-not-start",
+                "ingress_env":"INGRESS"})
+                .to_string(),
+            )
+            .unwrap();
+            let running: Running = Arc::default();
+            let worker_state = Arc::clone(&running);
+            let (entered, ready) = std::sync::mpsc::channel();
+            let (release, released) = std::sync::mpsc::channel();
+            let worker = thread::spawn(move || {
+                call(
+                    &policy,
+                    &|_| {
+                        entered.send(()).unwrap();
+                        released.recv().unwrap();
+                        Some("ingress".into())
+                    },
+                    &json!({"command":"hang"}),
+                    "7",
+                    &worker_state,
+                )
+            });
+            ready.recv_timeout(Duration::from_secs(2)).unwrap();
+            {
+                let mut state = running.lock().unwrap();
+                if eof {
+                    state.close();
+                } else {
+                    state.cancelled.insert("7".into());
+                }
+            }
+            release.send(()).unwrap();
+            let result = worker.join().unwrap().unwrap();
+            assert!(result.text.contains("cancelled before start"), "{result:?}");
+            assert!(running.lock().unwrap().running.is_empty());
         }
     }
 }

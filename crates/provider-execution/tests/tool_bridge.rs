@@ -26,7 +26,7 @@ if command == 'refuse':
     print(json.dumps({'result_surface': 'agent-bash-root-v1', 'version': 1, 'delivery_mode': 'sync', 'outcome': 'refused', 'effects_possible': False, 'refusal': {'by': 'owner', 'reason': 'peer-unattributed'}, 'stages': [{'event': 'refused'}], 'faults': [], 'wait': None, 'output': {'base64': '', 'bytes': 0, 'delivery': 'none'}}))
     sys.exit(0)
 out = ('ran %s\n' % command).encode()
-print(json.dumps({'result_surface': 'agent-bash-root-v1', 'version': 1, 'delivery_mode': 'sync', 'outcome': 'ended', 'effects_possible': True, 'stages': [{'event': 'accepted', 'work': 7}, {'event': 'started'}, {'event': 'output-closed'}, {'event': 'end'}], 'faults': [], 'wait': {'status': 'code:0', 'observer': 'work-pid1-wait', 'exit': {'code': 0}}, 'output': {'base64': base64.b64encode(out).decode(), 'bytes': len(out), 'delivery': 'complete', 'retained': {'state': 'complete', 'identity': 'rv1o:r:7:%d:%s' % (len(out), '0' * 64), 'bytes': len(out)}}}))
+print(json.dumps({'result_surface': 'agent-bash-root-v1', 'version': 1, 'delivery_mode': 'sync', 'outcome': 'ended', 'effects_possible': True, 'stages': [{'event': 'accepted', 'work': 7}, {'event': 'started'}, {'event': 'output-closed'}, {'event': 'end'}], 'faults': [], 'wait': {'status': 'code:0', 'observer': 'work-pid1-wait', 'exit': {'code': 0}}, 'output': {'base64': base64.b64encode(out).decode(), 'bytes': len(out), 'delivery': 'complete', 'retained': {'state': 'complete', 'identity': 'rv1o:r:7:%d:%s' % (len(out), '0' * 64), 'bytes': len(out), 'root_id':'r', 'work':7, 'sha256':'0' * 64, 'losses':[]}}}))
 "#;
 
 /// Collects whole reply lines (a reply may arrive in several writes).
@@ -299,4 +299,137 @@ fn unproven_results_are_never_rendered_as_success() {
         "{running:?}"
     );
     assert!(render_output(Some(0), b"{}", "agent-bash-root-v1-output").error);
+}
+
+#[test]
+fn missing_or_inconsistent_requester_facts_are_errors() {
+    let valid = json!({"result_surface":"agent-bash-root-v1", "version":1,
+        "delivery_mode":"sync", "outcome":"ended", "effects_possible":true,
+        "stages":[{"event":"end"}], "wait":{"status":"code:0", "observer":"work-pid1-wait", "exit":{"code":0}},
+        "output":{"base64":"b2s=", "bytes":2, "delivery":"complete"}});
+    assert!(!render_run(Some(0), valid.to_string().as_bytes(), "", "sync").error);
+    for (pointer, replacement) in [
+        ("/wait", json!({})),
+        ("/wait/status", json!("signal:9")),
+        ("/wait/exit/signal", json!(9)),
+        ("/output/base64", json!("!!!")),
+        ("/output/bytes", Value::Null),
+        ("/output/bytes", json!(1)),
+        ("/output/delivery", Value::Null),
+    ] {
+        let mut bad = valid.clone();
+        if pointer == "/wait/exit/signal" {
+            bad["wait"]["exit"]["signal"] = replacement;
+        } else {
+            *bad.pointer_mut(pointer).unwrap() = replacement;
+        }
+        let rendered = render_run(Some(0), bad.to_string().as_bytes(), "", "sync");
+        assert!(
+            rendered.error && rendered.text.contains("may have run; do not replay"),
+            "{pointer}: {rendered:?}"
+        );
+    }
+    for outcome in ["read", "accepted"] {
+        let bad = json!({"result_surface":"agent-bash-root-v1-output", "version":1, "outcome":outcome, "reply":{}});
+        assert!(
+            render_output(
+                Some(0),
+                bad.to_string().as_bytes(),
+                "agent-bash-root-v1-output"
+            )
+            .error
+        );
+    }
+}
+
+#[test]
+fn retained_continuation_follows_the_displayed_utf8_or_hex_bytes() {
+    use agent_provider_execution::encoding::encode_base64;
+    for data in [
+        vec![b'x'; 20_000],
+        "€".repeat(7000).into_bytes(),
+        vec![0; 20_000],
+    ] {
+        let total = data.len();
+        let record = json!({"state":"complete", "root_id":"r", "work":1,
+            "identity":format!("rv1o:r:1:{total}:{}", "0".repeat(64)), "bytes":total,
+            "sha256":"0".repeat(64), "losses":[]});
+        let read = json!({"result_surface":"agent-bash-root-v1-output", "version":1, "outcome":"read",
+            "reply":{"event":"output-range", "retained":record, "offset":0, "next_offset":total,
+                "length":total, "eof":true, "b64":encode_base64(&data)}});
+        let rendered = render_output(
+            Some(0),
+            read.to_string().as_bytes(),
+            "agent-bash-root-v1-output",
+        );
+        let visible = if data[0] == 0 {
+            8192
+        } else if data[0] == b'x' {
+            16384
+        } else {
+            16383
+        };
+        assert!(
+            !rendered.error
+                && rendered
+                    .text
+                    .contains(&format!("next_offset={visible}; eof=false")),
+            "{rendered:?}"
+        );
+        let mut offset = visible;
+        while offset < total {
+            let mut remainder = read.clone();
+            let remaining = &data[offset..];
+            remainder["reply"]["offset"] = json!(offset);
+            remainder["reply"]["length"] = json!(remaining.len());
+            remainder["reply"]["b64"] = json!(encode_base64(remaining));
+            let tail = render_output(
+                Some(0),
+                remainder.to_string().as_bytes(),
+                "agent-bash-root-v1-output",
+            );
+            let count = if data[0] == 0 {
+                8192.min(remaining.len())
+            } else {
+                remaining.len().min(visible)
+            };
+            offset += count;
+            assert!(
+                !tail.error
+                    && tail
+                        .text
+                        .contains(&format!("next_offset={offset}; eof={}", offset == total)),
+                "tail range incorrect"
+            );
+        }
+        let accepted = json!({"result_surface":"agent-bash-root-v1-output", "version":1, "outcome":"accepted",
+            "reply":{"event":"output-accepted", "retained":record, "durable":true, "repeat":false,
+                "receipt":{"root_id":"r", "work":1, "bytes":total, "sha256":"0".repeat(64)}}});
+        assert!(
+            !render_output(
+                Some(0),
+                accepted.to_string().as_bytes(),
+                "agent-bash-root-v1-output"
+            )
+            .error
+        );
+        for pointer in [
+            "/reply/durable",
+            "/reply/repeat",
+            "/reply/receipt/bytes",
+            "/reply/retained/identity",
+        ] {
+            let mut bad = accepted.clone();
+            *bad.pointer_mut(pointer).unwrap() = Value::Null;
+            assert!(
+                render_output(
+                    Some(0),
+                    bad.to_string().as_bytes(),
+                    "agent-bash-root-v1-output"
+                )
+                .error,
+                "{pointer}"
+            );
+        }
+    }
 }
