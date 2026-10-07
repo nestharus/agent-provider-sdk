@@ -242,5 +242,5 @@ They do not establish any of the following:
 Those belong to the capture, broker, subscription and conformance work.
 Incident reports and recovery authorization are not defined here. Control
 claims, including input hold/release acknowledgements, are defined by
-[`session-control/v1`](../session-control/README.md); a live-stream
+[`session-control/v2`](../session-control/README.md); a live-stream
 `ControlFact` stays report-only.

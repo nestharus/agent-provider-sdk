@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:oulipoly:session-control:v1",
-  "title": "Oulipoly Session Control v1",
-  "description": "Provider-neutral, bounded session/root control claims exchanged between a requester and the existing root owner, plus settlement observations about logical work. One vocabulary for session control and infrastructure control. Selected by peer advertisement of oulipoly.session_control/v1, not by provider describe, CLI, binary, package or source identity. It is not a provider/v1 subcommand or a second host/provider protocol. Records are claims: validating one does not establish that its producer told the truth, that a requester was authorized, that a hold was enforced or durable, or that any actor is in custody. Contract refusals are control_unavailable diagnostics. Structural schema and the adjacent README normative semantic rules together define conformance; raw schema validation alone is insufficient.",
+  "$id": "urn:oulipoly:session-control:v2",
+  "title": "Oulipoly Session Control v2",
+  "description": "Provider-neutral, bounded root control claims exchanged between a requester and the existing root owner: descriptive root discovery, current control-state inspection, input hold/release, same-incarnation recover, cancel and close requests on one claim ladder, and settlement observations about logical work. One vocabulary for session control and infrastructure control. Selected by peer advertisement of oulipoly.session_control/v2, not by provider describe, CLI, binary, package or source identity. It is not a provider/v1 subcommand or a second host/provider protocol. Records are claims: validating one does not establish that its producer told the truth, that a requester was authorized, that a control was enforced or durable, or that any actor is in custody. Contract refusals are control_unavailable diagnostics. Structural schema and the adjacent README normative semantic rules together define conformance; raw schema validation alone is insufficient.",
   "$defs": {
-    "Protocol": { "const": "oulipoly.session_control/v1" },
+    "Protocol": { "const": "oulipoly.session_control/v2" },
     "HostRef": {
       "description": "Opaque host-owned value. The SDK compares it only for equality and is neither its authority nor its registry.",
       "type": "string",
@@ -22,7 +22,7 @@
       "maximum": 9007199254740991
     },
     "Authority": {
-      "description": "The existing Runner root authority a control request is addressed to or a response comes from: root id, owner, owner generation and owner incarnation. Opaque equality values; carrying them makes staleness detectable, it does not fence anything.",
+      "description": "The existing Runner root authority a control request is addressed to or a response or report comes from: root id, owner, owner generation and root incarnation. Opaque equality values; carrying them makes staleness detectable, it does not fence anything.",
       "type": "object",
       "properties": {
         "root": { "$ref": "#/$defs/HostRef" },
@@ -55,13 +55,28 @@
       "required": ["root"],
       "additionalProperties": false
     },
-    "Operation": {
-      "description": "input_hold holds admission of new input at the scope; input_release clears that hold. Neither claims anything about running work, which may continue. Drain, close, cancel and physical execution pause are different operations not defined in v1.",
-      "enum": ["input_hold", "input_release"]
+    "RequestRef": {
+      "description": "The immutable identity of one control intent: its key scope and the authority it was addressed to.",
+      "type": "object",
+      "properties": {
+        "request_key": { "$ref": "#/$defs/RequestKey" },
+        "requester": { "$ref": "#/$defs/HostRef" },
+        "addressed": { "$ref": "#/$defs/Authority" }
+      },
+      "required": ["request_key", "requester", "addressed"],
+      "additionalProperties": false
     },
-    "HoldState": {
-      "description": "Admission/input hold state only. input_held is not paused, drained or stopped execution.",
-      "enum": ["input_held", "input_open", "unknown"]
+    "Operation": {
+      "description": "input_hold/input_release hold or clear admission of new input; running work may continue. recover attaches a successor owner to the surviving recorded incarnation of the same root and never starts a new incarnation. cancel and close are distinct root lifecycle transitions; a close is not a cancel and neither is an input hold. Physical execution pause and drain are not operations.",
+      "enum": ["input_hold", "input_release", "recover", "cancel", "close"]
+    },
+    "State": {
+      "description": "Transition states. Input domain: input_held, input_open. Lifecycle domain: open, closing, cancelling. Attachment domain: attached, unattached. unknown belongs to every domain. input_held is not paused, drained or stopped execution; closing and cancelling are requested transitions, not ended work.",
+      "enum": ["input_held", "input_open", "open", "closing", "cancelling", "attached", "unattached", "unknown"]
+    },
+    "Report": {
+      "description": "Descriptive views: discovery (root_entry records) and inspection (control_state records). Neither is an effect or an authority.",
+      "enum": ["discovery", "inspection"]
     },
     "MissingReason": {
       "description": "Why a value is absent. None of these is a negative observation.",
@@ -143,7 +158,7 @@
       "required": ["protocol", "request_key", "requester", "addressed"]
     },
     "Request": {
-      "description": "Requester intent. Not receipt, admission, acknowledgment or outcome.",
+      "description": "Requester intent. Not receipt, admission, acknowledgment or outcome. Its RequestRef stays addressable for later knowledge.",
       "type": "object",
       "properties": {
         "kind": { "const": "request" },
@@ -175,7 +190,7 @@
       "additionalProperties": false
     },
     "Admission": {
-      "description": "The addressed authority admitted the request for its transition. Not the transition itself.",
+      "description": "The answering authority admitted the request for its transition. Not the transition itself.",
       "type": "object",
       "allOf": [{ "$ref": "#/$defs/Correlation" }],
       "properties": {
@@ -184,14 +199,15 @@
         "request_key": true,
         "requester": true,
         "addressed": true,
+        "operation": { "$ref": "#/$defs/Operation" },
         "responder": { "$ref": "#/$defs/Authority" },
         "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
       },
-      "required": ["kind", "responder", "observed_at_unix_ms"],
+      "required": ["kind", "operation", "responder", "observed_at_unix_ms"],
       "additionalProperties": false
     },
     "Acknowledgment": {
-      "description": "Semantic transition acknowledgment from the addressed authority: the input hold state moved from `from` to `to`. It says nothing about running work.",
+      "description": "Semantic transition acknowledgment from the answering authority: the operation's state moved from `from` to `to`. It says nothing about running work, ended work or physical custody.",
       "type": "object",
       "allOf": [{ "$ref": "#/$defs/Correlation" }],
       "properties": {
@@ -202,22 +218,24 @@
         "addressed": true,
         "responder": { "$ref": "#/$defs/Authority" },
         "operation": { "$ref": "#/$defs/Operation" },
-        "from": { "$ref": "#/$defs/HoldState" },
-        "to": { "enum": ["input_held", "input_open"] },
+        "from": { "$ref": "#/$defs/State" },
+        "to": { "$ref": "#/$defs/State" },
         "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
       },
       "required": ["kind", "responder", "operation", "from", "to", "observed_at_unix_ms"],
       "additionalProperties": false
     },
     "RefusalReason": {
-      "description": "Admission-stage: stale_authority, key_conflict, unsupported_operation, not_permitted, unknown_scope. Transition-stage: already_terminal, transition_failed.",
+      "description": "Admission-stage: stale_authority, owner_live, key_conflict, unsupported_operation, not_permitted, unknown_scope. Transition-stage: already_terminal, root_absent, transition_failed.",
       "enum": [
         "stale_authority",
+        "owner_live",
         "key_conflict",
         "unsupported_operation",
         "not_permitted",
         "unknown_scope",
         "already_terminal",
+        "root_absent",
         "transition_failed"
       ]
     },
@@ -231,17 +249,18 @@
         "request_key": true,
         "requester": true,
         "addressed": true,
+        "operation": { "$ref": "#/$defs/Operation" },
         "stage": { "enum": ["admission", "transition"] },
         "reason": { "$ref": "#/$defs/RefusalReason" },
         "responder": { "$ref": "#/$defs/Authority" },
         "detail": { "$ref": "#/$defs/DisclosedText" },
         "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
       },
-      "required": ["kind", "stage", "reason", "observed_at_unix_ms"],
+      "required": ["kind", "operation", "stage", "reason", "observed_at_unix_ms"],
       "additionalProperties": false
     },
     "Outcome": {
-      "description": "What is finally known about one request. unknown retains uncertainty and never erases an earlier acknowledgment or refusal.",
+      "description": "What a reporter currently knows about one request's own transition. unknown can later be refined to acknowledged or refused for the same request; acknowledged and refused are final. Uncertainty never erases an earlier acknowledgment or refusal.",
       "type": "object",
       "allOf": [{ "$ref": "#/$defs/Correlation" }],
       "properties": {
@@ -252,6 +271,7 @@
         "addressed": true,
         "result": { "enum": ["acknowledged", "refused", "unknown"] },
         "uncertainty": { "enum": ["authority_changed", "transport_lost", "evidence_unavailable"] },
+        "reporter": { "$ref": "#/$defs/Authority" },
         "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
       },
       "required": ["kind", "result", "observed_at_unix_ms"],
@@ -314,6 +334,61 @@
       "required": ["kind", "protocol", "reporter", "subject", "fact", "observed_at_unix_ms"],
       "additionalProperties": false
     },
+    "RootEntry": {
+      "description": "Discovery: a descriptive address of one existing root for the requester, with its last known authority. The describer is an opaque locator, never an authority. An entry is not admission, scheduling, capacity, reservation or ownership, and does not prove its authority is current.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "root_entry" },
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "describer": { "$ref": "#/$defs/HostRef" },
+        "requester": { "$ref": "#/$defs/HostRef" },
+        "authority": { "$ref": "#/$defs/Authority" },
+        "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
+      },
+      "required": ["kind", "protocol", "describer", "requester", "authority", "observed_at_unix_ms"],
+      "additionalProperties": false
+    },
+    "Current": {
+      "description": "One current state as the reporter knows it, optionally with the request that established it.",
+      "type": "object",
+      "properties": {
+        "state": { "$ref": "#/$defs/State" },
+        "since": { "$ref": "#/$defs/RequestRef" }
+      },
+      "required": ["state"],
+      "additionalProperties": false
+    },
+    "Pending": {
+      "description": "A control intent the reporter holds that has no acknowledgment or refusal yet.",
+      "type": "object",
+      "properties": {
+        "request": { "$ref": "#/$defs/RequestRef" },
+        "operation": { "$ref": "#/$defs/Operation" },
+        "status": { "enum": ["received", "admitted"] }
+      },
+      "required": ["request", "operation", "status"],
+      "additionalProperties": false
+    },
+    "ControlState": {
+      "description": "Inspection: the reporting authority's current knowledge of a scope's input hold and lifecycle state and its pending control intents. A report, not an effect or acknowledgment; current knowledge never erases an earlier acknowledgment.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "control_state" },
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "reporter": { "$ref": "#/$defs/Authority" },
+        "scope": { "$ref": "#/$defs/ControlScope" },
+        "input": { "$ref": "#/$defs/Current" },
+        "lifecycle": { "$ref": "#/$defs/Current" },
+        "pending": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/Pending" }
+        },
+        "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
+      },
+      "required": ["kind", "protocol", "reporter", "scope", "input", "lifecycle", "observed_at_unix_ms"],
+      "additionalProperties": false
+    },
     "Record": {
       "description": "One control record.",
       "oneOf": [
@@ -323,19 +398,26 @@
         { "$ref": "#/$defs/Acknowledgment" },
         { "$ref": "#/$defs/Refusal" },
         { "$ref": "#/$defs/Outcome" },
-        { "$ref": "#/$defs/Observation" }
+        { "$ref": "#/$defs/Observation" },
+        { "$ref": "#/$defs/RootEntry" },
+        { "$ref": "#/$defs/ControlState" }
       ]
     },
     "Offer": {
-      "description": "One peer's oulipoly.session_control/v1 capability offer: the operations it can request or answer and the settlement facts it can report or read.",
+      "description": "One peer's oulipoly.session_control/v2 capability offer: the operations it can request or answer, the reports it can produce or read and the settlement facts it can report or read. input_hold is offered only together with input_release. At least one operation or report is offered.",
       "type": "object",
       "properties": {
         "operations": {
           "type": "array",
-          "minItems": 1,
-          "maxItems": 2,
+          "maxItems": 5,
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/Operation" }
+        },
+        "reports": {
+          "type": "array",
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/Report" }
         },
         "facts": {
           "type": "array",
@@ -344,11 +426,17 @@
           "items": { "$ref": "#/$defs/FactType" }
         }
       },
-      "required": ["operations", "facts"],
-      "additionalProperties": false
+      "required": ["operations", "reports", "facts"],
+      "additionalProperties": false,
+      "anyOf": [
+        { "properties": { "operations": { "minItems": 1 } } },
+        { "properties": { "reports": { "minItems": 1 } } }
+      ],
+      "if": { "properties": { "operations": { "contains": { "const": "input_hold" } } } },
+      "then": { "properties": { "operations": { "contains": { "const": "input_release" } } } }
     },
     "Advertisement": {
-      "description": "A peer's protocol offers. Unknown and newer entries are ignored; the v1 entry must be a strict Offer.",
+      "description": "A peer's protocol offers. Unknown, older and newer entries are ignored; the v2 entry must be a strict Offer.",
       "type": "object",
       "maxProperties": 32,
       "propertyNames": { "pattern": "^[\\x21-\\x7e]{1,128}$" }

@@ -201,34 +201,39 @@ plane. It is defined but not adopted yet.
   and the contract stores nothing.
 - **Not established.** Capture, the broker, enforcement of visibility and
   runtime non-blocking behaviour remain later work. Control claims live in
-  `session-control/v1`; incident DTOs are not yet defined.
+  `session-control/v2`; incident DTOs are not yet defined.
 
-The [`session-control/v1` contract](crates/provider-contract/contract/extensions/session-control/README.md)
-(`session_control` module) is the one provider-neutral vocabulary of
-session/root control claims, shared by session control and infrastructure
-control. It is defined but not adopted yet.
-- **What it covers.** Requester intent, transport receipt, admission,
-  semantic transition acknowledgment or refusal, and outcome as distinct
-  records; the existing root owner/generation/incarnation as addressed and
-  responding authority; logical root/child/work/input links kept apart from
-  attached process, Bash handle, provider-session and stream evidence; and
-  insertion, tagged end, logical debt and physical custody/wait facts kept
-  apart. Free text and references can be explicitly redacted or missing.
-- **Input hold.** v1 defines `input_hold`/`input_release`: admission of new
-  input only. Running work may continue; drain, close, cancel and execution
-  pause are not defined.
+The [`session-control/v2` contract](crates/provider-contract/contract/extensions/session-control/README.md)
+(`session_control` module) is the one provider-neutral vocabulary of root
+control claims, shared by session control and infrastructure control. It is
+defined but not adopted yet; it replaces the never-adopted hold-only v1.
+- **What it covers.** Descriptive root discovery, current-state inspection
+  and pending control intent, and requests for `input_hold`/`input_release`,
+  same-incarnation `recover`, `cancel` and `close` on one claim ladder:
+  requester intent, transport receipt, admission, semantic transition
+  acknowledgment or refusal, and outcome as distinct records. The existing
+  root owner/generation/incarnation is the addressed and answering authority;
+  logical root/child/work/input links stay apart from attached process, Bash
+  handle, provider-session and stream evidence; insertion, tagged end, logical
+  debt and physical custody/wait facts stay apart.
+- **Knowledge over time.** An `unknown` outcome can later be refined for the
+  same immutable request; definite outcomes are final and contradictions are
+  refused. A successor owner reports knowledge without acknowledging or
+  erasing its predecessor's claims, and current-state reports relate to prior
+  acknowledgments (current, retained, superseded or contradicted).
+- **Settlement.** Observations of one subject read as one order-independent
+  evolving account; other roots' reporters are never composed, and a
+  caller-supplied root lineage marks a reading `warranted`. Physical exit never
+  implies logical settlement.
 - **Selection.** Peers select it by a bounded advertisement, not provider
-  `describe`; providers do not speak it. Absent or incompatible control
-  capability is a `control_unavailable` diagnostic, never provider launch or
-  completion unavailability.
-- **Operations.** Record admission, selection/agreement, request repetition
-  (same request, key conflict, distinct), a per-request claim-order trace and a
-  settlement reading in which physical exit never implies logical settlement.
+  `describe`; providers do not speak it. Hold is offered only with release.
+  Absent or incompatible control capability is a `control_unavailable`
+  diagnostic, never provider launch or completion unavailability.
 - **Not established.** Records are claims: validation does not prove producer
-  truth, authorization, hold enforcement, durability or custody. Root
-  authority, durable control intent and execution stay with Agent Runner.
-  Incident reports, evidence severity/scope and recovery authorization remain
-  later work.
+  truth, authorization, enforcement, durability, lineage warrant or custody.
+  Root authority, discovery indexing, durable control intent and execution
+  stay with Agent Runner. Incident reports, evidence severity/scope and
+  recovery authorization remain later work.
 
 The independently versioned
 [`terminal-unavailable/v1` extension](crates/provider-contract/contract/extensions/terminal-unavailable/README.md)

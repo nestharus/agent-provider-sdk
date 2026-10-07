@@ -1,31 +1,36 @@
-# Session control v1
+# Session control v2
 
-`oulipoly.session_control/v1` is the provider-neutral vocabulary of
-session/root control claims. A requester and the existing root owner use it to
-exchange:
+`oulipoly.session_control/v2` is the provider-neutral vocabulary of root
+control claims. A requester and the existing root owner use it for the whole
+root control face:
 
-- a control request and its idempotency key;
-- transport receipt, admission, semantic transition acknowledgment or refusal,
-  and the request's outcome, each as a separate claim;
-- settlement observations about logical work, with actor identity evidence
-  attached.
+- **discovery**: descriptive addresses of the requester's existing roots;
+- **inspection**: an authority's current knowledge of a scope's input hold,
+  lifecycle state and pending control intents;
+- **control requests** — input hold/release, same-incarnation recover, cancel
+  and close — answered on one claim ladder: transport receipt, admission,
+  semantic transition acknowledgment or refusal, and what is known of the
+  outcome, each a separate claim;
+- **settlement observations** about logical work, with actor identity
+  evidence attached.
 
 It is the one control vocabulary for session control (the Session DSL's
-control half) and infrastructure control. Hold, acknowledgment, refusal and
-idempotency have one meaning here; no parallel control vocabulary defines
-them differently.
+control half) and infrastructure control. Hold, acknowledgment, refusal,
+idempotency, refinement and settlement have one meaning here; no parallel
+control vocabulary defines them differently.
 
-[v1.schema.json](v1.schema.json) defines structural validation. That schema
-**plus the normative semantic rules below** defines v1 conformance in every
+[v2.schema.json](v2.schema.json) defines structural validation. That schema
+**plus the normative semantic rules below** defines v2 conformance in every
 language. Raw JSON Schema validation alone is insufficient. `session_control`
 implements both layers and the context-dependent selection, agreement,
-repetition, trace and settlement-reading operations. Raw Serde deserialization
-supplies representation only.
+repetition, trace, current-state relation and settlement-reading operations.
+Raw Serde deserialization supplies representation only.
 
 Status: defined and unadopted. No requester, root owner or host uses this
-contract yet. The root discovery/control face that adopts it, and durable
-control realization, belong to later Runner work. That later work is what
-establishes runtime behaviour.
+contract yet. Runner's root discovery/control face is its selected adopter;
+that work establishes runtime behaviour. v2 replaces the hold-only v1, which
+was never adopted; no v1 records, fixtures or compatibility are kept, and a
+v1-only peer selects nothing (`no_common_version`).
 
 ## What it is and is not
 
@@ -34,13 +39,14 @@ meaning and the order of claims answering one request. It does not establish:
 
 - that the producer told the truth;
 - that the requester was authenticated or authorized;
-- that a hold was enforced, survives owner death or is durable;
-- that any actor is in custody or any process is in the state reported.
+- that a control was enforced, survives owner death or is durable;
+- that a lineage is warranted, or that any actor is in custody or any process
+  is in the state reported.
 
-Root authority, requester attestation, generation fencing, durable control
-intent, admission, scheduling and process custody stay with Agent Runner. The
-SDK executes no command, keeps no registry, ledger or queue, and stores
-nothing.
+Root authority, requester attestation, generation fencing, lineage, durable
+control intent, admission, scheduling, capacity and process custody stay with
+Agent Runner. The SDK executes no command, keeps no registry, index, ledger or
+queue, applies no authorization policy and stores nothing.
 
 This is not a provider/v1 subcommand and not a second host/provider protocol:
 providers neither speak nor advertise it, and provider/v1 envelopes are
@@ -62,30 +68,41 @@ control through this vocabulary only. It is not a provider error response, a
 launch event, provider launch unavailability or a completion outcome, and the
 SDK has no conversion between them.
 
-## The input hold
+## Operations
 
-v1 defines one operation pair:
+Each operation has its own transition. None is drain or physical execution
+pause, and none may be expressed as another.
 
-- **`input_hold`** holds admission of new input at a logical scope (a root,
-  optionally one logical child).
-- **`input_release`** clears that hold through the same root authority.
+| Operation | Acknowledged transition | Answered by |
+| --- | --- | --- |
+| `input_hold` | input → `input_held` | the addressed authority |
+| `input_release` | input → `input_open` | the addressed authority |
+| `close` | lifecycle → `closing` | the addressed authority |
+| `cancel` | lifecycle → `cancelling` | the addressed authority |
+| `recover` | attachment → `attached` | a successor owner of the same root **and the same incarnation** |
 
-The hold is about admission and input only. Running provider turns and tools
-may continue. An acknowledged hold (`to: input_held`) does not claim that
-work is paused, drained, stopped or at a safe boundary, and no record reports
-running work as part of an acknowledgment. Running work is reported separately
-through settlement observations.
+- **Input hold** is about admission and input only. Running provider turns
+  and tools may continue. `input_held` does not claim that work is paused,
+  drained, stopped or at a safe boundary. A drained-to-safe-boundary claim
+  (such as the architecture document's `paused_safe`) is a different claim.
+- **Close** refuses new input for the scope; admitted work then ends and its
+  harnesses stop. **Cancel** cancels the scope's work and outranks a close in
+  progress. `closing` and `cancelling` are acknowledged requests, not ended
+  work: ended work is read from settlement observations.
+- **Recover** continues the surviving recorded incarnation under a new owner
+  generation. It never starts a new incarnation: an answer from another
+  incarnation is invalid, and finding no survivor is the transition refusal
+  `root_absent`. An owner that still holds the root makes it `owner_live`.
+  After recovery, further controls are new requests addressed to the
+  successor.
 
-Drain, close, cancel and physical execution pause are different operations.
-They are not defined in v1, and none of them may be expressed as an input
-hold. A drained-to-safe-boundary claim (such as the architecture document's
-`paused_safe`) is a different claim from an input hold and must not share its
-acknowledgment. Additional operations join this same claim ladder in a later
-version, not a separate vocabulary.
+The acknowledgment's `from` is the prior state in the operation's domain, or
+`unknown`. State repetition is separate from key repetition: a hold while
+already held is acknowledged `input_held` → `input_held`.
 
 Ticket mapping: the "pause/resume acknowledgements" named in the session and
-infrastructure-control tickets are realized here as input hold/release
-acknowledgments with this admission-only meaning.
+infrastructure-control tickets are input hold/release acknowledgments with this
+admission-only meaning.
 
 ## Selection
 
@@ -95,27 +112,41 @@ is a bounded JSON object (at most 32 entries and 16 KiB) mapping a protocol
 identifier to its offer:
 
 ```json
-{"oulipoly.session_control/v1": {"operations": ["input_hold", "input_release"],
-                                  "facts": ["insertion", "tagged_end",
-                                            "logical_settlement", "physical_custody"]}}
+{"oulipoly.session_control/v2": {
+  "operations": ["input_hold", "input_release", "recover", "cancel", "close"],
+  "reports": ["discovery", "inspection"],
+  "facts": ["insertion", "tagged_end", "logical_settlement", "physical_custody"]}}
 ```
 
-- **Unknown entries** (other families and newer versions) are ignored.
-- **The v1 entry** must be a strict `Offer`; a malformed entry is refused
-  (`invalid_advertisement`), not skipped.
-- **The selection** is the common operations and the common fact types. No
-  common operation is `no_common_capability`; no v1 entry is
-  `no_common_version`. The common fact set may be empty.
-- **Agreement.** `Request::agree` and `Observation::agree` refuse an
-  unselected operation or fact type with `no_common_capability`.
+- **Unknown entries** (other families, the old v1 and newer versions) are
+  ignored.
+- **The v2 entry** must be a strict `Offer`; a malformed entry is refused
+  (`invalid_advertisement`), not skipped. An offer names at least one
+  operation or report, and **offers `input_hold` only together with
+  `input_release`**, so no selection ever carries a hold without its release.
+- **The selection** is the common operations, reports and fact types. With
+  no common operation and no common report it is `no_common_capability`;
+  with no v2 entry `no_common_version`. A read-only peer may select only
+  discovery and inspection; the common fact set may be empty.
+- **Agreement.** `Request::agree`, `Observation::agree`, `RootEntry::agree`
+  and `ControlState::agree` refuse an unselected operation, fact type or
+  report with `no_common_capability`.
 
-## Addressing and correlation
+## Addressing, discovery and correlation
 
 - **`Authority {root, owner, generation, incarnation}`** is the existing Runner
   root authority. A request names the authority it addresses (`addressed`).
   Admissions, acknowledgments and refusals name the authority that answered
-  (`responder`). The values are opaque host values compared only for equality.
-  Carrying them makes a stale answer detectable; it does not fence anything.
+  (`responder`), inspection and observations their `reporter`. The values are
+  opaque host values compared only for equality. Carrying them makes a stale
+  answer detectable; it does not fence anything.
+- **Discovery** (`root_entry`) is a descriptive address: one existing root of
+  `requester`, with its last known `authority`, from a `describer` that is an
+  opaque locator and never an authority. An entry claims no admission,
+  scheduling, capacity, reservation or ownership, and does not show its
+  authority is current: a request addressed from it can meet a
+  `stale_authority` refusal or need a `recover`. An entry answers no request
+  and settles nothing.
 - **Logical links.** `ControlScope {root, child?}` is what a control applies
   to; `LogicalRef {root, child?, work?, input?}` is what an observation is
   about. They are logical identities only.
@@ -124,8 +155,9 @@ identifier to its offer:
   to an observation. `exactness` is `exact`, `legacy` or `incomplete` as the
   producer claims. Actor evidence is never a logical key, scope or authority,
   and the SDK does not define correlation across these domains.
-- **Correlation.** Every response repeats the request's `request_key`,
-  `requester` and `addressed` authority exactly.
+- **Correlation.** A request's immutable identity is its `RequestRef
+  {request_key, requester, addressed}`. Every response repeats it exactly and
+  names the operation it answers. Inspection cites requests by `RequestRef`.
 
 ## The claim ladder
 
@@ -133,54 +165,140 @@ identifier to its offer:
 | --- | --- | --- |
 | `request` | Requester intent: operation, scope, addressed authority, optional reason | Receipt, admission or effect |
 | `receipt` | The request reached a queue or endpoint; `durable` is the receiver's retention claim | Admission, acknowledgment, execution or outcome |
-| `admission` | The addressed authority admitted the request for its transition | That the transition happened |
-| `acknowledgment` | The input hold state moved `from` → `to` at the addressed authority | Anything about running work |
+| `admission` | The answering authority admitted the request for its transition | That the transition happened |
+| `acknowledgment` | The operation's state moved `from` → `to` at the answering authority | Running work, ended work or physical custody |
 | `refusal` | Explicit refusal at `admission` or `transition`, with a reason | — a refusal is an outcome, not an absent acknowledgment |
-| `outcome` | What is finally known: `acknowledged`, `refused` or `unknown` with an uncertainty reason | — `unknown` never erases an earlier acknowledgment or refusal |
+| `outcome` | What a reporter knows of the request's own transition: `acknowledged`, `refused`, or `unknown` with an uncertainty reason | — `unknown` never erases an earlier acknowledgment or refusal; reporting confers no authority |
 | `observation` | One settlement fact about a logical link, with actor evidence | Any control, request, admission or acknowledgment |
+| `root_entry` | Discovery: a descriptive root address | Authority, admission, scheduling, capacity or ownership |
+| `control_state` | Inspection: an authority's current knowledge | An effect or acknowledgment |
 
-Refusal reasons: admission stage `stale_authority`, `key_conflict`,
-`unsupported_operation`, `not_permitted`, `unknown_scope`; transition stage
-`already_terminal`, `transition_failed`. The reasons name the root owner's
-decision. The SDK defines no authorization policy.
+Refusal reasons: admission stage `stale_authority`, `owner_live`,
+`key_conflict`, `unsupported_operation`, `not_permitted`, `unknown_scope`;
+transition stage `already_terminal`, `root_absent`, `transition_failed`. The
+reasons name the root owner's decision. The SDK defines no authorization
+policy.
 
 Uncertainty reasons: `authority_changed`, `transport_lost`,
 `evidence_unavailable`.
+
+## Later knowledge of the same intent
+
+A request's identity is immutable, and it stays addressable after an outcome
+reported `unknown`:
+
+- **Refinement.** After `unknown`, later claims for the same request — a
+  receipt, the admission, the acknowledgment or refusal, and a definite
+  outcome — are accepted in ladder order. `unknown` may also be repeated with
+  another reason. The trace keeps every outcome report.
+- **Contradiction.** `acknowledged` and `refused` are final. A later
+  different outcome, an acknowledgment after a refusal, a refusal after an
+  acknowledgment, or a second different admission or acknowledgment is a
+  protocol violation and leaves the trace unchanged.
+- **Successors.** Only the addressed authority admits, acknowledges or
+  refuses (other than `stale_authority`) a non-recover request. A successor
+  owner may report `outcome` knowledge, with itself as `reporter`, and may
+  faithfully replay its predecessor's persisted claims unchanged (their
+  responder stays the predecessor). It cannot acknowledge its predecessor's
+  request, gains no authority over it, and its reports never erase the
+  predecessor's acknowledgment. A new control intent to the successor is a
+  new request.
+
+Faithful persisted replay, durable intent and the acknowledgment surviving
+owner death are producer realizations. The contract states what such claims
+mean and refuses ones that contradict; it cannot make a producer keep them.
+
+## Current state and prior acknowledgments
+
+`control_state` reports what its `reporter` knows now about one scope:
+
+- `input` and `lifecycle`: each a state of its domain or `unknown`, with an
+  optional `since` naming the request that established it;
+- `pending`: up to 8 intents the reporter holds without an acknowledgment or
+  refusal (`received` or `admitted`).
+
+Current knowledge is not an acknowledgment and never erases one.
+`RequestTrace::relate` states how a report relates to one request:
+
+| Relation | Meaning |
+| --- | --- |
+| `current` | The report shows the acknowledged state |
+| `prior_retained` | The report no longer knows the state (`unknown`); the acknowledgment stands |
+| `superseded` | A different state, explained by **another** request in `since` (a later release; a cancel over a close) |
+| `contradicts` | A different state with no other request as its basis, or a lifecycle regression (`cancelling` → `closing` → `open`): the acknowledged transition silently vanished, as an acknowledged close becoming open after successor attach would |
+| `pending` / `no_acknowledgment` | Not acknowledged; the report does or does not hold it as pending |
+| `unrelated` | Another scope, or the attachment domain, which inspection does not describe |
 
 ## Settlement facts
 
 Four fact types stay distinct:
 
-| Fact | States |
+| Fact | States, earlier → later knowledge |
 | --- | --- |
-| `insertion` | `acknowledged`, `not_inserted`, `uncertain` |
-| `tagged_end` | `observed`, `absent` |
-| `logical_settlement` | `settled`, `owed` |
-| `physical_custody` | `live`, `exited_wait_pending`, `exited_waited`, `unsettled` |
+| `insertion` | `uncertain` → `acknowledged` or `not_inserted` |
+| `tagged_end` | `absent` → `observed` |
+| `logical_settlement` | `owed` → `settled` |
+| `physical_custody` | `unsettled` → `live` → `exited_wait_pending` → `exited_waited` |
 
 Every fact may also be `missing` (with `missing_reason`: `not_captured`,
 `access_denied`, `unsupported`, `not_applicable`) or `redacted`. Neither is a
 negative: missing insertion evidence is not `not_inserted`, and a missing
 tagged end is not `absent`.
 
-`read_settlement` reads the observations of one exact logical subject and
-returns the four facts separately plus a logical reading derived from
-insertion, tagged end and logical debt only:
+### Coherent current evidence
+
+`read_settlement(subject, lineage, observations)` reads the observations of
+one exact logical subject as **one evolving account**, not a set of competing
+states:
+
+- A report that refines an earlier one (`uncertain` → `not_inserted`, `owed`
+  → `settled`, `absent` → `observed`) is not a conflict; the most refined
+  state is read. Missing and redacted reports neither refine nor contradict.
+- States neither of which refines the other (`acknowledged` and
+  `not_inserted`) are retained as `conflicting`, never resolved to the latest.
+- The reading does not depend on report order. Timestamps are bounded host
+  observations, not ordered clocks or causal evidence.
+
+### Warranted reporters
+
+- A reporter of another root is never composed.
+- A `Lineage {root, authorities}` is the consumer's statement of which owner
+  generations and incarnations are warranted reporters for the root — its
+  owner/generation lineage. With a lineage for the subject's root, only its
+  authorities are composed and the reading's `basis` is `warranted`.
+  Old histories and arbitrary same-root reporters outside it are left out
+  and counted in `excluded`. An earlier generation in the lineage is not
+  erased by its successor.
+- Without a lineage the `basis` is `unwarranted`: a description of claims.
+
+The SDK applies a lineage; it does not derive, attest or fence one. Selecting
+the coherent current encounter and the warranted lineage is Runner
+realization.
+
+### Logical reading
+
+The logical reading is derived from insertion, tagged end and logical debt
+only:
 
 - `settled` needs insertion `acknowledged`, tagged end `observed` and logical
   settlement `settled`;
-- `owed` when debt is reported owed, or insertion was acknowledged with a known
-  `absent` tagged end;
+- `owed` when debt is reported owed, or insertion was acknowledged with a
+  known `absent` tagged end and no contrary settled-debt claim;
 - `not_inserted` when insertion is positively `not_inserted` with no observed
   tagged end and no owed debt;
 - `unknown` otherwise, including missing, redacted, uncertain, contradictory or
   conflicting reports.
 
 Physical custody never enters the logical reading: an observed exit, a
-completed wait or a closed peer is not logical settlement. Reporter authority
-is provenance, not a filter, so an earlier generation's acknowledgment is not
-erased when a successor reports later; disagreeing reports read as
-`conflicting`, not as the latest one.
+completed wait or a closed peer is not logical settlement. An acknowledged
+input with no tagged end and owed debt reads `owed` whatever its physical exit
+and wait.
+
+**Retirement.** A `settled` reading with `warranted` basis is the only
+reading this contract describes as fit to support retirement, and only under
+the warrant the consumer supplied. An `unwarranted` reading, a physical exit,
+an acknowledgment absence or a single latest report is not retirement
+evidence. The decision to retire remains the root owner's.
 
 ## Repetition and idempotency
 
@@ -196,36 +314,35 @@ A request's key scope is `(requester, addressed root, request_key)`.
   After an authority change, read the old request's outcome and send a new key.
 - **`distinct`**: another key scope; an independent request.
 
-State repetition is separate from key repetition. A new hold while the input
-is already held is acknowledged `from: input_held` → `to: input_held`; a
-release while open is acknowledged `input_open` → `input_open`.
-
 `RequestTrace` treats an identical redelivery of an already accepted record
-as `duplicate`, with no new meaning or state change.
+as `duplicate`, with no new meaning or state change. Identity is the whole
+record, timestamps and disclosure state included: a re-stamped acknowledgment
+contradicts the first, so replay of persisted records must be byte-faithful.
+Distinct receipts count toward the trace's bound of 8.
 
 ## Normative semantic rules
 
 | Operation | Required semantic checks / result |
 | --- | --- |
-| Record admission | Record lines are at most 16384 UTF-8 bytes before parsing. A request's `scope.root` equals its `addressed.root`. Admission and acknowledgment `responder` equals `addressed`. An acknowledgment's `to` is `input_held` for `input_hold` and `input_open` for `input_release`. A refusal's stage matches its reason. A `stale_authority` refusal's responder, when present, differs from `addressed` with the same root; any other refusal's responder, when present, equals `addressed`. `exact` actor evidence has a present reference. |
-| Selection | Validate the local offer, the advertisement bound and shape, and the strict v1 entry; ignore unknown entries; intersect operations (nonempty) and facts. |
-| Agreement | The selected protocol is v1 and its offer is structurally valid; the request's operation or the observation's fact type is selected. |
+| Record admission | Record lines are at most 32768 UTF-8 bytes before parsing. A request's `scope.root` equals its `addressed.root`. An admission's or acknowledgment's responder may answer its operation: the addressed authority, or for `recover` an authority with the same root and incarnation and a different owner or generation. An acknowledgment's `to` is its operation's target and its `from` is in the operation's domain or `unknown`. A refusal's stage matches its reason. `owner_live` and `root_absent` refuse only `recover`; `stale_authority` never refuses `recover`. A `stale_authority` or `owner_live` responder, when present, differs from `addressed` with the same root; any other refusal's responder, when present, may answer the operation. An outcome's `reporter`, when present, has the addressed root. `exact` actor evidence has a present reference. A control state's reporter and every cited request have the scope's root; `input` and `lifecycle` are in their domains; a pending intent is listed once. |
+| Selection | Validate the local offer, the advertisement bound and shape, and the strict v2 entry; ignore unknown entries; intersect operations, reports and facts; at least one operation or report is common. |
+| Agreement | The selected protocol is v2 and its offer is structurally valid (including the hold/release pairing); the record's operation, fact type or report is selected. |
 | Repetition | Classify by key scope then exact content, as above. |
-| Trace | A trace starts from an admitted request. Every record must be admissible and correlate exactly; observations are refused. Identical redelivery is `duplicate`. Nothing new follows the outcome. Receipts may arrive at any time before the outcome (at most 8 distinct per trace). Admission at most once and not after a refusal. Acknowledgment only after admission, for the requested operation, at most once, never with a refusal. Admission-stage refusal only before admission; transition-stage refusal only after admission; never after an acknowledgment. Outcome `acknowledged` needs an acknowledgment, `refused` needs a refusal, `unknown` is always admissible and retains earlier claims. Refused records leave the trace unchanged. |
-| Settlement reading | As above; physical custody does not affect the logical reading. |
-
-Timestamps are bounded host observations, not ordered clocks or causal
-evidence.
+| Trace | A trace starts from an admitted request. Every record must be admissible, correlate exactly and name the request's operation; observations, root entries and control states are refused. Identical redelivery is `duplicate`. Nothing new follows a definite (`acknowledged`/`refused`) outcome; after `unknown` the ladder continues. Receipts at most 8 distinct, outcome reports at most 8. Admission at most once and not after a refusal. Acknowledgment only after admission, from the admitting responder, at most once, never with a refusal. Admission-stage refusal only before admission; transition-stage refusal only after admission; never after an acknowledgment. Outcome `acknowledged` needs an acknowledgment, `refused` needs a refusal, `unknown` is always admissible and retains earlier claims. Refused records leave the trace unchanged. |
+| Relation | As in the table above, for the request's scope and domain. |
+| Settlement reading | As above: exact subject; refinement order; same-root reporters only; lineage filter when supplied; physical custody does not affect the logical reading. |
 
 ## Bounds and redaction
 
 | Bound | Value |
 | --- | --- |
-| Record line, checked before parsing | 16384 bytes |
+| Record line, checked before parsing | 32768 bytes |
 | Host values | 1–256 printable non-space ASCII characters |
 | Request key | 1–128 printable non-space ASCII characters |
 | Reason/detail text | 1–512 characters |
 | Actor evidence per observation | 16 |
+| Pending intents per control state | 8 |
+| Receipts / outcome reports per trace | 8 / 8 |
 | Advertisement | 32 entries, 16384 bytes |
 | Diagnostic detail | 512 characters |
 
@@ -240,24 +357,31 @@ sanitizing it.
 
 ## Limits
 
-The golden vectors in `tests/fixtures/session_control/v1.json` and their tests
+The golden vectors in `tests/fixtures/session_control/v2.json` and their tests
 establish the following, over claims:
 
 - classified structural acceptance versus normative semantic admission;
 - the bounds and redaction states above;
-- selection, agreement and its diagnostics;
+- selection, version negotiation, the hold/release pairing, agreement and
+  their diagnostics;
 - repetition classification;
-- claim-ladder order, correlation, duplicates and non-contradiction;
-- the separation of insertion, tagged end, logical debt and physical custody;
+- one claim ladder per operation, recover's same-incarnation answering rule,
+  refinement of the same intent versus contradiction, and successor knowledge
+  that neither acknowledges nor erases;
+- relations between current-state reports and prior acknowledgments;
+- order-independent settlement reading, the lineage filter and the exclusion
+  of other roots' reporters, and the separation of insertion, tagged end,
+  logical debt and physical custody — including the actual U112
+  acknowledged/no-end/owed/exited-and-waited records, mapped by an earlier
+  independent observation;
 - separation from provider launch outcomes and error responses.
 
 They do not establish any of the following:
 
-- that a root owner enforces a hold, keeps it durable or answers duplicates
-  identically;
-- that any requester is authorized or any claim is true;
-- adoption by the root discovery/control face, or runtime behaviour;
-- drain, close, cancel or physical pause semantics, which v1 does not define.
+- that a root owner enforces a hold, close or cancel, keeps intent durable,
+  replays faithfully or answers duplicates identically;
+- that any requester is authorized, any lineage warranted or any claim true;
+- adoption by the root discovery/control face, or runtime behaviour.
 
 Incident reports, typed resource evidence, severity and scope, and recovery
 authorization or proof are not defined here. They belong to a later bounded
