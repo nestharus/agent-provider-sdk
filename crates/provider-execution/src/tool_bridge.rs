@@ -624,6 +624,63 @@ fn stages(value: &Value) -> String {
     }
 }
 
+/// Only a positive diagnostic on the ordered accepted/started relation proves
+/// the requested image failed to exec. The numeric wait is not such evidence.
+fn exec_error(value: &Value) -> Result<Option<&str>, ()> {
+    let stages = value["stages"].as_array().ok_or(())?;
+    let mut started = stages
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s["event"] == "started");
+    let Some((index, stage)) = started.next() else {
+        return Ok(None);
+    };
+    if started.next().is_some() {
+        return Err(());
+    }
+    let error = match stage.get("exec_error") {
+        None | Some(Value::Null) => return Ok(None),
+        Some(Value::String(error)) if !error.is_empty() => error.as_str(),
+        _ => return Err(()),
+    };
+    let accepted = &stages[0];
+    if index != 1
+        || accepted["event"] != "accepted"
+        || accepted["durable"] != true
+        || !accepted["root_id"].as_str().is_some_and(|s| !s.is_empty())
+        || !accepted["work"].as_i64().is_some_and(|w| w > 0)
+    {
+        return Err(());
+    }
+    Ok(Some(error))
+}
+
+fn failed_exec(error: &str) -> String {
+    format!(
+        "Root v1 accepted work and created its child, but exec of the requested program failed: {}. The requested program did not run. Setup effects remain possible; retry safety is not established. Do not replay.",
+        crate::encoding::bounded_text_bytes(error, 4096)
+    )
+}
+
+fn completion_owed(value: &Value) -> bool {
+    let accepted = &value["stages"][0];
+    let detached = &value["stages"][2];
+    value["stages"].as_array().is_some_and(|s| s.len() == 3)
+        && accepted["delivery"] == "async"
+        && detached["event"] == "detached"
+        && detached["work"] == accepted["work"]
+        && detached["completion"] == "owed-to-requesting-harness"
+        && value["completion"]["delivery"] == "owed-to-requesting-harness"
+        && value["completion"]["root_id"] == accepted["root_id"]
+        && value["completion"]["work"] == accepted["work"]
+        && value["output"]["reference"]
+            == format!(
+                "rv1w:{}:{}",
+                accepted["root_id"].as_str().unwrap_or_default(),
+                accepted["work"]
+            )
+}
+
 fn shown_count(bytes: &[u8]) -> usize {
     if std::str::from_utf8(bytes).is_err() || bytes.contains(&0) {
         return bytes.len().min(SHOWN_BYTES / 2);
@@ -698,6 +755,20 @@ pub fn render_run(code: Option<i32>, stdout: &[u8], stderr: &str, delivery: &str
     {
         return unresolved("result surface invalid", stderr);
     }
+    let exec_error = match exec_error(&value) {
+        Ok(error) => error,
+        Err(()) => return unresolved("invalid exec diagnostic or stage relation", stderr),
+    };
+    if exec_error.is_some()
+        && (value["effects_possible"] != true
+            || value["retry_safe"] != false
+            || !matches!(
+                value["outcome"].as_str(),
+                Some("unknown" | "running" | "ended" | "ended-output-unproven")
+            ))
+    {
+        return unresolved("exec failure contradicts custody facts", stderr);
+    }
     let stages = stages(&value);
     let output = &value["output"];
 
@@ -721,11 +792,22 @@ pub fn render_run(code: Option<i32>, stdout: &[u8], stderr: &str, delivery: &str
             format!("Root v1 accepted the command, then reported a positive no-start; nothing was run.\n{stages}"),
             true,
         ),
+        ("async", "unknown" | "running") if exec_error.is_some() => answer(
+            format!("{} {}\n{stages}{}",
+                failed_exec(exec_error.expect("positive diagnostic")),
+                if completion_owed(&value) {
+                    "Work end, wait and output are owed as a later input to this conversation; do not poll."
+                } else {
+                    "Work end, wait, output and completion delivery remain unconfirmed."
+                }, retention(output)),
+            true,
+        ),
         (_, "unknown") => answer(
             format!(
-                "Root v1 outcome unknown ({}): the command may have run. Do not replay.\n{stages}{}",
-                value["meaning"].as_str().unwrap_or("unknown"),
-                retention(output)
+                "{}Work outcome unknown ({}). Do not replay.\n{stages}{}",
+                exec_error.map(|error| format!("{} ", failed_exec(error)))
+                    .unwrap_or_else(|| "Root v1: the command may have run. ".into()),
+                value["meaning"].as_str().unwrap_or("unknown"), retention(output)
             ),
             true,
         ),
@@ -763,13 +845,15 @@ pub fn render_run(code: Option<i32>, stdout: &[u8], stderr: &str, delivery: &str
             };
             answer(
                 format!(
-                    "Root v1 work ended: {exit} ({}, observer {}); {delivered}.\n{stages}{}\n{}",
+                    "{}work ended: {exit} ({}, observer {}); {delivered}.\n{stages}{}\n{}",
+                    exec_error.map(|error| format!("{}\n", failed_exec(error)))
+                        .unwrap_or_else(|| "Root v1 ".into()),
                     wait["status"].as_str().unwrap_or("unknown"),
                     wait["observer"].as_str().unwrap_or("unknown"),
                     retention(output),
                     shown(&bytes)
                 ),
-                outcome == "ended-output-unproven",
+                exec_error.is_some() || outcome == "ended-output-unproven",
             )
         }
         _ => unresolved("result outcome inconsistent", stderr),

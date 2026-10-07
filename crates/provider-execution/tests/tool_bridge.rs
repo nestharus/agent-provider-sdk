@@ -433,3 +433,101 @@ fn retained_continuation_follows_the_displayed_utf8_or_hex_bytes() {
         }
     }
 }
+
+#[test]
+fn failed_exec_is_distinct_from_wait_and_keeps_custody_and_owed_delivery() {
+    let mut value = json!({"result_surface":"agent-bash-root-v1", "version":1,
+        "delivery_mode":"sync", "outcome":"ended", "effects_possible":true, "retry_safe":false,
+        "stages":[{"event":"accepted", "durable":true, "root_id":"r", "work":7},
+            {"event":"started", "exec_error":"No such file or directory (os error 2)"},
+            {"event":"output-closed"}, {"event":"end"}],
+        "wait":{"status":"code:127", "observer":"work-pid1-wait", "exit":{"code":127}},
+        "output":{"base64":"", "bytes":0, "delivery":"complete"}});
+    let render = |value: &Value| {
+        render_run(
+            Some(0),
+            value.to_string().as_bytes(),
+            "",
+            value["delivery_mode"].as_str().unwrap(),
+        )
+    };
+    let sync = render(&value);
+    assert!(
+        sync.error && sync.text.contains("requested program failed"),
+        "{sync:?}"
+    );
+    assert!(sync.text.contains("os error 2") && sync.text.contains("exited with code 127"));
+    assert!(
+        sync.text.contains("Setup effects remain possible") && sync.text.contains("Do not replay")
+    );
+    assert!(sync.text.contains("output complete"));
+    let mut ordinary = value.clone();
+    ordinary["stages"][1]["exec_error"] = Value::Null;
+    let answer = render(&ordinary);
+    assert!(!answer.error && answer.text.contains("exited with code 127"));
+    assert!(!answer.text.contains("program did not run"));
+    value["delivery_mode"] = json!("async");
+    value["outcome"] = json!("unknown");
+    value["wait"] = Value::Null;
+    value["output"] = json!({"reference":"rv1w:r:7", "delivery":"none", "bytes":0, "base64":""});
+    value["stages"][0]["delivery"] = json!("async");
+    value["stages"].as_array_mut().unwrap().truncate(2);
+    value["stages"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"event":"detached", "work":7, "completion":"owed-to-requesting-harness"}));
+    value["completion"] = json!({"delivery":"owed-to-requesting-harness", "root_id":"r", "work":7});
+    for outcome in ["unknown", "running"] {
+        value["outcome"] = json!(outcome);
+        let answer = render(&value);
+        assert!(answer.error && answer.text.contains("program did not run"));
+        assert!(answer.text.contains("owed as a later input"));
+        assert!(!answer.text.contains("still running"));
+    }
+    value["stages"].as_array_mut().unwrap().truncate(2);
+    let incomplete = render(&value);
+    assert!(
+        incomplete.error
+            && incomplete
+                .text
+                .contains("completion delivery remain unconfirmed")
+    );
+    assert!(!incomplete.text.contains("owed as a later input"));
+    for error in [
+        json!(true),
+        json!(127),
+        json!(""),
+        json!({"error":"ENOENT"}),
+    ] {
+        let mut bad = value.clone();
+        bad["stages"][1]["exec_error"] = error;
+        let answer = render(&bad);
+        assert!(answer.error && answer.text.contains("unresolved"));
+        assert!(!answer.text.contains("program did not run"));
+    }
+    for bad in [
+        {
+            let mut bad = value.clone();
+            bad["stages"].as_array_mut().unwrap().swap(0, 1);
+            bad
+        },
+        {
+            let mut bad = value.clone();
+            bad["retry_safe"] = json!(true);
+            bad
+        },
+        {
+            let mut bad = value.clone();
+            bad["effects_possible"] = json!(false);
+            bad
+        },
+        {
+            let mut bad = value.clone();
+            bad["stages"][0]["durable"] = json!(false);
+            bad
+        },
+    ] {
+        let answer = render(&bad);
+        assert!(answer.error && answer.text.contains("unresolved"));
+    }
+}

@@ -280,7 +280,14 @@ does not change the pinned v1 snapshot.
   `requester run --delivery sync|async -- bash -lc COMMAND` (or the retained
   output reads `native-output` / `native-accept`) and renders what the
   requester's root v1 result established; a missing or malformed result is
-  "may have run; do not replay". The server and requesters stay in the native
+  "may have run; do not replay". A positive ordered `started.exec_error` is
+  rendered as failed exec with its diagnostic and `isError: true`, separately
+  from the physical work's wait and output facts. Accepted custody, possible
+  setup effects and unsafe retry are preserved. Async failed exec never claims
+  running; a validated detach/identity preserves the later completion obligation,
+  while incomplete delivery remains unconfirmed. Code 127 alone is an ordinary
+  numeric wait, not evidence of failed start. These are existing v1 stage facts,
+  not a new wire version or capability. The server and requesters stay in the native
   process group, so turn cancellation ends them; `notifications/cancelled`
   ends one call's requester without an answer.
 - `resident`: the agent side of the ACP v2 draft subset Agent Runner's root
