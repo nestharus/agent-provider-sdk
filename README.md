@@ -200,8 +200,35 @@ plane. It is defined but not adopted yet.
   records, transcript page tokens and retained Bash output stay as they are,
   and the contract stores nothing.
 - **Not established.** Capture, the broker, enforcement of visibility and
-  runtime non-blocking behaviour remain later work. Incident and control
-  DTOs are not yet defined.
+  runtime non-blocking behaviour remain later work. Control claims live in
+  `session-control/v1`; incident DTOs are not yet defined.
+
+The [`session-control/v1` contract](crates/provider-contract/contract/extensions/session-control/README.md)
+(`session_control` module) is the one provider-neutral vocabulary of
+session/root control claims, shared by session control and infrastructure
+control. It is defined but not adopted yet.
+- **What it covers.** Requester intent, transport receipt, admission,
+  semantic transition acknowledgment or refusal, and outcome as distinct
+  records; the existing root owner/generation/incarnation as addressed and
+  responding authority; logical root/child/work/input links kept apart from
+  attached process, Bash handle, provider-session and stream evidence; and
+  insertion, tagged end, logical debt and physical custody/wait facts kept
+  apart. Free text and references can be explicitly redacted or missing.
+- **Input hold.** v1 defines `input_hold`/`input_release`: admission of new
+  input only. Running work may continue; drain, close, cancel and execution
+  pause are not defined.
+- **Selection.** Peers select it by a bounded advertisement, not provider
+  `describe`; providers do not speak it. Absent or incompatible control
+  capability is a `control_unavailable` diagnostic, never provider launch or
+  completion unavailability.
+- **Operations.** Record admission, selection/agreement, request repetition
+  (same request, key conflict, distinct), a per-request claim-order trace and a
+  settlement reading in which physical exit never implies logical settlement.
+- **Not established.** Records are claims: validation does not prove producer
+  truth, authorization, hold enforcement, durability or custody. Root
+  authority, durable control intent and execution stay with Agent Runner.
+  Incident reports, evidence severity/scope and recovery authorization remain
+  later work.
 
 The independently versioned
 [`terminal-unavailable/v1` extension](crates/provider-contract/contract/extensions/terminal-unavailable/README.md)

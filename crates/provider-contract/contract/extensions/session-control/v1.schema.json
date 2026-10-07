@@ -1,0 +1,376 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oulipoly:session-control:v1",
+  "title": "Oulipoly Session Control v1",
+  "description": "Provider-neutral, bounded session/root control claims exchanged between a requester and the existing root owner, plus settlement observations about logical work. One vocabulary for session control and infrastructure control. Selected by peer advertisement of oulipoly.session_control/v1, not by provider describe, CLI, binary, package or source identity. It is not a provider/v1 subcommand or a second host/provider protocol. Records are claims: validating one does not establish that its producer told the truth, that a requester was authorized, that a hold was enforced or durable, or that any actor is in custody. Contract refusals are control_unavailable diagnostics. Structural schema and the adjacent README normative semantic rules together define conformance; raw schema validation alone is insufficient.",
+  "$defs": {
+    "Protocol": { "const": "oulipoly.session_control/v1" },
+    "HostRef": {
+      "description": "Opaque host-owned value. The SDK compares it only for equality and is neither its authority nor its registry.",
+      "type": "string",
+      "pattern": "^[\\x21-\\x7e]{1,256}$"
+    },
+    "RequestKey": {
+      "description": "Requester-chosen idempotency key, scoped to (requester, addressed root).",
+      "type": "string",
+      "pattern": "^[\\x21-\\x7e]{1,128}$"
+    },
+    "UnixMilliseconds": {
+      "description": "A bounded host observation time. Not an ordering clock or causal evidence.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "Authority": {
+      "description": "The existing Runner root authority a control request is addressed to or a response comes from: root id, owner, owner generation and owner incarnation. Opaque equality values; carrying them makes staleness detectable, it does not fence anything.",
+      "type": "object",
+      "properties": {
+        "root": { "$ref": "#/$defs/HostRef" },
+        "owner": { "$ref": "#/$defs/HostRef" },
+        "generation": { "$ref": "#/$defs/HostRef" },
+        "incarnation": { "$ref": "#/$defs/HostRef" }
+      },
+      "required": ["root", "owner", "generation", "incarnation"],
+      "additionalProperties": false
+    },
+    "ControlScope": {
+      "description": "The logical scope a control applies to: a root, optionally narrowed to one logical child. Never a provider session, process, Agent Bash handle or stream.",
+      "type": "object",
+      "properties": {
+        "root": { "$ref": "#/$defs/HostRef" },
+        "child": { "$ref": "#/$defs/HostRef" }
+      },
+      "required": ["root"],
+      "additionalProperties": false
+    },
+    "LogicalRef": {
+      "description": "A logical root/child/work/input link. Logical identity only; actor identities are attached separately as ActorEvidence.",
+      "type": "object",
+      "properties": {
+        "root": { "$ref": "#/$defs/HostRef" },
+        "child": { "$ref": "#/$defs/HostRef" },
+        "work": { "$ref": "#/$defs/HostRef" },
+        "input": { "$ref": "#/$defs/HostRef" }
+      },
+      "required": ["root"],
+      "additionalProperties": false
+    },
+    "Operation": {
+      "description": "input_hold holds admission of new input at the scope; input_release clears that hold. Neither claims anything about running work, which may continue. Drain, close, cancel and physical execution pause are different operations not defined in v1.",
+      "enum": ["input_hold", "input_release"]
+    },
+    "HoldState": {
+      "description": "Admission/input hold state only. input_held is not paused, drained or stopped execution.",
+      "enum": ["input_held", "input_open", "unknown"]
+    },
+    "MissingReason": {
+      "description": "Why a value is absent. None of these is a negative observation.",
+      "enum": ["not_captured", "access_denied", "unsupported", "not_applicable"]
+    },
+    "Text": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "DisclosedText": {
+      "description": "Bounded free text, or an explicit redaction or missing marker. Redacted is distinguishable from missing. Bounds are not sanitization.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "state": { "const": "present" }, "text": { "$ref": "#/$defs/Text" } },
+          "required": ["state", "text"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "state": { "const": "redacted" } },
+          "required": ["state"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": { "const": "missing" },
+            "reason": { "$ref": "#/$defs/MissingReason" }
+          },
+          "required": ["state", "reason"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "DisclosedRef": {
+      "description": "An opaque host reference, or an explicit redaction or missing marker.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "state": { "const": "present" }, "ref": { "$ref": "#/$defs/HostRef" } },
+          "required": ["state", "ref"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "state": { "const": "redacted" } },
+          "required": ["state"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": { "const": "missing" },
+            "reason": { "$ref": "#/$defs/MissingReason" }
+          },
+          "required": ["state", "reason"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ActorEvidence": {
+      "description": "Actor identity evidence attached to a logical link: an OS process identity, an Agent Bash handle, a provider-native session or a live stream. Exactness is the producer's claim. Correlation is reported, not defined, by the SDK.",
+      "type": "object",
+      "properties": {
+        "actor": { "enum": ["os_process", "bash_handle", "provider_session", "live_stream"] },
+        "exactness": { "enum": ["exact", "legacy", "incomplete"] },
+        "ref": { "$ref": "#/$defs/DisclosedRef" }
+      },
+      "required": ["actor", "exactness", "ref"],
+      "additionalProperties": false
+    },
+    "Correlation": {
+      "description": "Fields every control response repeats from the request it answers.",
+      "type": "object",
+      "properties": {
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "request_key": { "$ref": "#/$defs/RequestKey" },
+        "requester": { "$ref": "#/$defs/HostRef" },
+        "addressed": { "$ref": "#/$defs/Authority" }
+      },
+      "required": ["protocol", "request_key", "requester", "addressed"]
+    },
+    "Request": {
+      "description": "Requester intent. Not receipt, admission, acknowledgment or outcome.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "request" },
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "request_key": { "$ref": "#/$defs/RequestKey" },
+        "requester": { "$ref": "#/$defs/HostRef" },
+        "addressed": { "$ref": "#/$defs/Authority" },
+        "operation": { "$ref": "#/$defs/Operation" },
+        "scope": { "$ref": "#/$defs/ControlScope" },
+        "reason": { "$ref": "#/$defs/DisclosedText" }
+      },
+      "required": ["kind", "protocol", "request_key", "requester", "addressed", "operation", "scope"],
+      "additionalProperties": false
+    },
+    "Receipt": {
+      "description": "Transport receipt: the request reached a queue or endpoint. durable states whether the receiver claims durable retention of the request. Never admission, acknowledgment or outcome.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/Correlation" }],
+      "properties": {
+        "kind": { "const": "receipt" },
+        "protocol": true,
+        "request_key": true,
+        "requester": true,
+        "addressed": true,
+        "durable": { "type": "boolean" },
+        "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
+      },
+      "required": ["kind", "durable", "observed_at_unix_ms"],
+      "additionalProperties": false
+    },
+    "Admission": {
+      "description": "The addressed authority admitted the request for its transition. Not the transition itself.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/Correlation" }],
+      "properties": {
+        "kind": { "const": "admission" },
+        "protocol": true,
+        "request_key": true,
+        "requester": true,
+        "addressed": true,
+        "responder": { "$ref": "#/$defs/Authority" },
+        "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
+      },
+      "required": ["kind", "responder", "observed_at_unix_ms"],
+      "additionalProperties": false
+    },
+    "Acknowledgment": {
+      "description": "Semantic transition acknowledgment from the addressed authority: the input hold state moved from `from` to `to`. It says nothing about running work.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/Correlation" }],
+      "properties": {
+        "kind": { "const": "acknowledgment" },
+        "protocol": true,
+        "request_key": true,
+        "requester": true,
+        "addressed": true,
+        "responder": { "$ref": "#/$defs/Authority" },
+        "operation": { "$ref": "#/$defs/Operation" },
+        "from": { "$ref": "#/$defs/HoldState" },
+        "to": { "enum": ["input_held", "input_open"] },
+        "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
+      },
+      "required": ["kind", "responder", "operation", "from", "to", "observed_at_unix_ms"],
+      "additionalProperties": false
+    },
+    "RefusalReason": {
+      "description": "Admission-stage: stale_authority, key_conflict, unsupported_operation, not_permitted, unknown_scope. Transition-stage: already_terminal, transition_failed.",
+      "enum": [
+        "stale_authority",
+        "key_conflict",
+        "unsupported_operation",
+        "not_permitted",
+        "unknown_scope",
+        "already_terminal",
+        "transition_failed"
+      ]
+    },
+    "Refusal": {
+      "description": "An explicit refusal, at admission or at transition. A refusal is an outcome, not an absent acknowledgment.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/Correlation" }],
+      "properties": {
+        "kind": { "const": "refusal" },
+        "protocol": true,
+        "request_key": true,
+        "requester": true,
+        "addressed": true,
+        "stage": { "enum": ["admission", "transition"] },
+        "reason": { "$ref": "#/$defs/RefusalReason" },
+        "responder": { "$ref": "#/$defs/Authority" },
+        "detail": { "$ref": "#/$defs/DisclosedText" },
+        "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
+      },
+      "required": ["kind", "stage", "reason", "observed_at_unix_ms"],
+      "additionalProperties": false
+    },
+    "Outcome": {
+      "description": "What is finally known about one request. unknown retains uncertainty and never erases an earlier acknowledgment or refusal.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/Correlation" }],
+      "properties": {
+        "kind": { "const": "outcome" },
+        "protocol": true,
+        "request_key": true,
+        "requester": true,
+        "addressed": true,
+        "result": { "enum": ["acknowledged", "refused", "unknown"] },
+        "uncertainty": { "enum": ["authority_changed", "transport_lost", "evidence_unavailable"] },
+        "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
+      },
+      "required": ["kind", "result", "observed_at_unix_ms"],
+      "additionalProperties": false,
+      "if": { "properties": { "result": { "const": "unknown" } } },
+      "then": { "required": ["uncertainty"] },
+      "else": { "not": { "required": ["uncertainty"] } }
+    },
+    "FactType": { "enum": ["insertion", "tagged_end", "logical_settlement", "physical_custody"] },
+    "Fact": {
+      "description": "One settlement fact. The four types are distinct claims: insertion acknowledgment, tagged turn end, logical settlement/debt and physical custody/waits. missing and redacted are never negatives.",
+      "type": "object",
+      "properties": {
+        "type": { "$ref": "#/$defs/FactType" },
+        "state": { "type": "string" },
+        "missing_reason": { "$ref": "#/$defs/MissingReason" }
+      },
+      "required": ["type", "state"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "state": { "const": "missing" } } },
+          "then": { "required": ["missing_reason"] },
+          "else": { "not": { "required": ["missing_reason"] } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "insertion" } } },
+          "then": { "properties": { "state": { "enum": ["acknowledged", "not_inserted", "uncertain", "missing", "redacted"] } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "tagged_end" } } },
+          "then": { "properties": { "state": { "enum": ["observed", "absent", "missing", "redacted"] } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "logical_settlement" } } },
+          "then": { "properties": { "state": { "enum": ["settled", "owed", "missing", "redacted"] } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "physical_custody" } } },
+          "then": { "properties": { "state": { "enum": ["live", "exited_wait_pending", "exited_waited", "unsettled", "missing", "redacted"] } } }
+        }
+      ]
+    },
+    "Observation": {
+      "description": "A reported settlement fact about a logical link, with attached actor evidence. An observation is never a control, a request, an admission or an acknowledgment.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "observation" },
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "reporter": { "$ref": "#/$defs/Authority" },
+        "subject": { "$ref": "#/$defs/LogicalRef" },
+        "fact": { "$ref": "#/$defs/Fact" },
+        "evidence": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/ActorEvidence" }
+        },
+        "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
+      },
+      "required": ["kind", "protocol", "reporter", "subject", "fact", "observed_at_unix_ms"],
+      "additionalProperties": false
+    },
+    "Record": {
+      "description": "One control record.",
+      "oneOf": [
+        { "$ref": "#/$defs/Request" },
+        { "$ref": "#/$defs/Receipt" },
+        { "$ref": "#/$defs/Admission" },
+        { "$ref": "#/$defs/Acknowledgment" },
+        { "$ref": "#/$defs/Refusal" },
+        { "$ref": "#/$defs/Outcome" },
+        { "$ref": "#/$defs/Observation" }
+      ]
+    },
+    "Offer": {
+      "description": "One peer's oulipoly.session_control/v1 capability offer: the operations it can request or answer and the settlement facts it can report or read.",
+      "type": "object",
+      "properties": {
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/Operation" }
+        },
+        "facts": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/FactType" }
+        }
+      },
+      "required": ["operations", "facts"],
+      "additionalProperties": false
+    },
+    "Advertisement": {
+      "description": "A peer's protocol offers. Unknown and newer entries are ignored; the v1 entry must be a strict Offer.",
+      "type": "object",
+      "maxProperties": 32,
+      "propertyNames": { "pattern": "^[\\x21-\\x7e]{1,128}$" }
+    },
+    "ControlUnavailable": {
+      "description": "Explicit control capability diagnostic. Not a provider error response, launch event, launch unavailability or completion outcome.",
+      "type": "object",
+      "properties": {
+        "diagnostic": { "const": "control_unavailable" },
+        "reason": {
+          "enum": [
+            "no_common_version",
+            "invalid_advertisement",
+            "no_common_capability",
+            "invalid_record",
+            "protocol_violation"
+          ]
+        },
+        "detail": { "type": "string", "maxLength": 512 }
+      },
+      "required": ["diagnostic", "reason"],
+      "additionalProperties": false
+    }
+  }
+}
