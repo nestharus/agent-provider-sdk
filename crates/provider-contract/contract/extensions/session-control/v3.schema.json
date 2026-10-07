@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:oulipoly:session-control:v2",
-  "title": "Oulipoly Session Control v2",
-  "description": "Provider-neutral, bounded root control claims exchanged between a requester and the existing root owner: descriptive root discovery, current control-state inspection, input hold/release, same-incarnation recover, cancel and close requests on one claim ladder, and settlement observations about logical work. One vocabulary for session control and infrastructure control. Selected by peer advertisement of oulipoly.session_control/v2, not by provider describe, CLI, binary, package or source identity. It is not a provider/v1 subcommand or a second host/provider protocol. Records are claims: validating one does not establish that its producer told the truth, that a requester was authorized, that a control was enforced or durable, or that any actor is in custody. Contract refusals are control_unavailable diagnostics. Structural schema and the adjacent README normative semantic rules together define conformance; raw schema validation alone is insufficient.",
+  "$id": "urn:oulipoly:session-control:v3",
+  "title": "Oulipoly Session Control v3",
+  "description": "Provider-neutral, bounded root control claims exchanged between a requester and the existing root owner: descriptive root discovery, current control-state inspection, input hold/release, same-incarnation recover, cancel and close requests on one claim ladder, and settlement observations about logical work. One vocabulary for session control and infrastructure control. Selected by peer advertisement of oulipoly.session_control/v3, not by provider describe, CLI, binary, package or source identity. It is not a provider/v1 subcommand or a second host/provider protocol. Records are claims: validating one does not establish that its producer told the truth, that a requester was authorized, that a control was enforced or durable, or that any actor is in custody. Contract refusals are control_unavailable diagnostics. Structural schema and the adjacent README normative semantic rules together define conformance; raw schema validation alone is insufficient.",
   "$defs": {
-    "Protocol": { "const": "oulipoly.session_control/v2" },
+    "Protocol": { "const": "oulipoly.session_control/v3" },
     "HostRef": {
       "description": "Opaque host-owned value. The SDK compares it only for equality and is neither its authority nor its registry.",
       "type": "string",
@@ -281,6 +281,117 @@
       ],
       "additionalProperties": false
     },
+    "NonFulfillment": {
+      "description": "Attributed terminal non-fulfillment of an inherited admitted intent by a same-incarnation successor; no predecessor ACK or authority.",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/Correlation"
+        }
+      ],
+      "properties": {
+        "kind": {
+          "const": "non_fulfillment"
+        },
+        "protocol": true,
+        "request_key": true,
+        "requester": true,
+        "addressed": true,
+        "operation": {
+          "$ref": "#/$defs/Operation"
+        },
+        "observed_at_unix_ms": {
+          "$ref": "#/$defs/UnixMilliseconds"
+        },
+        "reporter": {
+          "$ref": "#/$defs/Authority"
+        },
+        "reason": {
+          "enum": [
+            "already_terminal",
+            "root_absent",
+            "transition_failed"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "reporter",
+        "operation",
+        "reason",
+        "observed_at_unix_ms"
+      ],
+      "additionalProperties": false
+    },
+    "RequestContent": {
+      "description": "Complete request content, including immutable correlation and operation/scope/reason; embedded without a record kind.",
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "$ref": "#/$defs/Protocol"
+        },
+        "request_key": {
+          "$ref": "#/$defs/RequestKey"
+        },
+        "requester": {
+          "$ref": "#/$defs/HostRef"
+        },
+        "addressed": {
+          "$ref": "#/$defs/Authority"
+        },
+        "operation": {
+          "$ref": "#/$defs/Operation"
+        },
+        "scope": {
+          "$ref": "#/$defs/ControlScope"
+        },
+        "reason": {
+          "$ref": "#/$defs/DisclosedText"
+        }
+      },
+      "required": [
+        "protocol",
+        "request_key",
+        "requester",
+        "addressed",
+        "operation",
+        "scope"
+      ],
+      "additionalProperties": false
+    },
+    "Conflict": {
+      "description": "Correlated key-conflict answer to the exact changed submission, preserving the original intent and all its claims. Not an original-intent refusal.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "conflict"
+        },
+        "protocol": {
+          "$ref": "#/$defs/Protocol"
+        },
+        "submitted": {
+          "$ref": "#/$defs/RequestContent"
+        },
+        "original": {
+          "$ref": "#/$defs/RequestContent"
+        },
+        "responder": {
+          "$ref": "#/$defs/Authority"
+        },
+        "observed_at_unix_ms": {
+          "$ref": "#/$defs/UnixMilliseconds"
+        }
+      },
+      "required": [
+        "kind",
+        "protocol",
+        "submitted",
+        "original",
+        "responder",
+        "observed_at_unix_ms"
+      ],
+      "additionalProperties": false
+    },
     "Refusal": {
       "description": "An explicit refusal, at admission or at transition. A refusal is an outcome, not an absent acknowledgment.",
       "type": "object",
@@ -302,7 +413,7 @@
       "additionalProperties": false
     },
     "Outcome": {
-      "description": "Later knowledge of the same immutable intent: acknowledged, fulfilled or refused are final; unknown is refinable and preserves earlier claims.",
+      "description": "Later knowledge of the same immutable intent: acknowledged, fulfilled, unfulfilled or refused are final; unknown is refinable and preserves earlier claims.",
       "type": "object",
       "allOf": [{ "$ref": "#/$defs/Correlation" }],
       "properties": {
@@ -311,7 +422,7 @@
         "request_key": true,
         "requester": true,
         "addressed": true,
-        "result": { "enum": ["acknowledged", "fulfilled", "refused", "unknown"] },
+        "result": { "enum": ["acknowledged", "fulfilled", "unfulfilled", "refused", "unknown"] },
         "uncertainty": { "enum": ["authority_changed", "transport_lost", "evidence_unavailable"] },
         "reporter": { "$ref": "#/$defs/Authority" },
         "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
@@ -439,6 +550,8 @@
         { "$ref": "#/$defs/Admission" },
         { "$ref": "#/$defs/Acknowledgment" },
         { "$ref": "#/$defs/Fulfillment" },
+        { "$ref": "#/$defs/NonFulfillment" },
+        { "$ref": "#/$defs/Conflict" },
         { "$ref": "#/$defs/Refusal" },
         { "$ref": "#/$defs/Outcome" },
         { "$ref": "#/$defs/Observation" },
@@ -447,7 +560,7 @@
       ]
     },
     "Offer": {
-      "description": "One peer's oulipoly.session_control/v2 capability offer: the operations it can request or answer, the reports it can produce or read and the settlement facts it can report or read. input_hold is offered only together with input_release. At least one operation or report is offered.",
+      "description": "One peer's oulipoly.session_control/v3 capability offer: the operations it can request or answer, the reports it can produce or read and the settlement facts it can report or read. input_hold is offered only together with input_release. At least one operation or report is offered.",
       "type": "object",
       "properties": {
         "operations": {

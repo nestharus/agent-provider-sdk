@@ -1,6 +1,6 @@
 {
-  "protocol": "oulipoly.session_control/v2",
-  "note": "Language-independent v2 vectors. invalid_structural is refused by raw schema; invalid_semantic passes raw schema but violates normative admission. selection/agreement/repetition/traces/relations/settlement are context-dependent semantics over claims. Records are claims: no vector establishes producer truth, authorization, enforcement, durability, lineage warrant or actor custody. No runtime qualification.",
+  "protocol": "oulipoly.session_control/v3",
+  "note": "Language-independent v3 vectors. invalid_structural is refused by raw schema; invalid_semantic passes raw schema but violates normative admission. selection/agreement/repetition/traces/relations/settlement are context-dependent semantics over claims. Records are claims: no vector establishes producer truth, authorization, enforcement, durability, lineage warrant or actor custody. No runtime qualification.",
   "valid": {
     "Record": [
       {
@@ -8,7 +8,7 @@
         "claim": "requester intent only",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -32,7 +32,7 @@
         "claim": "scope is logical; child admission only",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-rel-c",
           "requester": "cli:user-1000",
           "addressed": {
@@ -53,7 +53,7 @@
         "claim": "redaction is explicit and distinct from missing",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-red",
           "requester": "cli:user-1000",
           "addressed": {
@@ -76,7 +76,7 @@
         "claim": "missing carries why; it is not a negative",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-miss",
           "requester": "cli:user-1000",
           "addressed": {
@@ -100,7 +100,7 @@
         "claim": "recover names the predecessor it continues",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -120,7 +120,7 @@
         "claim": "cancel is its own operation",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-cancel-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -140,7 +140,7 @@
         "claim": "close is its own operation, not a cancel or hold",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -160,7 +160,7 @@
         "claim": "queued-not-admitted durable=false is receipt only",
         "value": {
           "kind": "receipt",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -178,7 +178,7 @@
         "claim": "a durability claim still is not admission",
         "value": {
           "kind": "receipt",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -196,7 +196,7 @@
         "claim": "admission is not the transition",
         "value": {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -220,7 +220,7 @@
         "claim": "only recover is answered by a successor",
         "value": {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -244,7 +244,7 @@
         "claim": "input admission held; running work not claimed",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -270,7 +270,7 @@
         "claim": "state repetition: from equals to",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -296,7 +296,7 @@
         "claim": "prior state may be unknown",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-release-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -322,7 +322,7 @@
         "claim": "attachment, not a new incarnation",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -348,7 +348,7 @@
         "claim": "a requested lifecycle transition, not ended work",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -374,7 +374,7 @@
         "claim": "cancel outranks close",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-cancel-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -400,7 +400,7 @@
         "claim": "staleness is recognizable and refused, not acknowledged",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -426,7 +426,7 @@
         "claim": "responder identity may be absent",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -446,7 +446,7 @@
         "claim": "the addressed owner holds the root; nothing attached",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -472,7 +472,7 @@
         "claim": "root_absent: no new incarnation is started",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -494,41 +494,11 @@
         }
       },
       {
-        "name": "key_conflict refusal with detail",
-        "claim": "repeated key with different content",
-        "value": {
-          "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
-          "request_key": "k-hold-1",
-          "requester": "cli:user-1000",
-          "addressed": {
-            "root": "root-7",
-            "owner": "owner-a",
-            "generation": "g12",
-            "incarnation": "inc-3f9"
-          },
-          "operation": "input_hold",
-          "stage": "admission",
-          "reason": "key_conflict",
-          "observed_at_unix_ms": 1760000000250,
-          "responder": {
-            "root": "root-7",
-            "owner": "owner-a",
-            "generation": "g12",
-            "incarnation": "inc-3f9"
-          },
-          "detail": {
-            "state": "present",
-            "text": "key reused with different content"
-          }
-        }
-      },
-      {
         "name": "transition-stage already_terminal refusal of a close",
         "claim": "a refusal is an outcome, not an absent acknowledgment",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -553,7 +523,7 @@
         "name": "acknowledged outcome",
         "value": {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -570,7 +540,7 @@
         "name": "refused outcome",
         "value": {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -588,7 +558,7 @@
         "claim": "knowledge report, no authority over the request",
         "value": {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -613,7 +583,7 @@
         "claim": "logical subject with attached actor evidence",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -655,7 +625,7 @@
         "name": "tagged end absent",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -679,7 +649,7 @@
         "name": "logical debt owed",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -704,7 +674,7 @@
         "claim": "physical custody/wait, not logical settlement",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -746,7 +716,7 @@
         "claim": "missing is not not_inserted",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -771,7 +741,7 @@
         "name": "tagged end redacted",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -795,7 +765,7 @@
         "name": "insertion uncertain",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -819,7 +789,7 @@
         "name": "observation on a bare root subject",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -841,7 +811,7 @@
         "claim": "descriptive address with last known authority",
         "value": {
           "kind": "root_entry",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "describer": "host-index:uid-1000",
           "requester": "cli:user-1000",
           "authority": {
@@ -858,7 +828,7 @@
         "claim": "current knowledge with bases and pending intent",
         "value": {
           "kind": "control_state",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -918,7 +888,7 @@
         "claim": "unknown current state is a report, not an erasure",
         "value": {
           "kind": "control_state",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-b",
@@ -941,7 +911,7 @@
         "name": "successor fulfillment of inherited admitted hold",
         "value": {
           "kind": "fulfillment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -991,7 +961,7 @@
         }
       },
       {
-        "name": "v1 record is not a v2 record",
+        "name": "v1 record is not a v3 record",
         "value": {
           "kind": "request",
           "protocol": "oulipoly.session_control/v1",
@@ -1013,7 +983,7 @@
         "name": "execution pause is not an operation",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1032,7 +1002,7 @@
         "name": "drain is not an operation",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1051,7 +1021,7 @@
         "name": "discover is a report, not an operation",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1070,7 +1040,7 @@
         "name": "provider-native session cannot be the logical scope",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1090,7 +1060,7 @@
         "name": "work-level hold scope is not a control scope",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1110,7 +1080,7 @@
         "name": "request without addressed authority",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "operation": "input_hold",
@@ -1123,7 +1093,7 @@
         "name": "authority without incarnation",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1141,7 +1111,7 @@
         "name": "requester attestation object is Runner realization",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1163,7 +1133,7 @@
         "name": "request carrying a SECRETVALUE field",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1183,7 +1153,7 @@
         "name": "request key over 128 characters",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1202,7 +1172,7 @@
         "name": "host value with a space",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli user",
           "addressed": {
@@ -1221,7 +1191,7 @@
         "name": "reason text over 512 characters",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1244,7 +1214,7 @@
         "name": "redaction marker carrying the redacted text",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1267,7 +1237,7 @@
         "name": "missing marker without its reason",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1289,7 +1259,7 @@
         "name": "receipt without durability claim",
         "value": {
           "kind": "receipt",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1305,7 +1275,7 @@
         "name": "receipt claiming admission",
         "value": {
           "kind": "receipt",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1323,7 +1293,7 @@
         "name": "admission without its operation",
         "value": {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1345,7 +1315,7 @@
         "name": "acknowledgment claiming running work paused",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1371,7 +1341,7 @@
         "name": "acknowledgment to a state outside the vocabulary",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1396,7 +1366,7 @@
         "name": "refusal without reason",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1420,7 +1390,7 @@
         "name": "unknown outcome without uncertainty",
         "value": {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1437,7 +1407,7 @@
         "name": "acknowledged outcome with uncertainty",
         "value": {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -1455,7 +1425,7 @@
         "name": "insertion fact with a tagged-end state",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -1479,7 +1449,7 @@
         "name": "physical custody fact with a logical state",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -1503,7 +1473,7 @@
         "name": "missing fact without missing_reason",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -1527,7 +1497,7 @@
         "name": "present fact with a missing_reason",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -1552,7 +1522,7 @@
         "name": "incident severity is outside this slice",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -1577,7 +1547,7 @@
         "name": "OOM cause is not an actor evidence kind",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -1611,7 +1581,7 @@
         "name": "seventeen evidence items",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -1773,7 +1743,7 @@
         "name": "observation carrying a request key",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -1798,7 +1768,7 @@
         "name": "discovery entry claiming capacity",
         "value": {
           "kind": "root_entry",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "describer": "host-index:uid-1000",
           "requester": "cli:user-1000",
           "authority": {
@@ -1815,7 +1785,7 @@
         "name": "discovery entry claiming a reservation or admission",
         "value": {
           "kind": "root_entry",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "describer": "host-index:uid-1000",
           "requester": "cli:user-1000",
           "authority": {
@@ -1832,7 +1802,7 @@
         "name": "discovery entry claiming ownership",
         "value": {
           "kind": "root_entry",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "describer": "host-index:uid-1000",
           "requester": "cli:user-1000",
           "authority": {
@@ -1849,7 +1819,7 @@
         "name": "discovery entry whose describer is an authority object",
         "value": {
           "kind": "root_entry",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "describer": {
             "root": "root-7",
             "owner": "owner-a",
@@ -1870,7 +1840,7 @@
         "name": "inspection without a lifecycle state",
         "value": {
           "kind": "control_state",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -1890,7 +1860,7 @@
         "name": "inspection claiming running work",
         "value": {
           "kind": "control_state",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -1914,7 +1884,7 @@
         "name": "inspection with nine pending intents",
         "value": {
           "kind": "control_state",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -2065,7 +2035,7 @@
         "name": "pending intent already acknowledged is not pending",
         "value": {
           "kind": "control_state",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -2108,7 +2078,7 @@
         "name": "scope root differs from addressed root",
         "value": {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2127,7 +2097,7 @@
         "name": "hold admission by a successor generation",
         "value": {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2150,7 +2120,7 @@
         "name": "hold acknowledgment by a successor: no past authority",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2175,7 +2145,7 @@
         "name": "close acknowledgment by a successor: no past authority",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2200,7 +2170,7 @@
         "name": "recover acknowledgment by the addressed owner itself",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2225,7 +2195,7 @@
         "name": "recover acknowledgment by a new incarnation is not recover",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2250,7 +2220,7 @@
         "name": "recover admission from another root",
         "value": {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2273,7 +2243,7 @@
         "name": "hold acknowledged as input_open",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2298,7 +2268,7 @@
         "name": "release acknowledged as input_held",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-release-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2323,7 +2293,7 @@
         "name": "close acknowledged as cancelling",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2348,7 +2318,7 @@
         "name": "hold acknowledged from a lifecycle state",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2373,7 +2343,7 @@
         "name": "close acknowledged from an input state",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2398,7 +2368,7 @@
         "name": "transition reason at admission stage",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2423,7 +2393,7 @@
         "name": "admission reason at transition stage",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2448,7 +2418,7 @@
         "name": "stale_authority from the addressed authority itself",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2473,7 +2443,7 @@
         "name": "stale_authority from another root",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2498,7 +2468,7 @@
         "name": "non-stale refusal by another authority",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2523,7 +2493,7 @@
         "name": "owner_live refusal of a hold",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2548,7 +2518,7 @@
         "name": "root_absent refusal of a close",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2573,7 +2543,7 @@
         "name": "stale_authority refusal of a recover",
         "value": {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2598,7 +2568,7 @@
         "name": "outcome reported by another root",
         "value": {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2622,7 +2592,7 @@
         "name": "exact actor evidence with redacted reference",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -2655,7 +2625,7 @@
         "name": "exact actor evidence with missing reference",
         "value": {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -2689,7 +2659,7 @@
         "name": "inspection reported by another root's authority",
         "value": {
           "kind": "control_state",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-8",
             "owner": "owner-a",
@@ -2712,7 +2682,7 @@
         "name": "inspection input state from the lifecycle domain",
         "value": {
           "kind": "control_state",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -2735,7 +2705,7 @@
         "name": "inspection lifecycle state from the attachment domain",
         "value": {
           "kind": "control_state",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -2758,7 +2728,7 @@
         "name": "inspection basis naming another root's request",
         "value": {
           "kind": "control_state",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -2791,7 +2761,7 @@
         "name": "pending intent listed twice",
         "value": {
           "kind": "control_state",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -2844,7 +2814,7 @@
         "name": "fulfillment cannot impersonate predecessor",
         "value": {
           "kind": "fulfillment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2869,7 +2839,7 @@
         "name": "fulfillment cannot change incarnation",
         "value": {
           "kind": "fulfillment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2894,7 +2864,7 @@
         "name": "fulfillment cannot answer recover",
         "value": {
           "kind": "fulfillment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2919,7 +2889,7 @@
         "name": "fulfillment cannot regress cancel into close",
         "value": {
           "kind": "fulfillment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2944,7 +2914,7 @@
         "name": "ACK cannot regress cancel into close",
         "value": {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -2964,12 +2934,42 @@
             "incarnation": "inc-3f9"
           }
         }
+      },
+      {
+        "name": "key_conflict cannot refuse the preserved original intent",
+        "claim": "repeated key with different content",
+        "value": {
+          "kind": "refusal",
+          "protocol": "oulipoly.session_control/v3",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "stage": "admission",
+          "reason": "key_conflict",
+          "observed_at_unix_ms": 1760000000250,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "detail": {
+            "state": "present",
+            "text": "key reused with different content"
+          }
+        }
       }
     ]
   },
   "selection": [
     {
-      "name": "common v2 intersects operations, reports and facts",
+      "name": "common v3 intersects operations, reports and facts",
       "local": {
         "operations": [
           "input_hold",
@@ -2990,7 +2990,7 @@
         ]
       },
       "remote": {
-        "oulipoly.session_control/v2": {
+        "oulipoly.session_control/v3": {
           "operations": [
             "close",
             "input_release",
@@ -3007,7 +3007,7 @@
       },
       "expect": {
         "selected": {
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "operations": [
             "input_hold",
             "input_release",
@@ -3039,11 +3039,11 @@
           ],
           "facts": []
         },
-        "oulipoly.session_control/v3": {
+        "oulipoly.session_control/v4": {
           "anything": 1
         },
         "x.vendor/v9": [],
-        "oulipoly.session_control/v2": {
+        "oulipoly.session_control/v3": {
           "operations": [
             "cancel"
           ],
@@ -3055,7 +3055,7 @@
       },
       "expect": {
         "selected": {
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "operations": [
             "cancel"
           ],
@@ -3148,7 +3148,7 @@
         "facts": []
       },
       "remote": {
-        "oulipoly.session_control/v2": {
+        "oulipoly.session_control/v3": {
           "operations": [
             "close"
           ],
@@ -3184,7 +3184,7 @@
         ]
       },
       "remote": {
-        "oulipoly.session_control/v2": {
+        "oulipoly.session_control/v3": {
           "operations": [],
           "reports": [
             "discovery",
@@ -3195,7 +3195,7 @@
       },
       "expect": {
         "selected": {
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "operations": [],
           "reports": [
             "discovery",
@@ -3227,7 +3227,7 @@
         ]
       },
       "remote": {
-        "oulipoly.session_control/v2": {
+        "oulipoly.session_control/v3": {
           "operations": [
             "input_hold",
             "close"
@@ -3250,7 +3250,7 @@
         "facts": []
       },
       "remote": {
-        "oulipoly.session_control/v2": {
+        "oulipoly.session_control/v3": {
           "operations": [
             "input_hold",
             "input_release"
@@ -3285,7 +3285,7 @@
         ]
       },
       "remote": {
-        "oulipoly.session_control/v2": {
+        "oulipoly.session_control/v3": {
           "operations": [
             "input_release"
           ],
@@ -3295,7 +3295,7 @@
       },
       "expect": {
         "selected": {
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "operations": [
             "input_release"
           ],
@@ -3305,7 +3305,7 @@
       }
     },
     {
-      "name": "malformed v2 entry is refused, not skipped",
+      "name": "malformed v3 entry is refused, not skipped",
       "local": {
         "operations": [
           "cancel"
@@ -3314,7 +3314,7 @@
         "facts": []
       },
       "remote": {
-        "oulipoly.session_control/v2": {
+        "oulipoly.session_control/v3": {
           "operations": [
             "pause"
           ],
@@ -3336,7 +3336,7 @@
         "facts": []
       },
       "remote": {
-        "oulipoly.session_control/v2": {
+        "oulipoly.session_control/v3": {
           "operations": [
             "cancel"
           ],
@@ -3359,7 +3359,7 @@
         "facts": []
       },
       "remote": {
-        "oulipoly.session_control/v2": {
+        "oulipoly.session_control/v3": {
           "operations": [],
           "reports": [],
           "facts": [
@@ -3381,7 +3381,7 @@
         "facts": []
       },
       "remote": [
-        "oulipoly.session_control/v2"
+        "oulipoly.session_control/v3"
       ],
       "expect": {
         "unavailable": "invalid_advertisement"
@@ -3392,7 +3392,7 @@
     {
       "name": "selected hold request agrees",
       "selected": {
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "operations": [
           "input_hold",
           "input_release"
@@ -3402,7 +3402,7 @@
       },
       "record": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3421,7 +3421,7 @@
     {
       "name": "unselected close request is a capability diagnostic",
       "selected": {
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "operations": [
           "input_hold",
           "input_release"
@@ -3431,7 +3431,7 @@
       },
       "record": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-close-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3450,7 +3450,7 @@
     {
       "name": "unselected fact type",
       "selected": {
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "operations": [
           "cancel"
         ],
@@ -3461,7 +3461,7 @@
       },
       "record": {
         "kind": "observation",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-a",
@@ -3485,7 +3485,7 @@
     {
       "name": "selected fact type agrees",
       "selected": {
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "operations": [
           "cancel"
         ],
@@ -3496,7 +3496,7 @@
       },
       "record": {
         "kind": "observation",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-a",
@@ -3520,7 +3520,7 @@
     {
       "name": "discovery entry agrees only when discovery is selected",
       "selected": {
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "operations": [],
         "reports": [
           "inspection"
@@ -3529,7 +3529,7 @@
       },
       "record": {
         "kind": "root_entry",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "describer": "host-index:uid-1000",
         "requester": "cli:user-1000",
         "authority": {
@@ -3545,7 +3545,7 @@
     {
       "name": "selected discovery entry agrees",
       "selected": {
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "operations": [],
         "reports": [
           "discovery"
@@ -3554,7 +3554,7 @@
       },
       "record": {
         "kind": "root_entry",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "describer": "host-index:uid-1000",
         "requester": "cli:user-1000",
         "authority": {
@@ -3570,7 +3570,7 @@
     {
       "name": "selected inspection agrees",
       "selected": {
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "operations": [],
         "reports": [
           "inspection"
@@ -3579,7 +3579,7 @@
       },
       "record": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-a",
@@ -3612,7 +3612,7 @@
       },
       "record": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3631,7 +3631,7 @@
     {
       "name": "selection pairing hold without release is not a valid selection",
       "selected": {
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "operations": [
           "input_hold"
         ],
@@ -3640,7 +3640,7 @@
       },
       "record": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3662,7 +3662,7 @@
       "name": "byte-identical retry is the same request",
       "first": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3678,7 +3678,7 @@
       },
       "again": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3698,7 +3698,7 @@
       "name": "same key, different operation",
       "first": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3714,7 +3714,7 @@
       },
       "again": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3734,7 +3734,7 @@
       "name": "same key re-addressed to a successor generation",
       "first": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3750,7 +3750,7 @@
       },
       "again": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3770,7 +3770,7 @@
       "name": "same key, reason now redacted",
       "first": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3786,7 +3786,7 @@
       },
       "again": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3809,7 +3809,7 @@
       "name": "new key for the same hold is independent",
       "first": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3825,7 +3825,7 @@
       },
       "again": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-2",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3845,7 +3845,7 @@
       "name": "same key from another requester",
       "first": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3861,7 +3861,7 @@
       },
       "again": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1001",
         "addressed": {
@@ -3881,7 +3881,7 @@
       "name": "same key at another root",
       "first": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3897,7 +3897,7 @@
       },
       "again": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3919,7 +3919,7 @@
       "name": "full ladder: receipt, admission, hold acknowledgment, outcome",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -3936,7 +3936,7 @@
       "records": [
         {
           "kind": "receipt",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -3950,7 +3950,7 @@
         },
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -3970,7 +3970,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -3992,7 +3992,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4029,7 +4029,7 @@
       "name": "queued-not-admitted receipt is not admission or acknowledgment",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -4046,7 +4046,7 @@
       "records": [
         {
           "kind": "receipt",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4060,7 +4060,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4087,7 +4087,7 @@
       "name": "acknowledgment before admission is a violation",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -4104,7 +4104,7 @@
       "records": [
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4135,7 +4135,7 @@
       "name": "redelivered records are duplicates, a late receipt is still receipt",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -4152,7 +4152,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4172,7 +4172,7 @@
         },
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4192,7 +4192,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4214,7 +4214,7 @@
         },
         {
           "kind": "receipt",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4228,7 +4228,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4250,7 +4250,7 @@
         },
         {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4266,7 +4266,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4280,7 +4280,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4294,7 +4294,7 @@
         },
         {
           "kind": "receipt",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4346,7 +4346,7 @@
       "name": "re-stamped acknowledgment contradicts: faithful replay is a producer condition",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -4363,7 +4363,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4383,7 +4383,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4405,7 +4405,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4444,7 +4444,7 @@
       "name": "stale authority refusal then refused outcome",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -4461,7 +4461,7 @@
       "records": [
         {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4483,7 +4483,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4513,7 +4513,7 @@
       "name": "contradiction: refusal cannot follow an acknowledgment",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -4530,7 +4530,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4550,7 +4550,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4572,7 +4572,7 @@
         },
         {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4611,7 +4611,7 @@
       "name": "admission-stage refusal after admission",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -4628,7 +4628,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4648,7 +4648,7 @@
         },
         {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4682,7 +4682,7 @@
       "name": "transition-stage refusal before admission",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -4699,7 +4699,7 @@
       "records": [
         {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4730,7 +4730,7 @@
       "name": "refinement: unknown after transport loss is later known acknowledged for the same intent",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -4747,7 +4747,7 @@
       "records": [
         {
           "kind": "receipt",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4761,7 +4761,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4776,7 +4776,7 @@
         },
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4796,7 +4796,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4818,7 +4818,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4860,7 +4860,7 @@
       "name": "prior ACK survives owner death; the successor reports knowledge and later confirms it",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -4877,7 +4877,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4897,7 +4897,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4919,7 +4919,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4940,7 +4940,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -4984,7 +4984,7 @@
       "name": "a successor cannot acknowledge its predecessor's request, even after uncertainty",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -5001,7 +5001,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5021,7 +5021,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5042,7 +5042,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5064,7 +5064,7 @@
         },
         {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5106,7 +5106,7 @@
       "name": "faithful replay of the predecessor's persisted ACK refines the outcome",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-close-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -5123,7 +5123,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5143,7 +5143,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5164,7 +5164,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5186,7 +5186,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5230,7 +5230,7 @@
       "name": "contradiction: a definite outcome is final",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -5247,7 +5247,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5267,7 +5267,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5289,7 +5289,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5303,7 +5303,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5318,7 +5318,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5357,7 +5357,7 @@
       "name": "refused outcome without a refusal",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -5374,7 +5374,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5394,7 +5394,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5420,7 +5420,7 @@
       "name": "records answering another key, another generation or a report are refused",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -5437,7 +5437,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-other",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5457,7 +5457,7 @@
         },
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5477,7 +5477,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -5498,7 +5498,7 @@
         },
         {
           "kind": "root_entry",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "describer": "host-index:uid-1000",
           "requester": "cli:user-1000",
           "authority": {
@@ -5511,7 +5511,7 @@
         },
         {
           "kind": "control_state",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -5531,7 +5531,7 @@
         },
         {
           "kind": "request",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5574,7 +5574,7 @@
       "name": "answers to another operation under the same key",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -5591,7 +5591,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5611,7 +5611,7 @@
         },
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5631,7 +5631,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5668,7 +5668,7 @@
       "name": "release acknowledgment is idempotent from an open state",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-release-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -5685,7 +5685,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-release-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5705,7 +5705,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-release-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5727,7 +5727,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-release-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5760,7 +5760,7 @@
       "name": "recover: successor of the same incarnation admits and attaches",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-recover-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -5777,7 +5777,7 @@
       "records": [
         {
           "kind": "receipt",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5791,7 +5791,7 @@
         },
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5811,7 +5811,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5833,7 +5833,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5870,7 +5870,7 @@
       "name": "recover: acknowledgment from another successor than the admitting one",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-recover-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -5887,7 +5887,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5907,7 +5907,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5941,7 +5941,7 @@
       "name": "recover: no surviving incarnation is refused, nothing new started",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-recover-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -5958,7 +5958,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -5978,7 +5978,7 @@
         },
         {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6000,7 +6000,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6033,7 +6033,7 @@
       "name": "recover: owner still live",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-recover-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -6050,7 +6050,7 @@
       "records": [
         {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6072,7 +6072,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6102,7 +6102,7 @@
       "name": "cancel after recover is a new request to the successor",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-cancel-2",
         "requester": "cli:user-1000",
         "addressed": {
@@ -6119,7 +6119,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-cancel-2",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6139,7 +6139,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-cancel-2",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6161,7 +6161,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-cancel-2",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6194,7 +6194,7 @@
       "name": "close refused as already terminal after a cancel",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-close-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -6211,7 +6211,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6231,7 +6231,7 @@
         },
         {
           "kind": "refusal",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6253,7 +6253,7 @@
         },
         {
           "kind": "outcome",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6288,7 +6288,7 @@
       "name": "prior hold ACK, successor has lost the state: ACK retained",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -6305,7 +6305,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6325,7 +6325,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6348,7 +6348,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-b",
@@ -6372,7 +6372,7 @@
       "name": "successor confirms the held input since this request",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -6389,7 +6389,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6409,7 +6409,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6432,7 +6432,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-b",
@@ -6466,7 +6466,7 @@
       "name": "a later release explains the open input",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -6483,7 +6483,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6503,7 +6503,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6526,7 +6526,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-b",
@@ -6560,7 +6560,7 @@
       "name": "open input with no basis after an acknowledged hold contradicts",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -6577,7 +6577,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6597,7 +6597,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6620,7 +6620,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-b",
@@ -6644,7 +6644,7 @@
       "name": "open input citing the hold itself contradicts",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -6661,7 +6661,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6681,7 +6681,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6704,7 +6704,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-a",
@@ -6738,7 +6738,7 @@
       "name": "acknowledged close silently becoming open after successor attach contradicts",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-close-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -6755,7 +6755,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6775,7 +6775,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6798,7 +6798,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-b",
@@ -6822,7 +6822,7 @@
       "name": "acknowledged close cannot be reopened even with a basis",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-close-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -6839,7 +6839,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6859,7 +6859,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6882,7 +6882,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-b",
@@ -6916,7 +6916,7 @@
       "name": "acknowledged close carried by the successor",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-close-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -6933,7 +6933,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6953,7 +6953,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -6976,7 +6976,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-b",
@@ -7010,7 +7010,7 @@
       "name": "a later cancel outranks the acknowledged close",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-close-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -7027,7 +7027,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -7047,7 +7047,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-close-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -7070,7 +7070,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-b",
@@ -7104,7 +7104,7 @@
       "name": "acknowledged cancel reported as closing is a regression",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-cancel-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -7121,7 +7121,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-cancel-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -7141,7 +7141,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-cancel-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -7164,7 +7164,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-a",
@@ -7198,7 +7198,7 @@
       "name": "unacknowledged intent the reporter holds as pending",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-cancel-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -7215,7 +7215,7 @@
       "records": [
         {
           "kind": "receipt",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-cancel-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -7230,7 +7230,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-a",
@@ -7270,7 +7270,7 @@
       "name": "unacknowledged intent the report does not mention",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-cancel-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -7287,7 +7287,7 @@
       "records": [
         {
           "kind": "receipt",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-cancel-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -7302,7 +7302,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-a",
@@ -7326,7 +7326,7 @@
       "name": "a child-scoped report says nothing of a root-scoped hold",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-hold-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -7343,7 +7343,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -7363,7 +7363,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-hold-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -7386,7 +7386,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-a",
@@ -7411,7 +7411,7 @@
       "name": "inspection does not describe attachment",
       "request": {
         "kind": "request",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "request_key": "k-recover-1",
         "requester": "cli:user-1000",
         "addressed": {
@@ -7428,7 +7428,7 @@
       "records": [
         {
           "kind": "admission",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -7448,7 +7448,7 @@
         },
         {
           "kind": "acknowledgment",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "request_key": "k-recover-1",
           "requester": "cli:user-1000",
           "addressed": {
@@ -7471,7 +7471,7 @@
       ],
       "state": {
         "kind": "control_state",
-        "protocol": "oulipoly.session_control/v2",
+        "protocol": "oulipoly.session_control/v3",
         "reporter": {
           "root": "root-7",
           "owner": "owner-b",
@@ -7521,7 +7521,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -7542,7 +7542,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -7563,7 +7563,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -7615,7 +7615,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -7636,7 +7636,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -7657,7 +7657,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -7726,7 +7726,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -7747,7 +7747,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-8",
             "owner": "owner-a",
@@ -7768,7 +7768,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-8",
             "owner": "owner-a",
@@ -7818,7 +7818,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -7839,7 +7839,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-8",
             "owner": "owner-a",
@@ -7860,7 +7860,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-8",
             "owner": "owner-a",
@@ -7927,7 +7927,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -7948,7 +7948,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -7969,7 +7969,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -7990,7 +7990,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-z",
@@ -8011,7 +8011,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-z",
@@ -8074,7 +8074,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8141,7 +8141,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8162,7 +8162,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-b",
@@ -8183,7 +8183,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-b",
@@ -8252,7 +8252,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8273,7 +8273,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8294,7 +8294,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8315,7 +8315,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-b",
@@ -8336,7 +8336,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-b",
@@ -8405,7 +8405,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-b",
@@ -8426,7 +8426,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-b",
@@ -8447,7 +8447,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8468,7 +8468,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8489,7 +8489,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8558,7 +8558,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8579,7 +8579,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-b",
@@ -8646,7 +8646,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8668,7 +8668,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8689,7 +8689,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8756,7 +8756,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8777,7 +8777,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-b",
@@ -8798,7 +8798,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8819,7 +8819,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8887,7 +8887,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8908,7 +8908,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-b",
@@ -8929,7 +8929,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -8950,7 +8950,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9018,7 +9018,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9039,7 +9039,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9060,7 +9060,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9081,7 +9081,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9161,7 +9161,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9182,7 +9182,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9248,7 +9248,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9270,7 +9270,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9337,7 +9337,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9358,7 +9358,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9426,7 +9426,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9447,7 +9447,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9468,7 +9468,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9537,7 +9537,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9558,7 +9558,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "root-7",
             "owner": "owner-a",
@@ -9595,7 +9595,7 @@
     },
     {
       "name": "actual U112 records: ACK, no tagged end, async debt owed, harness exit7 waited stays owed",
-      "provenance": "U116 Observer mapping of completed U112 r-ack-only-physical-end-after-close records (basis: Observer-created claim mapping of completed historical data, not runtime emission); protocol identifier rewritten to v2",
+      "provenance": "U116 Observer mapping of completed U112 r-ack-only-physical-end-after-close records (basis: Observer-created claim mapping of completed historical data, not runtime emission); protocol identifier rewritten to v3",
       "subject": {
         "root": "8392a31fa18461e8bfbe2f3dfc2f21ff",
         "work": "1",
@@ -9615,7 +9615,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "8392a31fa18461e8bfbe2f3dfc2f21ff",
             "owner": "historical-owner-pid-2093314",
@@ -9635,7 +9635,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "8392a31fa18461e8bfbe2f3dfc2f21ff",
             "owner": "historical-owner-pid-2093314",
@@ -9655,7 +9655,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "8392a31fa18461e8bfbe2f3dfc2f21ff",
             "owner": "historical-owner-pid-2093314",
@@ -9675,7 +9675,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "8392a31fa18461e8bfbe2f3dfc2f21ff",
             "owner": "historical-owner-pid-2093314",
@@ -9737,7 +9737,7 @@
       "observations": [
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "8392a31fa18461e8bfbe2f3dfc2f21ff",
             "owner": "historical-owner-pid-2093314",
@@ -9757,7 +9757,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "8392a31fa18461e8bfbe2f3dfc2f21ff",
             "owner": "historical-owner-pid-2093314",
@@ -9777,7 +9777,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "8392a31fa18461e8bfbe2f3dfc2f21ff",
             "owner": "historical-owner-pid-2093314",
@@ -9797,7 +9797,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "8392a31fa18461e8bfbe2f3dfc2f21ff",
             "owner": "historical-owner-pid-2093314",
@@ -9817,7 +9817,7 @@
         },
         {
           "kind": "observation",
-          "protocol": "oulipoly.session_control/v2",
+          "protocol": "oulipoly.session_control/v3",
           "reporter": {
             "root": "8392a31fa18461e8bfbe2f3dfc2f21ff",
             "owner": "unrelated-owner",

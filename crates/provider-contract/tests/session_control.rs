@@ -1,4 +1,4 @@
-//! session_control/v2: structural schema versus semantic admission; one claim
+//! session_control/v3: structural schema versus semantic admission; one claim
 //! ladder for hold/release, recover, cancel and close; refinement of the same
 //! intent versus contradiction; prior acknowledgment versus a successor's
 //! current knowledge; warranted versus arbitrary settlement composition;
@@ -28,7 +28,7 @@ use support::contract_matrix::{
 };
 
 fn fixtures() -> Value {
-    serde_json::from_str(include_str!("fixtures/session_control/v2.json")).unwrap()
+    serde_json::from_str(include_str!("fixtures/session_control/v3.json")).unwrap()
 }
 
 fn cases(value: &Value) -> &Vec<Value> {
@@ -1048,4 +1048,275 @@ fn correction_fulfillment_retains_known_prior_positive_and_negative_claims() {
     rejected_unchanged(&mut refused, &knowledge(&req, "fulfilled", 4));
     assert!(refused.refusal().is_some());
     assert!(refused.fulfillment().is_none());
+}
+
+fn successor_negative(request: &Request) -> Record {
+    let (_, fulfillment, _) = inherited_claims(request);
+    let mut value = serde_json::to_value(fulfillment).unwrap();
+    value["kind"] = json!("non_fulfillment");
+    value.as_object_mut().unwrap().remove("from");
+    value.as_object_mut().unwrap().remove("to");
+    value["reason"] = json!("already_terminal");
+    Record::decode(&value).unwrap()
+}
+
+#[test]
+fn resolution_inherited_close_after_cancel_has_attributed_terminal_knowledge() {
+    let mut original = hold();
+    original.operation = Operation::Close;
+    let (admission, _, _) = inherited_claims(&original);
+    let negative = successor_negative(&original);
+    let mut trace = RequestTrace::new(original.clone()).unwrap();
+    trace.accept(&admission).unwrap();
+    for at in 0..MAX_TRACE_OUTCOMES {
+        trace
+            .accept(&knowledge(&original, "unknown", at as u64))
+            .unwrap();
+    }
+    rejected_unchanged(&mut trace, &knowledge(&original, "unknown", 100));
+    assert!(matches!(
+        trace.accept(&negative).unwrap(),
+        Step::Unfulfilled { .. }
+    ));
+    trace
+        .accept(&knowledge(&original, "unfulfilled", 101))
+        .unwrap();
+    assert_eq!(trace.request(), &original);
+    assert_eq!(
+        trace.admission(),
+        match &admission {
+            Record::Admission(a) => Some(a),
+            _ => unreachable!(),
+        }
+    );
+    assert!(trace.acknowledgment().is_none());
+    assert!(trace.fulfillment().is_none());
+    assert!(trace.refusal().is_none());
+    assert!(trace.non_fulfillment().is_some());
+    assert_eq!(trace.outcomes().len(), MAX_TRACE_OUTCOMES + 1);
+    let final_trace = trace.clone();
+    assert_eq!(trace.accept(&negative).unwrap(), Step::Duplicate);
+    assert_eq!(trace, final_trace);
+
+    // The constructed actual C-O2n case: D sees another cancel, not a close.
+    let mut state = json!({"kind":"control_state", "protocol":PROTOCOL,
+        "reporter":serde_json::to_value(&negative).unwrap()["reporter"],
+        "scope":original.scope, "input":{"state":"unknown"},
+        "lifecycle":{"state":"cancelling", "since":original.reference()},
+        "observed_at_unix_ms":102});
+    state["lifecycle"]["since"]["request_key"] = json!("another-admitted-cancel");
+    let report = match Record::decode(&state).unwrap() {
+        Record::ControlState(s) => s,
+        _ => unreachable!(),
+    };
+    assert_eq!(trace.relate(&report), Relation::NoAcknowledgment);
+    let mut incoherent = report.clone();
+    incoherent
+        .pending
+        .push(agent_provider_contract::session_control::Pending {
+            request: original.reference(),
+            operation: Operation::Close,
+            status: agent_provider_contract::session_control::PendingStatus::Admitted,
+        });
+    assert_eq!(trace.relate(&incoherent), Relation::Contradicts);
+    assert_eq!(trace, final_trace);
+}
+
+#[test]
+fn resolution_negative_needs_original_admission_and_exact_successor_scope() {
+    let original = hold();
+    let (admission, _, _) = inherited_claims(&original);
+    let negative = successor_negative(&original);
+    let mut trace = RequestTrace::new(original.clone()).unwrap();
+    rejected_unchanged(&mut trace, &negative);
+    rejected_unchanged(&mut trace, &knowledge(&original, "unfulfilled", 3));
+    trace.accept(&admission).unwrap();
+    for field in ["root", "incarnation"] {
+        let mut value = serde_json::to_value(&negative).unwrap();
+        value["reporter"][field] = json!("other");
+        assert!(Record::decode(&value).is_err());
+        let raw = serde_json::from_value(value).unwrap();
+        rejected_unchanged(&mut trace, &raw);
+    }
+    let mut value = serde_json::to_value(&negative).unwrap();
+    value["reporter"] = json!(original.addressed);
+    assert!(Record::decode(&value).is_err());
+    value.as_object_mut().unwrap().remove("reporter");
+    assert!(Record::decode(&value).is_err());
+    let mut value = serde_json::to_value(&negative).unwrap();
+    value["operation"] = json!("input_release");
+    rejected_unchanged(&mut trace, &Record::decode(&value).unwrap());
+    value["operation"] = json!("recover");
+    assert!(Record::decode(&value).is_err());
+    for reason in ["already_terminal", "root_absent", "transition_failed"] {
+        let mut value = serde_json::to_value(&negative).unwrap();
+        value["reason"] = json!(reason);
+        let mut independent = trace.clone();
+        independent
+            .accept(&Record::decode(&value).unwrap())
+            .unwrap();
+    }
+}
+
+#[test]
+fn resolution_anonymous_terminal_refusal_cannot_resolve_admitted_intent() {
+    let original = hold();
+    let (admission, _, _) = inherited_claims(&original);
+    let mut trace = RequestTrace::new(original.clone()).unwrap();
+    trace.accept(&admission).unwrap();
+    let mut value = control_claim(&original, "refusal");
+    value["operation"] = json!(original.operation);
+    value["stage"] = json!("transition");
+    value["reason"] = json!("transition_failed");
+    value["observed_at_unix_ms"] = json!(2);
+    assert!(validate("Record", &value, UnavailableReason::InvalidRecord).is_ok());
+    assert!(Record::decode(&value).is_err());
+    let raw: Record = serde_json::from_value(value.clone()).unwrap();
+    rejected_unchanged(&mut trace, &raw);
+    value["responder"] = json!(original.addressed);
+    trace.accept(&Record::decode(&value).unwrap()).unwrap();
+    trace.accept(&knowledge(&original, "refused", 3)).unwrap();
+}
+
+#[test]
+fn resolution_known_positive_survives_negative_and_late_positive_is_contradiction() {
+    let original = hold();
+    let (admission, fulfillment, ack) = inherited_claims(&original);
+    let negative = successor_negative(&original);
+    for positive in [&ack, &fulfillment] {
+        let mut trace = RequestTrace::new(original.clone()).unwrap();
+        trace.accept(&admission).unwrap();
+        trace.accept(positive).unwrap();
+        rejected_unchanged(&mut trace, &negative);
+        assert_eq!(trace.accept(positive).unwrap(), Step::Duplicate);
+    }
+    let mut trace = RequestTrace::new(original.clone()).unwrap();
+    trace.accept(&admission).unwrap();
+    trace.accept(&negative).unwrap();
+    for finalized in [false, true] {
+        if finalized {
+            trace
+                .accept(&knowledge(&original, "unfulfilled", 3))
+                .unwrap();
+        }
+        for positive in [
+            &ack,
+            &fulfillment,
+            &knowledge(&original, "acknowledged", 4),
+            &knowledge(&original, "fulfilled", 5),
+        ] {
+            let before = trace.clone();
+            let error = trace.accept(positive).unwrap_err();
+            assert_eq!(error.reason, UnavailableReason::ProtocolViolation);
+            assert!(error.detail.unwrap().contains("contradict"));
+            assert_eq!(trace, before);
+        }
+    }
+}
+
+fn r3_conflict_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "fixtures/session_control/successor-resolution.json"
+    ))
+    .unwrap()
+}
+
+#[test]
+fn resolution_actual_r3_conflict_joins_current_submission_without_erasing_final_original() {
+    let f = r3_conflict_fixture();
+    let original: Request = serde_json::from_value(f["original"].clone()).unwrap();
+    let submitted: Request = serde_json::from_value(f["submitted"].clone()).unwrap();
+    let conflict = Record::decode(&f["conflict"]).unwrap();
+    let answer = match &conflict {
+        Record::Conflict(c) => c,
+        _ => unreachable!(),
+    };
+    answer.answer_to(&submitted).unwrap();
+    assert!(answer.answer_to(&original).is_err());
+    assert!(conflict.correlation().is_none());
+    assert_eq!(
+        classify_repetition(&original, &submitted),
+        Repetition::KeyConflict
+    );
+    let mut trace = RequestTrace::new(original.clone()).unwrap();
+    for claim in cases(&f["original_claims"]) {
+        trace.accept(&Record::decode(claim).unwrap()).unwrap();
+    }
+    assert_eq!(
+        trace.outcome().unwrap().result,
+        agent_provider_contract::session_control::OutcomeResult::Acknowledged
+    );
+    let before = trace.clone();
+    for _ in 0..2 {
+        assert_eq!(
+            trace.accept(&conflict).unwrap(),
+            Step::SubmissionConflict {
+                submitted: Box::new(submitted.clone())
+            }
+        );
+        assert_eq!(trace, before);
+    }
+    // Faithful original replay still means the original hold, not release.
+    for claim in cases(&f["original_claims"]) {
+        assert_eq!(
+            trace.accept(&Record::decode(claim).unwrap()).unwrap(),
+            Step::Duplicate
+        );
+        assert_eq!(trace, before);
+    }
+    rejected_unchanged(&mut trace, &Record::Request(submitted.clone()));
+    for change in ["reason", "scope", "addressed"] {
+        let mut changed = original.clone();
+        match change {
+            "reason" => {
+                changed.reason =
+                    Some(agent_provider_contract::session_control::DisclosedText::Redacted)
+            }
+            "scope" => changed.scope.child = Some("child".into()),
+            _ => changed.addressed.generation = "new-generation".into(),
+        }
+        let mut current = answer.clone();
+        current.submitted = changed.clone();
+        current.answer_to(&changed).unwrap();
+        trace.accept(&Record::Conflict(current)).unwrap();
+        assert_eq!(trace, before);
+    }
+    let mut mismatch = answer.clone();
+    mismatch.original.reason =
+        Some(agent_provider_contract::session_control::DisclosedText::Redacted);
+    rejected_unchanged(&mut trace, &Record::Conflict(mismatch));
+    let mut raw = f["conflict"].clone();
+    raw["submitted"] = f["original"].clone();
+    assert!(Record::decode(&raw).is_err());
+    let mut raw = f["conflict"].clone();
+    raw["responder"]["root"] = json!("another-root");
+    assert!(Record::decode(&raw).is_err());
+}
+
+#[test]
+fn resolution_v3_selection_refuses_v2_only_and_preserves_control_only_degradation() {
+    let local = Offer {
+        operations: vec![Operation::Cancel],
+        reports: vec![],
+        facts: vec![],
+    };
+    assert_eq!(
+        agent_provider_contract::session_control::SUPPORTED_VERSIONS,
+        &[3]
+    );
+    let old = json!({"oulipoly.session_control/v2": local});
+    assert_eq!(
+        select(&local, &old).unwrap_err().reason,
+        UnavailableReason::NoCommonVersion
+    );
+    let both = json!({"oulipoly.session_control/v2":local, PROTOCOL:local});
+    let selected = select(&local, &both).unwrap();
+    assert_eq!(selected.protocol, PROTOCOL);
+    let mut cancel = hold();
+    cancel.operation = Operation::Cancel;
+    cancel.agree(&selected).unwrap();
+    assert_eq!(
+        hold().agree(&selected).unwrap_err().reason,
+        UnavailableReason::NoCommonCapability
+    );
 }

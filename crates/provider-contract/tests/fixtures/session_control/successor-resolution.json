@@ -1,0 +1,152 @@
+{
+  "provenance": "Original completed R3 O6 actual hold/release key conflict. Explicit v2-to-v3 encoding; conflict is a constructed current representation, not an executed Runner upgrade.",
+  "original": {
+    "protocol": "oulipoly.session_control/v3",
+    "request_key": "key-conflict-same-key",
+    "requester": "uid:1000",
+    "addressed": {
+      "root": "cb61735434a6b1ff1da56d54091c3dc7",
+      "owner": "75d71b5c2090b45eb66daeedad3d5b3d",
+      "generation": "1",
+      "incarnation": "1"
+    },
+    "operation": "input_hold",
+    "scope": {
+      "root": "cb61735434a6b1ff1da56d54091c3dc7"
+    }
+  },
+  "submitted": {
+    "protocol": "oulipoly.session_control/v3",
+    "request_key": "key-conflict-same-key",
+    "requester": "uid:1000",
+    "addressed": {
+      "root": "cb61735434a6b1ff1da56d54091c3dc7",
+      "owner": "75d71b5c2090b45eb66daeedad3d5b3d",
+      "generation": "1",
+      "incarnation": "1"
+    },
+    "operation": "input_release",
+    "scope": {
+      "root": "cb61735434a6b1ff1da56d54091c3dc7"
+    }
+  },
+  "original_claims": [
+    {
+      "kind": "receipt",
+      "protocol": "oulipoly.session_control/v3",
+      "request_key": "key-conflict-same-key",
+      "requester": "uid:1000",
+      "addressed": {
+        "root": "cb61735434a6b1ff1da56d54091c3dc7",
+        "owner": "75d71b5c2090b45eb66daeedad3d5b3d",
+        "generation": "1",
+        "incarnation": "1"
+      },
+      "durable": true,
+      "observed_at_unix_ms": 1791383221355
+    },
+    {
+      "kind": "admission",
+      "protocol": "oulipoly.session_control/v3",
+      "request_key": "key-conflict-same-key",
+      "requester": "uid:1000",
+      "addressed": {
+        "root": "cb61735434a6b1ff1da56d54091c3dc7",
+        "owner": "75d71b5c2090b45eb66daeedad3d5b3d",
+        "generation": "1",
+        "incarnation": "1"
+      },
+      "operation": "input_hold",
+      "responder": {
+        "root": "cb61735434a6b1ff1da56d54091c3dc7",
+        "owner": "75d71b5c2090b45eb66daeedad3d5b3d",
+        "generation": "1",
+        "incarnation": "1"
+      },
+      "observed_at_unix_ms": 1791383221355
+    },
+    {
+      "kind": "acknowledgment",
+      "protocol": "oulipoly.session_control/v3",
+      "request_key": "key-conflict-same-key",
+      "requester": "uid:1000",
+      "addressed": {
+        "root": "cb61735434a6b1ff1da56d54091c3dc7",
+        "owner": "75d71b5c2090b45eb66daeedad3d5b3d",
+        "generation": "1",
+        "incarnation": "1"
+      },
+      "responder": {
+        "root": "cb61735434a6b1ff1da56d54091c3dc7",
+        "owner": "75d71b5c2090b45eb66daeedad3d5b3d",
+        "generation": "1",
+        "incarnation": "1"
+      },
+      "operation": "input_hold",
+      "from": "input_open",
+      "to": "input_held",
+      "observed_at_unix_ms": 1791383221358
+    },
+    {
+      "kind": "outcome",
+      "protocol": "oulipoly.session_control/v3",
+      "request_key": "key-conflict-same-key",
+      "requester": "uid:1000",
+      "addressed": {
+        "root": "cb61735434a6b1ff1da56d54091c3dc7",
+        "owner": "75d71b5c2090b45eb66daeedad3d5b3d",
+        "generation": "1",
+        "incarnation": "1"
+      },
+      "result": "acknowledged",
+      "reporter": {
+        "root": "cb61735434a6b1ff1da56d54091c3dc7",
+        "owner": "75d71b5c2090b45eb66daeedad3d5b3d",
+        "generation": "1",
+        "incarnation": "1"
+      },
+      "observed_at_unix_ms": 1791383221358
+    }
+  ],
+  "conflict": {
+    "kind": "conflict",
+    "protocol": "oulipoly.session_control/v3",
+    "submitted": {
+      "protocol": "oulipoly.session_control/v3",
+      "request_key": "key-conflict-same-key",
+      "requester": "uid:1000",
+      "addressed": {
+        "root": "cb61735434a6b1ff1da56d54091c3dc7",
+        "owner": "75d71b5c2090b45eb66daeedad3d5b3d",
+        "generation": "1",
+        "incarnation": "1"
+      },
+      "operation": "input_release",
+      "scope": {
+        "root": "cb61735434a6b1ff1da56d54091c3dc7"
+      }
+    },
+    "original": {
+      "protocol": "oulipoly.session_control/v3",
+      "request_key": "key-conflict-same-key",
+      "requester": "uid:1000",
+      "addressed": {
+        "root": "cb61735434a6b1ff1da56d54091c3dc7",
+        "owner": "75d71b5c2090b45eb66daeedad3d5b3d",
+        "generation": "1",
+        "incarnation": "1"
+      },
+      "operation": "input_hold",
+      "scope": {
+        "root": "cb61735434a6b1ff1da56d54091c3dc7"
+      }
+    },
+    "responder": {
+      "root": "cb61735434a6b1ff1da56d54091c3dc7",
+      "owner": "75d71b5c2090b45eb66daeedad3d5b3d",
+      "generation": "1",
+      "incarnation": "1"
+    },
+    "observed_at_unix_ms": 1791383221360
+  }
+}

@@ -20,6 +20,20 @@
 //!   `capabilities.session = {}` and, in `_meta`, the message-key dedup
 //!   contract ([`DEDUP_CONTRACT_META`] version 1) and
 //!   [`RESIDENT_SESSION_META`] naming [`RESIDENT_SESSION_PROTOCOL`].
+//! # Directory publication precondition
+//!
+//! All durable-session/input/insertion/ACK claims below require a successfully
+//! published incoming state-root lineage. `serve` publishes links it creates;
+//! it does not certify pre-existing or host-created links. Current per-call use
+//! uses fresh roots and discards failed publication; diagnostic keep is inspection.
+//! A same-path initialize/new/resume success or ACK after an earlier publication
+//! failure is not a receipt for that failure, even after a later successful sync.
+//! The wire may still succeed there: this precondition is not runtime-enforced.
+//! Deliberate recovery must name the roots and lineage it relies on and establish
+//! its required guarantee at the consumer boundary. A consumer unable to do so
+//! uses a fresh root and carries prior uncertainty as do-not-replay. No general
+//! recovery mechanism or hardware-crash durability qualification is supplied.
+//!
 //! * `session/new` creates a provider-private durable session record under
 //!   the state root and answers its id. The native session id is learned from
 //!   the first turn (`oulipoly.provider_session` marker) or chosen by the
@@ -207,7 +221,10 @@ pub enum ServeEnd {
 
 /// Serves one ACP v2 connection until it closes or the process is asked to
 /// terminate. `state_root` must be a trusted provider-private directory; it
-/// is created if missing. Returns after joining every session worker. Unresolved
+/// is created if missing. Durable claims require the module's successfully
+/// published incoming lineage; same-path success does not certify prior failed
+/// publication. This is a guarantee precondition, not an enforced startup check.
+/// Returns after joining every session worker. Unresolved
 /// session custody, including an earlier refused close, returns an I/O error;
 /// success does not clear earlier input/insertion uncertainty.
 pub fn serve<T, R, W>(turns: Arc<T>, state_root: &Path, input: R, output: W) -> io::Result<ServeEnd>
