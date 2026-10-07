@@ -24,6 +24,8 @@
 //! registering. A [`VisibilityClaim`] is checked for shape only: whether an
 //! observer is allowed is the broker's and host's to enforce. Capture, rings,
 //! brokers, retention and runtime backpressure behaviour are not here.
+//! [`attachment`] defines what publisher, broker and subscriber say to each
+//! other and which checks each side owns; it opens no connection.
 //!
 //! The structural schema plus the normative semantic rules in the adjacent
 //! contract README define language-independent conformance. Raw Serde supplies
@@ -35,6 +37,8 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::OnceLock;
+
+pub mod attachment;
 
 pub const PROTOCOL: &str = "oulipoly.live_stream/v1";
 pub const SCHEMA_JSON: &str = include_str!("../contract/extensions/live-stream/v1.schema.json");
@@ -64,6 +68,7 @@ const DEFINITIONS: &[&str] = &[
     "Terminal",
     "RetainedWindow",
     "ReplayPlan",
+    "Message",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -311,6 +316,8 @@ pub enum UnavailableReason {
     InvalidRecord,
     ProtocolViolation,
     UnknownStream,
+    /// The host refused, or its decision does not cover this stream or scope.
+    NotAuthorized,
 }
 
 /// The observability diagnostic: live viewing is unavailable. Its detail

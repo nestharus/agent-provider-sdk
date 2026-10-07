@@ -1,0 +1,935 @@
+{
+  "protocol": "oulipoly.live_stream/v1",
+  "note": "Attachment message vectors. invalid_structural is refused by raw schema; invalid_semantic passes raw schema but carries a record, descriptor or cursor that normative admission refuses. Admission is shape only: it grants nothing and opens no connection.",
+  "valid": {
+    "Message": [
+      {
+        "op": "hello",
+        "role": "publisher",
+        "advertisement": {
+          "oulipoly.live_stream/v1": {
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "audiences": [
+              "scoped"
+            ],
+            "max_data_bytes": 4096
+          },
+          "oulipoly.live_stream/v2": {
+            "anything": "newer"
+          }
+        }
+      },
+      {
+        "op": "register",
+        "descriptor": {
+          "protocol": "oulipoly.live_stream/v1",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "channels": [
+            "stdout",
+            "control"
+          ],
+          "max_data_bytes": 4096,
+          "visibility": {
+            "audience": "scoped",
+            "scope": "root:42",
+            "channels": [
+              "stdout"
+            ]
+          }
+        },
+        "finalization": "custody_owner"
+      },
+      {
+        "op": "register",
+        "descriptor": {
+          "protocol": "oulipoly.live_stream/v1",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "channels": [
+            "stdout",
+            "control"
+          ],
+          "max_data_bytes": 4096,
+          "visibility": {
+            "audience": "scoped",
+            "scope": "root:42",
+            "channels": [
+              "stdout"
+            ]
+          }
+        },
+        "finalization": "never"
+      },
+      {
+        "op": "registered",
+        "stream_id": "0123456789abcdef0123456789abcdef",
+        "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "op": "list"
+      },
+      {
+        "op": "directory",
+        "streams": []
+      },
+      {
+        "op": "directory",
+        "streams": [
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "op": "attach",
+        "cursor": {
+          "protocol": "oulipoly.live_stream/v1",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "after_seq": 0
+        }
+      },
+      {
+        "op": "attached",
+        "descriptor": {
+          "protocol": "oulipoly.live_stream/v1",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "channels": [
+            "stdout",
+            "control"
+          ],
+          "max_data_bytes": 4096,
+          "visibility": {
+            "audience": "scoped",
+            "scope": "root:42",
+            "channels": [
+              "stdout"
+            ]
+          }
+        },
+        "plan": {
+          "prefix": [
+            {
+              "kind": "gap",
+              "stream_id": "0123456789abcdef0123456789abcdef",
+              "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "first": 1,
+              "last": 4,
+              "reason": "evicted"
+            }
+          ],
+          "deliver_from": 5
+        }
+      },
+      {
+        "op": "record",
+        "record": {
+          "kind": "data",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "seq": 1,
+          "observed_at_unix_ms": 0,
+          "channel": "stdout",
+          "data_base64": "aGk="
+        }
+      },
+      {
+        "op": "unavailable",
+        "diagnostic": {
+          "diagnostic": "live_unavailable",
+          "reason": "not_authorized"
+        }
+      }
+    ]
+  },
+  "invalid_structural": {
+    "Message": [
+      {
+        "op": "subscribe",
+        "cursor": {
+          "protocol": "oulipoly.live_stream/v1",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "after_seq": 0
+        }
+      },
+      {
+        "op": "hello",
+        "role": "relay",
+        "advertisement": {}
+      },
+      {
+        "op": "list",
+        "filter": "root:42"
+      },
+      {
+        "op": "register",
+        "descriptor": {
+          "protocol": "oulipoly.live_stream/v1",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "channels": [
+            "stdout",
+            "control"
+          ],
+          "max_data_bytes": 4096,
+          "visibility": {
+            "audience": "scoped",
+            "scope": "root:42",
+            "channels": [
+              "stdout"
+            ]
+          }
+        }
+      },
+      {
+        "op": "register",
+        "descriptor": {
+          "protocol": "oulipoly.live_stream/v1",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "channels": [
+            "stdout",
+            "control"
+          ],
+          "max_data_bytes": 4096,
+          "visibility": {
+            "audience": "scoped",
+            "scope": "root:42",
+            "channels": [
+              "stdout"
+            ]
+          }
+        },
+        "finalization": "exit_observed"
+      },
+      {
+        "op": "registered",
+        "stream_id": "0123456789abcdef0123456789abcdef",
+        "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "grant": "uid:1000"
+      },
+      {
+        "op": "directory",
+        "streams": [
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          },
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "scoped",
+              "scope": "root:42",
+              "channels": [
+                "stdout"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "op": "record",
+        "record": {
+          "kind": "data",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "seq": 1,
+          "observed_at_unix_ms": 0,
+          "channel": "stdout",
+          "data_base64": "aGk=",
+          "secret": "SECRETVALUE"
+        }
+      },
+      {
+        "op": "unavailable",
+        "diagnostic": {
+          "diagnostic": "live_unavailable",
+          "reason": "unauthorized"
+        }
+      }
+    ]
+  },
+  "invalid_semantic": {
+    "Message": [
+      {
+        "op": "register",
+        "descriptor": {
+          "protocol": "oulipoly.live_stream/v1",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "channels": [
+            "stdout",
+            "control"
+          ],
+          "max_data_bytes": 4096,
+          "visibility": {
+            "audience": "owner",
+            "channels": [
+              "stderr"
+            ]
+          }
+        },
+        "finalization": "never"
+      },
+      {
+        "op": "directory",
+        "streams": [
+          {
+            "protocol": "oulipoly.live_stream/v1",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "channels": [
+              "stdout",
+              "control"
+            ],
+            "max_data_bytes": 4096,
+            "visibility": {
+              "audience": "owner",
+              "channels": [
+                "stderr"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "op": "attach",
+        "cursor": {
+          "protocol": "oulipoly.live_stream/v1",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "after_seq": 2,
+          "terminal": {
+            "kind": "ended",
+            "stream_id": "0123456789abcdef0123456789abcdef",
+            "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "seq": 1,
+            "observed_at_unix_ms": 0
+          }
+        }
+      },
+      {
+        "op": "attached",
+        "descriptor": {
+          "protocol": "oulipoly.live_stream/v1",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "channels": [
+            "stdout",
+            "control"
+          ],
+          "max_data_bytes": 4096,
+          "visibility": {
+            "audience": "scoped",
+            "scope": "root:42",
+            "channels": [
+              "stdout"
+            ]
+          }
+        },
+        "plan": {
+          "prefix": [
+            {
+              "kind": "gap",
+              "stream_id": "0123456789abcdef0123456789abcdef",
+              "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "first": 4,
+              "last": 1,
+              "reason": "evicted"
+            }
+          ],
+          "deliver_from": 5
+        }
+      },
+      {
+        "op": "record",
+        "record": {
+          "kind": "data",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "seq": 1,
+          "observed_at_unix_ms": 0,
+          "channel": "stdout",
+          "data_base64": "aGl="
+        }
+      },
+      {
+        "op": "record",
+        "record": {
+          "kind": "discontinuity",
+          "stream_id": "0123456789abcdef0123456789abcdef",
+          "previous_incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "after_seq": 0,
+          "incarnation": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    ]
+  }
+}

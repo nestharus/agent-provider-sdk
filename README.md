@@ -199,9 +199,15 @@ plane. It is defined but not adopted yet.
 - **What it does not replace.** Launch events and request custody, resident
   records, transcript page tokens and retained Bash output stay as they are,
   and the contract stores nothing.
-- **Not established.** Capture, the broker, enforcement of visibility and
-  runtime non-blocking behaviour remain later work. Control claims live in
-  `session-control/v3`; incident DTOs are not yet defined.
+- **Attachment.** `live_stream::attachment` gives the publisher, broker and
+  subscriber messages: hello, register, list/directory, attach/attached,
+  record and unavailable. Registration and attachment need an explicit host
+  decision, which the SDK never constructs. The contract states the host's
+  scope, identity, finalization and drop-not-block duties without performing
+  them.
+- **Not established.** Capture, the broker, endpoints and sockets, enforcement
+  of visibility and runtime non-blocking behaviour remain later work. Control
+  claims live in `session-control/v3`; incident DTOs are not yet defined.
 
 The [`session-control/v3` contract](crates/provider-contract/contract/extensions/session-control/README.md)
 (`session_control` module) is the one provider-neutral vocabulary of root

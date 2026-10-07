@@ -19,7 +19,9 @@ implements both layers and their context-dependent agreement/follow/replay
 operations. Raw Serde deserialization supplies representation only.
 
 Status: defined and unadopted. No publisher, broker, host or provider uses this
-contract yet. Capture, rings, the broker, subscription surfaces and retention
+contract yet. [Attachment](#publisher-broker-and-subscriber) defines what the
+three roles say to each other and which side owns each check. Capture, rings,
+the broker itself, endpoints, sockets, subscription surfaces and retention
 belong to later work. That later work is what establishes runtime behaviour.
 
 ## What it is not
@@ -41,7 +43,7 @@ database.
 
 Contract refusals are `live_unavailable` diagnostics: an absent
 broker, no common version, a malformed advertisement or record, a protocol
-violation or an unknown stream. The diagnostic disables live viewing only. It
+violation, an unknown stream or a missing host decision (`not_authorized`). The diagnostic disables live viewing only. It
 is not a provider error response, a launch event or a completion outcome, and
 the SDK has no conversion between them.
 
@@ -172,6 +174,68 @@ The following APIs give the reference semantics:
   names retained delivery; the follower learns terminal state when that frame
   is delivered, not merely from planning metadata.
 
+## Publisher, broker and subscriber
+
+`live_stream::attachment` gives the connection-level meaning. Every connection
+joins a broker to one publisher or to one subscriber; there is no direct
+publisher-to-subscriber connection. Each line is one `Message`, tagged by `op`,
+at most 91136 bytes (the largest record line plus its envelope) checked before
+parsing.
+
+| Step | Sender | Message | Meaning |
+| --- | --- | --- | --- |
+| Open | both ends | `hello {role, advertisement}` | Selection as above. The role pair must join a broker to a peer. |
+| Register | publisher | `register {descriptor, finalization}` | Attach one incarnation. `finalization` is `custody_owner` or `never`. |
+| | broker | `registered {stream_id, incarnation}` | Attached. Not an observer grant, durable custody or finalization. |
+| Publish | publisher | `record` | Data, control, `ended`, `finalized` (only if `custody_owner`) and `capture_overflow` gaps for frames it dropped. |
+| Discover | subscriber, broker | `list`, `directory {streams}` | At most 32 descriptors the host chose to list. Listing is not permission. |
+| Attach | subscriber | `attach {cursor}` | Follow one stream from a caller-owned cursor. |
+| | broker | `attached {descriptor, plan}` | The current descriptor and `plan_replay`'s plan; retained `record`s follow from `deliver_from`. |
+| Refuse | either | `unavailable {diagnostic}` | The receiver stops live viewing; nothing else changes. |
+
+The broker admits a registration (`Ingest::register`) or an attachment
+(`attach`) only with a host-supplied `HostDecision`. `Granted` names the stream
+and an opaque host scope reference; for a `scoped` claim it must equal the
+claimed scope. The SDK never constructs `Granted`. Nothing on the wire becomes
+one: not a peer UID, an advertisement, a descriptor, a correlation, a control
+fact or an exit. The decision is a local input, not a message.
+
+`Ingest` binds a publisher connection to its registered stream and incarnation
+and reuses `Follower` for sequence checks. It refuses eviction gaps and
+discontinuities, which are the broker's own delivery records. An observed exit
+or a closed connection does not end the incarnation. `Ingest::retire` reports
+the incarnation's last sequence to a later window only when a terminal frame
+arrived. Otherwise frames the publisher sent but the broker never received
+leave the lost tail unknown. `follow_attached` builds the subscriber's
+follower, applies the plan prefix and requires retained delivery to start
+exactly at the follower's next position.
+
+### Host obligations
+
+These are runtime duties. The contract names them; it does not perform them,
+and claim-shape validation does not discharge them.
+
+- **Endpoint and transport.** The host supplies the broker endpoint and an
+  ordered, reliable byte stream. A missing or unreachable broker is
+  `broker_absent`: the publisher stops publishing and continues its work.
+- **Scope.** The host establishes who may publish or observe before granting.
+  There is no implicit cross-UID publication, including from a host-root
+  custodian to another user's subscriber or the reverse. A bridge across
+  users needs its own explicit authority, which this contract does not define.
+- **Genuine identity.** A publisher chooses a fresh random incarnation on each
+  start. The broker cannot tell a plausible made-up cursor position from a
+  genuine one; stale, foreign or ahead cursors are refused only as far as
+  `plan_replay` can see.
+- **Finalization.** `finalized` comes only from the custody owner's terminal
+  retained result after normal durable publication. Pipe or descriptor
+  closure, a ready sentinel, an observed exit, or broker or process exit is
+  never finalization. A publisher without access to that result registers
+  `never`.
+- **Drop, never block.** Publishing must not add I/O or backpressure to the
+  required output drain, terminal publication or close. When a publisher cannot
+  hand frames off, it drops them and later sends an exact `capture_overflow`
+  gap. Enabling live publication is optional and consumer-driven.
+
 ## Normative semantic rules
 
 Conforming implementations apply these rules in addition to the structural
@@ -188,6 +252,10 @@ schema. Diagnostic reasons describe optional observation failure only.
 | Follow | Stream/incarnation must match; incarnation changes only through a matching discontinuity. Forward sequence is exactly `after_seq + 1`; fresh gaps start there and advance through their last sequence. Old sequenced positions / fully covered gaps are positional duplicates. Fresh data/control uses declared channels; fresh data respects the context byte limit; closure facts name declared data channels. Learn terminal knowledge at its position, retain it in the cursor, and refuse conflicting terminal knowledge or forward frames/gaps/discontinuities after it. |
 | Discontinuity | It answers the cursor's incarnation and position. Known old last equal to the cursor means nothing lost; a greater value yields the exact remaining range; absent means unknown. Reset only an open follow context to the new incarnation and position zero. |
 | Retained window | `1 <= first_retained <= last_published + 1`; `last_published` fits the sequence ceiling. Previous incarnation differs from current and known previous last fits the ceiling. Terminal metadata, required once ended, matches window identity and last published sequence; the terminal position is retained (`first_retained <= last_published`). |
+| Message admission | Line at most 91136 bytes before parsing; schema-strict; every carried record, descriptor and cursor passes its own admission; `hello` advertisement at most 16384 bytes. A role sends only its own messages. |
+| Host decision | `Granted` names the descriptor's stream and a valid host reference; for `scoped` claims it equals the claimed scope. `Refused` or a mismatch is `not_authorized`. |
+| Ingest | Follow semantics from the descriptor's start for the registered incarnation only. Refuse eviction gaps, discontinuities, and `finalized` from a `never` publisher. A retired incarnation's last sequence is known only after its terminal frame. |
+| Attached | Descriptor agrees with the subscriber selection; the window is the descriptor's; after the prefix, `deliver_from` is exactly the follower's next position. |
 | Replay | Refuse a cursor ahead of known publication, another stream, or a window contradicting terminal cursor knowledge (including a later incarnation). An open old cursor gets a discontinuity with known/unknown old tail, then any exact eviction gap. `deliver_from` is the next retained position or the sentinel `last_published + 1`. Terminal metadata is retained in the plan; at-final replay reoffers the terminal frame in its prefix. |
 
 The sentinel may equal 2^53 at the maximum sequence. It is an exactly
@@ -235,9 +303,14 @@ They do not establish any of the following:
 - that a real publisher or broker reports gaps truthfully;
 - that capture never backpressures drainage, terminalization or completion;
 - that a broker's absence or slowness leaves a launch unaffected at runtime;
-- that a visibility claim is enforced;
+- that a visibility claim or host decision is enforced or correct;
+- any endpoint, socket, broker process, transport latency or throughput;
 - bounded memory under load;
 - host adoption or refresh after a replacement.
+
+Visibility `channels` narrower than the declared channels are not yet filtered
+for subscribers; the follower uses the declared channels. Directory paging
+beyond 32 entries is not defined.
 
 Those belong to the capture, broker, subscription and conformance work.
 Incident reports and recovery authorization are not defined here. Control
