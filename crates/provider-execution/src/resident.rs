@@ -942,11 +942,18 @@ fn duplicate(
     message_id: &str,
     key: Option<&str>,
 ) -> Result<Option<Value>, (i64, String)> {
-    let input = inputs
+    let mut input = inputs
         .by_id
         .get(message_id)
         .cloned()
         .ok_or_else(|| internal("lost input"))?;
+    let non_start = !inputs.live.contains(message_id) && record_not_started(shared, &mut input);
+    if non_start {
+        inputs.by_id.insert(message_id.to_owned(), input.clone());
+        inputs
+            .recovery_errors
+            .retain(|error| !error.starts_with(&format!("{message_id}:")));
+    }
     match input.phase() {
         phase::INSERTED | phase::ENDED => {
             wire.result(id, ack(message_id, key, true));
@@ -965,6 +972,7 @@ fn duplicate(
         }
         phase::NOT_INSERTED
             if input.value["consumption_seen"] != json!(true)
+                && (!undispatched(&input) || non_start)
                 && !inputs.recovery_errors.iter().any(|error| error.starts_with(message_id)) => Err((
             INPUT_NOT_INSERTED,
             format!("input {message_id} with this key was not inserted; send a new key"),
@@ -1258,11 +1266,17 @@ fn settle_recorded_launches(turns: &Path) -> Vec<String> {
 }
 
 fn undispatched(input: &InputRecord) -> bool {
-    input.phase() == phase::ACCEPTED
-        && input.value["dispatched"] == json!(false)
+    // Dispatch is published before entering the adapter, and recovery never
+    // resets it. Refusal can change phase without dispatching: uncertainty
+    // about temporarily unavailable custody does not destroy this premise.
+    matches!(
+        input.phase(),
+        phase::ACCEPTED | phase::UNCERTAIN | phase::NOT_INSERTED
+    ) && input.value["dispatched"] == json!(false)
         && (input.value["consumption_seen"].is_null()
             || input.value["consumption_seen"] == json!(false))
         && input.value["native_turn"].is_null()
+        && input.value["inserted_unix_ms"].is_null()
 }
 
 // Absence is useful only alongside positive pre-dispatch evidence. Hold request
@@ -1286,16 +1300,24 @@ fn launch_evidence_may_exist(shared: &SessionShared, input: &InputRecord) -> boo
 fn not_started(shared: &SessionShared, message_id: &str) -> bool {
     let mut inputs = shared.inputs.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(input) = inputs.by_id.get_mut(message_id) {
-        if !undispatched(input) || !no_launch_evidence(shared, input) {
-            return false;
-        }
-        input.value["phase"] = json!(phase::NOT_INSERTED);
-        input.value["refusal"] = json!("earlier process ended before the native turn was recorded");
-        let mut copy = input.clone();
-        let _ = store(shared, &mut copy);
-        return true;
+        return record_not_started(shared, input);
     }
     false
+}
+
+fn record_not_started(shared: &SessionShared, input: &mut InputRecord) -> bool {
+    if !undispatched(input) || !no_launch_evidence(shared, input) {
+        return false;
+    }
+    let mut updated = input.clone();
+    updated.value["phase"] = json!(phase::NOT_INSERTED);
+    updated.value["refusal"] = json!("native dispatch was never recorded");
+    // Do not publish a process-local refinement when its durable write failed.
+    if store(shared, &mut updated).is_err() {
+        return false;
+    }
+    *input = updated;
+    true
 }
 
 fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>, message_id: &str) {

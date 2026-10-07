@@ -414,7 +414,13 @@ does not change the pinned v1 snapshot.
   eligible for settlement after restoration. Non-start requires a recorded
   undispatched input with no consumption evidence and neither launch nor journal
   evidence under its request lock, or a fresh locally refused attempt under
-  that same absence check. A completed non-consuming turn remains non-inserted.
+  that same absence check. Dispatch is durably recorded before adapter entry;
+  refusal/cancellation uncertainty alone does not erase the undispatched premise.
+  After temporary custody unavailability ends, duplicate lookup or settlement
+  can refine `-32011` to `-32010` only with that positive non-start evidence.
+  Recorded dispatch, insertion or turn evidence prevents this refinement even
+  when both custody paths are absent. A completed non-consuming turn remains
+  non-inserted and retains exact completed replay.
   An unreadable input is not reconstructed, but readable launch evidence still
   discharges its recorded interrupted actor without prompt reconstruction, replay,
   inferred insertion or rewriting custody bytes. Unreadable/invalid launch evidence,
