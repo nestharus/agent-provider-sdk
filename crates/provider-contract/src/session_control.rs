@@ -1,4 +1,4 @@
-//! `oulipoly.session_control/v2`: one shared root control vocabulary.
+//! `oulipoly.session_control/v3`: one shared root control vocabulary.
 //!
 //! Records a requester and the existing root owner exchange about the root
 //! control face: descriptive discovery ([`RootEntry`]), current-state
@@ -14,9 +14,11 @@
 //! intent ([`Request`]), transport receipt ([`Receipt`]), admission
 //! ([`Admission`]), semantic transition acknowledgment ([`Acknowledgment`]) or
 //! refusal ([`Refusal`]), and what is known of the request's outcome
-//! ([`Outcome`]). A successor may report its own [`Fulfillment`] of inherited
-//! admitted intent without asserting predecessor transition authority. An `unknown` outcome can later be refined for the same
-//! immutable request; a definite outcome is final. An [`Observation`] reports
+//! ([`Outcome`]). A successor may report its own [`Fulfillment`] or terminal
+//! [`NonFulfillment`] of inherited admitted intent without predecessor authority.
+//! An `unknown` outcome can later refine the same immutable request; a definite
+//! outcome is final. [`Conflict`] separately answers an exact changed submission
+//! without changing the original trace. An [`Observation`] reports
 //! one settlement fact — insertion acknowledgment, tagged turn end, logical
 //! settlement/debt or physical custody/waits — and is never a control.
 //!
@@ -47,11 +49,10 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::OnceLock;
 
-pub const PROTOCOL: &str = "oulipoly.session_control/v2";
-pub const SCHEMA_JSON: &str = include_str!("../contract/extensions/session-control/v2.schema.json");
-/// Session-control versions this SDK release defines. v1 (hold-only) was
-/// never adopted and is not retained.
-pub const SUPPORTED_VERSIONS: &[u32] = &[2];
+pub const PROTOCOL: &str = "oulipoly.session_control/v3";
+pub const SCHEMA_JSON: &str = include_str!("../contract/extensions/session-control/v3.schema.json");
+/// Current control version. The unqualified v1/v2 meanings are not retained.
+pub const SUPPORTED_VERSIONS: &[u32] = &[3];
 /// Upper bound of one serialized record line, checked before parsing.
 pub const MAX_RECORD_BYTES: usize = 32_768;
 /// Upper bound of one serialized peer advertisement.
@@ -367,6 +368,56 @@ pub struct Fulfillment {
     pub observed_at_unix_ms: u64,
 }
 
+/// A successor's present terminal non-fulfillment of an inherited admitted
+/// intent. No predecessor transition or authority is claimed. The producer
+/// establishes inheritance, actual cause and positively newer fenced ownership.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NonFulfillment {
+    pub protocol: String,
+    pub request_key: String,
+    pub requester: String,
+    pub addressed: Authority,
+    pub reporter: Authority,
+    pub operation: Operation,
+    pub reason: NonFulfillmentReason,
+    pub observed_at_unix_ms: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NonFulfillmentReason {
+    AlreadyTerminal,
+    RootAbsent,
+    TransitionFailed,
+}
+
+/// Answer to a changed submission, separate from the preserved original's
+/// claim ladder. Both complete requests make same-key/different-content
+/// correlation exact even for a changed reason, scope or addressed generation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Conflict {
+    pub protocol: String,
+    pub submitted: Request,
+    pub original: Request,
+    pub responder: Authority,
+    pub observed_at_unix_ms: u64,
+}
+
+impl Conflict {
+    /// Admits this conflict and checks the caller's exact current submission.
+    /// It does not establish the responder's authority or stored original truth.
+    pub fn answer_to(&self, submitted: &Request) -> Result<(), ControlUnavailable> {
+        Record::decode_line(&Record::Conflict(self.clone()).encode_line())?;
+        submitted.admit()?;
+        if &self.submitted != submitted {
+            return Err(violation("conflict answers another submission"));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RefusalStage {
@@ -422,6 +473,7 @@ pub struct Refusal {
 pub enum OutcomeResult {
     Acknowledged,
     Fulfilled,
+    Unfulfilled,
     Refused,
     Unknown,
 }
@@ -615,6 +667,8 @@ pub enum Record {
     Admission(Admission),
     Acknowledgment(Acknowledgment),
     Fulfillment(Fulfillment),
+    NonFulfillment(NonFulfillment),
+    Conflict(Conflict),
     Refusal(Refusal),
     Outcome(Outcome),
     Observation(Observation),
@@ -622,7 +676,7 @@ pub enum Record {
     ControlState(ControlState),
 }
 
-/// One peer's `oulipoly.session_control/v2` advertisement entry.
+/// One peer's `oulipoly.session_control/v3` advertisement entry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Offer {
@@ -859,6 +913,27 @@ impl Record {
                 }
                 check_transition(fulfilled.operation, fulfilled.from, fulfilled.to)?;
             }
+            Record::NonFulfillment(negative) => {
+                if negative.operation == Operation::Recover
+                    || !negative
+                        .reporter
+                        .succeeds_within_incarnation(&negative.addressed)
+                {
+                    return Err(invalid_record(
+                        "non-fulfillment needs a distinct same-incarnation successor",
+                    ));
+                }
+            }
+            Record::Conflict(conflict) => {
+                conflict.original.admit()?;
+                conflict.submitted.admit()?;
+                if classify_repetition(&conflict.original, &conflict.submitted)
+                    != Repetition::KeyConflict
+                    || conflict.responder.root != conflict.submitted.addressed.root
+                {
+                    return Err(invalid_record("conflict needs changed content in the original key scope and a same-root responder"));
+                }
+            }
             Record::Refusal(refusal) => check_refusal(refusal)?,
             Record::Outcome(outcome) => {
                 if let Some(reporter) = &outcome.reporter {
@@ -909,7 +984,7 @@ impl Record {
     }
 
     /// `(request_key, requester, addressed)` of a control record; `None` for
-    /// observations, root entries and control states.
+    /// submission conflicts, observations, root entries and control states.
     pub fn correlation(&self) -> Option<(&str, &str, &Authority)> {
         let (key, requester, addressed) = match self {
             Record::Request(r) => (&r.request_key, &r.requester, &r.addressed),
@@ -917,15 +992,29 @@ impl Record {
             Record::Admission(r) => (&r.request_key, &r.requester, &r.addressed),
             Record::Acknowledgment(r) => (&r.request_key, &r.requester, &r.addressed),
             Record::Fulfillment(r) => (&r.request_key, &r.requester, &r.addressed),
+            Record::NonFulfillment(r) => (&r.request_key, &r.requester, &r.addressed),
             Record::Refusal(r) => (&r.request_key, &r.requester, &r.addressed),
             Record::Outcome(r) => (&r.request_key, &r.requester, &r.addressed),
-            Record::Observation(_) | Record::RootEntry(_) | Record::ControlState(_) => return None,
+            Record::Conflict(_)
+            | Record::Observation(_)
+            | Record::RootEntry(_)
+            | Record::ControlState(_) => return None,
         };
         Some((key, requester, addressed))
     }
 }
 
 fn check_refusal(refusal: &Refusal) -> Result<(), ControlUnavailable> {
+    if refusal.reason == RefusalReason::KeyConflict {
+        return Err(invalid_record(
+            "key conflict answers a submission through Conflict, not the original intent",
+        ));
+    }
+    if refusal.stage == RefusalStage::Transition && refusal.responder.is_none() {
+        return Err(invalid_record(
+            "terminal transition refusal needs an attributed responder",
+        ));
+    }
     if refusal.stage != refusal.reason.stage() {
         return Err(invalid_record("refusal reason belongs to another stage"));
     }
@@ -1166,6 +1255,13 @@ pub enum Step {
         from: State,
         to: State,
     },
+    Unfulfilled {
+        reason: NonFulfillmentReason,
+    },
+    /// Answer to the exact changed submission; original trace unchanged.
+    SubmissionConflict {
+        submitted: Box<Request>,
+    },
     Refused {
         stage: RefusalStage,
         reason: RefusalReason,
@@ -1191,6 +1287,7 @@ pub struct RequestTrace {
     admission: Option<Admission>,
     acknowledgment: Option<Acknowledgment>,
     fulfillment: Option<Fulfillment>,
+    non_fulfillment: Option<NonFulfillment>,
     refusal: Option<Refusal>,
     outcomes: Vec<Outcome>,
 }
@@ -1204,6 +1301,7 @@ impl RequestTrace {
             admission: None,
             acknowledgment: None,
             fulfillment: None,
+            non_fulfillment: None,
             refusal: None,
             outcomes: Vec::new(),
         })
@@ -1220,6 +1318,9 @@ impl RequestTrace {
     }
     pub fn fulfillment(&self) -> Option<&Fulfillment> {
         self.fulfillment.as_ref()
+    }
+    pub fn non_fulfillment(&self) -> Option<&NonFulfillment> {
+        self.non_fulfillment.as_ref()
     }
     pub fn refusal(&self) -> Option<&Refusal> {
         self.refusal.as_ref()
@@ -1241,6 +1342,14 @@ impl RequestTrace {
     pub fn accept(&mut self, record: &Record) -> Result<Step, ControlUnavailable> {
         // Public structs/raw Serde may bypass decode. Admit before mutation.
         Record::decode_line(&record.encode_line())?;
+        if let Record::Conflict(conflict) = record {
+            if conflict.original != self.request {
+                return Err(violation("conflict names another original request"));
+            }
+            return Ok(Step::SubmissionConflict {
+                submitted: Box::new(conflict.submitted.clone()),
+            });
+        }
         let Some((key, requester, addressed)) = record.correlation() else {
             return Err(violation("not a control response"));
         };
@@ -1254,12 +1363,30 @@ impl RequestTrace {
             return Ok(Step::Duplicate);
         }
         if self.concluded() {
+            if self.non_fulfillment.is_some()
+                && matches!(
+                    record,
+                    Record::Acknowledgment(_)
+                        | Record::Fulfillment(_)
+                        | Record::Outcome(Outcome {
+                            result: OutcomeResult::Acknowledged | OutcomeResult::Fulfilled,
+                            ..
+                        })
+                )
+            {
+                return Err(violation(
+                    "positive evidence contradicts terminal non-fulfillment",
+                ));
+            }
             return Err(violation("a definite outcome is final"));
         }
         let operation = self.request.operation;
         match record {
             Record::Request(_) => Err(violation("same key with a different request")),
-            Record::Observation(_) | Record::RootEntry(_) | Record::ControlState(_) => {
+            Record::Conflict(_)
+            | Record::Observation(_)
+            | Record::RootEntry(_)
+            | Record::ControlState(_) => {
                 unreachable!("reports have no correlation")
             }
             Record::Receipt(receipt) => {
@@ -1291,7 +1418,10 @@ impl RequestTrace {
                 if admission.responder != ack.responder {
                     return Err(violation("acknowledgment from another responder"));
                 }
-                if self.acknowledgment.is_some() || self.refusal.is_some() {
+                if self.acknowledgment.is_some()
+                    || self.refusal.is_some()
+                    || self.non_fulfillment.is_some()
+                {
                     return Err(violation("acknowledgment contradicts an earlier claim"));
                 }
                 self.acknowledgment = Some(ack.clone());
@@ -1307,13 +1437,34 @@ impl RequestTrace {
                 if self.admission.is_none() {
                     return Err(violation("fulfillment before inherited admission"));
                 }
-                if self.fulfillment.is_some() || self.refusal.is_some() {
+                if self.fulfillment.is_some()
+                    || self.refusal.is_some()
+                    || self.non_fulfillment.is_some()
+                {
                     return Err(violation("fulfillment contradicts an earlier claim"));
                 }
                 self.fulfillment = Some(fulfilled.clone());
                 Ok(Step::Fulfilled {
                     from: fulfilled.from,
                     to: fulfilled.to,
+                })
+            }
+            Record::NonFulfillment(negative) => {
+                if negative.operation != operation || self.admission.is_none() {
+                    return Err(violation(
+                        "non-fulfillment needs the original operation and inherited admission",
+                    ));
+                }
+                if self.non_fulfillment.is_some()
+                    || self.acknowledgment.is_some()
+                    || self.fulfillment.is_some()
+                    || self.refusal.is_some()
+                {
+                    return Err(violation("non-fulfillment contradicts an earlier claim"));
+                }
+                self.non_fulfillment = Some(negative.clone());
+                Ok(Step::Unfulfilled {
+                    reason: negative.reason,
                 })
             }
             Record::Refusal(refusal) => {
@@ -1323,6 +1474,7 @@ impl RequestTrace {
                 if self.refusal.is_some()
                     || self.acknowledgment.is_some()
                     || self.fulfillment.is_some()
+                    || self.non_fulfillment.is_some()
                 {
                     return Err(violation("refusal contradicts an earlier claim"));
                 }
@@ -1346,6 +1498,7 @@ impl RequestTrace {
                     OutcomeResult::Acknowledged => self.acknowledgment.is_some(),
                     OutcomeResult::Refused => self.refusal.is_some(),
                     OutcomeResult::Fulfilled => self.fulfillment.is_some(),
+                    OutcomeResult::Unfulfilled => self.non_fulfillment.is_some(),
                     // Uncertainty is retained alongside, never instead of,
                     // an earlier acknowledgment or refusal.
                     OutcomeResult::Unknown => true,
@@ -1375,9 +1528,13 @@ impl RequestTrace {
             Record::Admission(admission) => self.admission.as_ref() == Some(admission),
             Record::Acknowledgment(ack) => self.acknowledgment.as_ref() == Some(ack),
             Record::Fulfillment(fulfilled) => self.fulfillment.as_ref() == Some(fulfilled),
+            Record::NonFulfillment(negative) => self.non_fulfillment.as_ref() == Some(negative),
             Record::Refusal(refusal) => self.refusal.as_ref() == Some(refusal),
             Record::Outcome(outcome) => self.outcomes.contains(outcome),
-            Record::Observation(_) | Record::RootEntry(_) | Record::ControlState(_) => false,
+            Record::Conflict(_)
+            | Record::Observation(_)
+            | Record::RootEntry(_)
+            | Record::ControlState(_) => false,
         }
     }
 
@@ -1405,7 +1562,8 @@ impl RequestTrace {
             .iter()
             .find(|pending| pending.request == reference);
         if pending.is_some_and(|pending| pending.operation != self.request.operation)
-            || (pending.is_some() && (target.is_some() || self.refusal.is_some()))
+            || (pending.is_some()
+                && (target.is_some() || self.refusal.is_some() || self.non_fulfillment.is_some()))
         {
             return Relation::Contradicts;
         }

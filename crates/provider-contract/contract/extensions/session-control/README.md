@@ -1,6 +1,6 @@
-# Session control v2
+# Session control v3
 
-`oulipoly.session_control/v2` is the provider-neutral vocabulary of root
+`oulipoly.session_control/v3` is the provider-neutral vocabulary of root
 control claims. A requester and the existing root owner use it for the whole
 root control face:
 
@@ -19,18 +19,20 @@ control half) and infrastructure control. Hold, acknowledgment, refusal,
 idempotency, refinement and settlement have one meaning here; no parallel
 control vocabulary defines them differently.
 
-[v2.schema.json](v2.schema.json) defines structural validation. That schema
-**plus the normative semantic rules below** defines v2 conformance in every
+[v3.schema.json](v3.schema.json) defines structural validation. That schema
+**plus the normative semantic rules below** defines v3 conformance in every
 language. Raw JSON Schema validation alone is insufficient. `session_control`
 implements both layers and the context-dependent selection, agreement,
 repetition, trace, current-state relation and settlement-reading operations.
 Raw Serde deserialization supplies representation only.
 
-Status: defined and unadopted. No requester, root owner or host uses this
-contract yet. Runner's root discovery/control face is its selected adopter;
-that work establishes runtime behaviour. v2 replaces the hold-only v1, which
-was never adopted; no v1 records, fixtures or compatibility are kept, and a
-v1-only peer selects nothing (`no_common_version`).
+Status: source contract with unqualified Runner consumers. v3 replaces v2's
+incompatible terminal and conflict meanings; no v1/v2 representation is retained.
+The original R3 consumer at `c88e567e` used v2, including an emitted key-conflict
+refusal sharing a final original trace. It must adopt v3 through advertisement,
+agreement and these readers before claiming the corrected meaning. A v2-only
+peer selects nothing (`no_common_version`), disabling control only. This is no
+claim of current Runner uptake or native qualification.
 
 ## What it is and is not
 
@@ -117,7 +119,7 @@ is a bounded JSON object (at most 32 entries and 16 KiB) mapping a protocol
 identifier to its offer:
 
 ```json
-{"oulipoly.session_control/v2": {
+{"oulipoly.session_control/v3": {
   "operations": ["input_hold", "input_release", "recover", "cancel", "close"],
   "reports": ["discovery", "inspection"],
   "facts": ["insertion", "tagged_end", "logical_settlement", "physical_custody"]}}
@@ -125,13 +127,13 @@ identifier to its offer:
 
 - **Unknown entries** (other families, the old v1 and newer versions) are
   ignored.
-- **The v2 entry** must be a strict `Offer`; a malformed entry is refused
+- **The v3 entry** must be a strict `Offer`; a malformed entry is refused
   (`invalid_advertisement`), not skipped. An offer names at least one
   operation or report, and **offers `input_hold` only together with
   `input_release`**, so no selection ever carries a hold without its release.
 - **The selection** is the common operations, reports and fact types. With
   no common operation and no common report it is `no_common_capability`;
-  with no v2 entry `no_common_version`. A read-only peer may select only
+  with no v3 entry `no_common_version`. A read-only peer may select only
   discovery and inspection; the common fact set may be empty.
 - **Agreement.** `Request::agree`, `Observation::agree`, `RootEntry::agree`
   and `ControlState::agree` refuse an unselected operation, fact type or
@@ -173,14 +175,16 @@ identifier to its offer:
 | `admission` | The answering authority admitted the request for its transition | That the transition happened |
 | `acknowledgment` | The operation's state moved `from` → `to` at the answering authority | Running work, ended work or physical custody |
 | `fulfillment` | A same-incarnation successor reports its own present `from` → `to` fulfillment of an inherited admitted intent, correlated to the original request | Predecessor ACK, predecessor authority, new admission or a new intent |
+| `non_fulfillment` | A same-incarnation successor reports its own present terminal inability to fulfill the original inherited admitted intent | Predecessor refusal, predecessor authority, absence of admission, or erasure of a known positive |
+| `conflict` | A changed submission is refused with both exact submitted and preserved original request contents | A refusal/outcome of the original intent or a second transition |
 | `refusal` | Explicit refusal at `admission` or `transition`, with a reason | — a refusal is an outcome, not an absent acknowledgment |
-| `outcome` | What a reporter knows of the request's own transition: `acknowledged`, `fulfilled`, `refused`, or `unknown` with an uncertainty reason | — `unknown` never erases an earlier acknowledgment or refusal; reporting confers no authority |
+| `outcome` | What a reporter knows of the request's own transition: `acknowledged`, `fulfilled`, `unfulfilled`, `refused`, or `unknown` with an uncertainty reason | — `unknown` never erases an earlier acknowledgment or refusal; reporting confers no authority |
 | `observation` | One settlement fact about a logical link, with actor evidence | Any control, request, admission or acknowledgment |
 | `root_entry` | Discovery: a descriptive root address | Authority, admission, scheduling, capacity or ownership |
 | `control_state` | Inspection: an authority's current knowledge | An effect or acknowledgment |
 
 Refusal reasons: admission stage `stale_authority`, `owner_live`,
-`key_conflict`, `unsupported_operation`, `not_permitted`, `unknown_scope`;
+`unsupported_operation`, `not_permitted`, `unknown_scope`;
 transition stage `already_terminal`, `root_absent`, `transition_failed`. The
 reasons name the root owner's decision. The SDK defines no authorization
 policy.
@@ -200,7 +204,7 @@ reported `unknown`:
   reserves one additional slot for definite knowledge. A ninth distinct
   unknown is refused without mutation; it cannot block later definite knowledge.
   Exact retained reports still replay as duplicates.
-- **Contradiction.** `acknowledged`, `fulfilled` and `refused` are final. A later
+- **Contradiction.** `acknowledged`, `fulfilled`, `unfulfilled` and `refused` are final. A later
   different outcome, an acknowledgment after a refusal, a refusal after an
   acknowledgment, or a second different admission or acknowledgment is a
   protocol violation and leaves the trace unchanged.
@@ -221,6 +225,32 @@ reported `unknown`:
   Inheritance, positive newer-owner attribution, fencing and actual fulfillment
   are Runner realization. Equality checks establish none of those truths.
 
+### Terminal non-fulfillment by a successor
+
+`non_fulfillment` names the successor as `reporter`, the original correlation
+and operation, and `already_terminal`, `root_absent` or `transition_failed` as
+its own present cause. For example, a successor finding an inherited admitted
+close while the lifecycle is already cancelling can report `already_terminal`;
+it must not regress cancellation, manufacture a predecessor refusal or ask the
+requester to reissue merely to finish this intent. The SDK checks the distinct
+same-root/same-incarnation reporter, inherited admission and operation. It
+verifies neither positively newer ownership nor the truth of the cause.
+`recover` retains its separate attachment/refusal ladder.
+
+No prior ACK, fulfillment or refusal may coexist with non-fulfillment; a
+negative attempt against a known positive fails without erasing that positive.
+`outcome: unfulfilled` requires this attributed claim. Unknown history retains
+its eight-report bound and reserved definite slot. Exact replay is still a
+duplicate. A transition refusal without `responder` is inadmissible, even through
+raw typed trace admission; an anonymous admission-stage refusal is still a
+refusal of an unadmitted attempt, not terminal resolution of admitted intent.
+New ACK/fulfillment or positive outcome evidence after non-fulfillment is a
+protocol contradiction, including after the negative conclusion. The rejected
+record and diagnostic belong in the consumer's encounter evidence; rejecting
+it leaves the preserved trace unchanged, and never validates the negative as
+actual truth. Positive-after-positive finality retains its existing meaning.
+Inspection listing a terminal non-fulfilled intent pending contradicts it.
+
 Faithful persisted replay, durable intent and the acknowledgment surviving
 owner death are producer realizations. The contract states what such claims
 mean and refuses ones that contradict; it cannot make a producer keep them.
@@ -231,13 +261,13 @@ mean and refuses ones that contradict; it cannot make a producer keep them.
 
 - `input` and `lifecycle`: each a state of its domain or `unknown`, with an
   optional `since` naming the request that established it;
-- `pending`: up to 8 intents the reporter holds without an acknowledgment, fulfillment or
+- `pending`: up to 8 intents the reporter holds without an acknowledgment, fulfillment, non-fulfillment or
   refusal (`received` or `admitted`).
 
 Current knowledge is not an acknowledgment or fulfillment and never erases
 either. The relation reader uses a retained ACK or fulfillment target. A
 pending entry naming this request with another operation, or listing it pending
-after its ACK/fulfillment/refusal, reads `contradicts`. Producers owe coherent
+after its ACK/fulfillment/non-fulfillment/refusal, reads `contradicts`. Producers owe coherent
 pending reports, including immutable keys across generations.
 `RequestTrace::relate` states how a report relates to one request:
 
@@ -347,9 +377,30 @@ A request's key scope is `(requester, addressed root, request_key)`.
   no second transition. That is a producer obligation the SDK cannot verify.
 - **`key_conflict`**: same key scope, different content — including the same
   key re-addressed to a successor generation, or a changed reason or
-  redaction. It must be refused with `key_conflict`, never treated as a retry.
+  redaction. It receives a `conflict` answer to that submission, never an original-intent
+  `refusal` or a retry.
   After an authority change, read the old request's outcome and send a new key.
 - **`distinct`**: another key scope; an independent request.
+
+A `conflict` embeds the complete `submitted` and `original` Requests without
+record-kind tags, a same-root `responder` and an observation time. Both requests
+must be admitted structurally/semantically and classify as `key_conflict`.
+Whole contents distinguish changed operation, scope, reason/redaction or
+addressed generation even when their `RequestRef` is identical. No digest,
+new authority, request key or private protocol is introduced.
+
+`Conflict::answer_to(submitted)` checks the exact current submission.
+`RequestTrace::accept(conflict)` checks its exact original against the trace and
+returns `submission_conflict {submitted}` without mutation, even after the
+original's definite outcome. Consumers join both checks for their current
+submission and preserved trace. A mismatched original or current submission
+is a protocol violation. `Record::correlation()` returns no original-intent
+correlation for a conflict: it answers the embedded submission, not that ladder.
+Conflicts consume no trace slot and are not stored as original claims; their
+exact replay returns the same submission answer. A restamped conflict remains
+a submission answer, never a restamped original ACK. Ordinary `refusal` with
+`key_conflict` is inadmissible. The owner must preserve the original and apply
+no effect of the changed submission; the SDK stores or enforces neither.
 
 `RequestTrace` treats an identical redelivery of an already accepted record
 as `duplicate`, with no new meaning or state change. Identity is the whole
@@ -361,11 +412,11 @@ Distinct receipts count toward the trace's bound of 8.
 
 | Operation | Required semantic checks / result |
 | --- | --- |
-| Record admission | Record lines are at most 32768 UTF-8 bytes before parsing. A request's `scope.root` equals its `addressed.root`. An admission's or acknowledgment's responder may answer its operation: the addressed authority, or for `recover` an authority with the same root and incarnation and a different owner or generation. ACK and fulfillment `to` match the operation target; `from` belongs to the operation domain or is `unknown`, and lifecycle cannot regress. Fulfillment excludes recover and names a distinct same-incarnation successor reporter. A refusal's stage matches its reason. `owner_live` and `root_absent` refuse only `recover`; `stale_authority` never refuses `recover`. A `stale_authority` or `owner_live` responder, when present, differs from `addressed` with the same root; any other refusal's responder, when present, may answer the operation. An outcome's `reporter`, when present, has the addressed root. `exact` actor evidence has a present reference. A control state's reporter and every cited request have the scope's root; `input` and `lifecycle` are in their domains; a pending intent is listed once. |
-| Selection | Validate the local offer, the advertisement bound and shape, and the strict v2 entry; ignore unknown entries; intersect operations, reports and facts; at least one operation or report is common. |
-| Agreement | The selected protocol is v2 and its offer is structurally valid (including the hold/release pairing); the record's operation, fact type or report is selected. |
+| Record admission | Record lines are at most 32768 UTF-8 bytes before parsing. A request's `scope.root` equals its `addressed.root`. An admission's or acknowledgment's responder may answer its operation: the addressed authority, or for `recover` an authority with the same root and incarnation and a different owner or generation. ACK and fulfillment `to` match the operation target; `from` belongs to the operation domain or is `unknown`, and lifecycle cannot regress. Fulfillment excludes recover and names a distinct same-incarnation successor reporter. A refusal's stage matches its reason. Non-fulfillment excludes recover and requires a distinct same-incarnation successor. Conflict embeds admissible complete Requests that classify as key_conflict and a same-root responder. `owner_live` and `root_absent` refuse only `recover`; `stale_authority` never refuses `recover`. A `stale_authority` or `owner_live` responder, when present, differs from `addressed` with the same root; any other refusal's responder, when present, may answer the operation. Transition refusals require a responder. Key conflicts use the separate submission record. An outcome's `reporter`, when present, has the addressed root. `exact` actor evidence has a present reference. A control state's reporter and every cited request have the scope's root; `input` and `lifecycle` are in their domains; a pending intent is listed once. |
+| Selection | Validate the local offer, the advertisement bound and shape, and the strict v3 entry; ignore unknown entries; intersect operations, reports and facts; at least one operation or report is common. |
+| Agreement | The selected protocol is v3 and its offer is structurally valid (including the hold/release pairing); the record's operation, fact type or report is selected. |
 | Repetition | Classify by key scope then exact content, as above. |
-| Trace | A trace starts from an admitted request. Every record must be admissible, correlate exactly and name the request's operation; observations, root entries and control states are refused. Identical redelivery is `duplicate`. Nothing new follows a definite (`acknowledged`/`fulfilled`/`refused`) outcome; after `unknown` the ladder continues. Receipts at most 8 distinct, unknown reports at most 8 plus one reserved definite outcome. Admission at most once and not after a refusal. Acknowledgment only after admission, from the admitting responder, at most once, never with a refusal. Admission-stage refusal only before admission; transition-stage refusal only after admission; never after an acknowledgment or fulfillment. Fulfillment needs inherited admission, a distinct same-incarnation successor, the same operation and a valid non-regressing transition, at most once and never with refusal. Outcome `fulfilled` needs fulfillment; `acknowledged` needs an acknowledgment, `refused` needs a refusal, `unknown` is admissible within its separate bound and retains earlier claims. Refused records leave the trace unchanged. |
+| Trace | A trace starts from an admitted request. Every record must be admissible, correlate exactly and name the request's operation; observations, root entries and control states are refused. Identical redelivery is `duplicate`. Nothing new follows a definite (`acknowledged`/`fulfilled`/`unfulfilled`/`refused`) outcome in the original ladder; correlated submission conflicts remain readable without changing it; after `unknown` the ladder continues. Receipts at most 8 distinct, unknown reports at most 8 plus one reserved definite outcome. Admission at most once and not after a refusal. Acknowledgment only after admission, from the admitting responder, at most once, never with a refusal. Admission-stage refusal only before admission; transition-stage refusal only after admission; never after an acknowledgment or fulfillment. Fulfillment needs inherited admission, a distinct same-incarnation successor, the same operation and a valid non-regressing transition, at most once and never with refusal. Non-fulfillment needs inherited admission, the original operation and a distinct same-incarnation successor, at most once, with no ACK/fulfillment/refusal. Outcome `unfulfilled` needs non-fulfillment. Outcome `fulfilled` needs fulfillment; `acknowledged` needs an acknowledgment, `refused` needs a refusal, `unknown` is admissible within its separate bound and retains earlier claims. Refused records leave the trace unchanged. |
 | Relation | As in the table above, for the request's scope and domain. |
 | Settlement reading | As above: exact subject; refinement order; same-root reporters only; lineage filter when supplied; physical states compose only within one exact actor reference; ambiguous/differing actor evidence reads conflicting; physical custody does not affect the logical reading. |
 
@@ -394,7 +445,7 @@ sanitizing it.
 
 ## Limits
 
-The golden vectors in `tests/fixtures/session_control/v2.json` and their tests
+The golden vectors in `tests/fixtures/session_control/v3.json` and their tests
 establish the following, over claims:
 
 - classified structural acceptance versus normative semantic admission;

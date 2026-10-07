@@ -201,17 +201,18 @@ plane. It is defined but not adopted yet.
   and the contract stores nothing.
 - **Not established.** Capture, the broker, enforcement of visibility and
   runtime non-blocking behaviour remain later work. Control claims live in
-  `session-control/v2`; incident DTOs are not yet defined.
+  `session-control/v3`; incident DTOs are not yet defined.
 
-The [`session-control/v2` contract](crates/provider-contract/contract/extensions/session-control/README.md)
+The [`session-control/v3` contract](crates/provider-contract/contract/extensions/session-control/README.md)
 (`session_control` module) is the one provider-neutral vocabulary of root
 control claims, shared by session control and infrastructure control. It is
-defined but not adopted yet; it replaces the never-adopted hold-only v1.
+versioned v3; it replaces unqualified v2 terminal/conflict meanings. Existing
+source consumers must select and adopt v3; v1/v2 records are not retained.
 - **What it covers.** Descriptive root discovery, current-state inspection
   and pending control intent, and requests for `input_hold`/`input_release`,
   same-incarnation `recover`, `cancel` and `close` on one claim ladder:
   requester intent, transport receipt, admission, semantic transition
-  acknowledgment, inherited-intent fulfillment, refusal and outcome as distinct
+  acknowledgment, inherited-intent fulfillment/non-fulfillment, refusal and outcome as distinct
   records. Lifecycle transitions preserve cancel precedence. The existing
   root owner/generation/incarnation is the addressed and answering authority;
   logical root/child/work/input links stay apart from attached process, Bash
@@ -223,7 +224,11 @@ defined but not adopted yet; it replaces the never-adopted hold-only v1.
   are refused. A successor owner reports knowledge without acknowledging or
   erasing its predecessor's claims. It can report its own present fulfillment of
   an inherited admitted intent under the original immutable correlation, without
-  predecessor transition authority. Current-state reports relate to prior ACKs
+  predecessor transition authority. It can also report attributed terminal
+  non-fulfillment of that admitted intent, never alongside a known positive. Late
+  positive evidence contradicts the negative. A changed-key submission receives
+  a conflict containing both complete requests; its answer is readable without
+  changing a final original trace. Current-state reports relate to prior ACKs
   and fulfillment (current, retained, reporter-claimed supersession or contradiction).
 - **Settlement.** Observations of one subject read as one order-independent
   evolving account; other roots' reporters are never composed, and a
@@ -347,11 +352,28 @@ crash durability is required. This includes caller-created state roots: existenc
 alone is not a durability receipt. A containing parent of a newly created link
 must be readable for directory sync on Linux, even if search/write permissions
 allowed creation. Denial and other sync errors remain failures, possibly after
-visible partial creation. The creator must repair failed publication, including
-the failed containing-parent sync, before relying on a subsequent creation call;
-that call does not repair pre-existing ancestry. The former eight-level ancestor
-sweep and its implicit retry repair are removed. File publication, custody and
-lock ordering retain their existing semantics.
+visible partial creation. A later successful call on that visible path does not
+certify the failed earlier publication. No crash-durability guarantee is supplied
+for a failed lineage by retry or by a later successful sync. Current per-call
+uses discard a failed root and create a fresh one; diagnostic retention is for
+inspection. Deliberate recovery must name the roots and lineage it relies on
+and establish its required publication guarantee at that consumer boundary.
+The SDK supplies no whole-lineage recovery mechanism or receipt for host-created
+administrative links. The former eight-level ancestor sweep and implicit retry
+repair are removed. File publication, custody and lock ordering retain their
+existing semantics.
+
+The resident's durable session, input, insertion and ACK claims are conditional
+on this publication boundary. `serve` publishes its newly created links; existing
+incoming links must already belong to a successfully published lineage. Under a
+failed/unproved lineage, `initialize`, `session/new`, `session/resume`, a visible
+record or an insertion ACK may still be produced: they are not proof of
+whole-lineage host-crash durability. No runtime precondition check is added.
+A consumer unable to establish that lineage must use a fresh per-call root and
+carry prior input uncertainty as do-not-replay; it must not silently resume it
+as durable. Host-crash recovery of retained run trees is unqualified and needs
+an explicit consumer decision. No host crash or loss-of-data experiment is
+claimed by the directory controls.
 
 Native argv, authentication, account and config roots, model aliases, tool
 restrictions, native session formats, and native event translation remain in

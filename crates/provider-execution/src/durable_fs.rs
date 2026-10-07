@@ -3,9 +3,11 @@
 //! Directory creation publishes each missing link in order and synchronizes it
 //! and its containing parent. Existing targets synchronize themselves only;
 //! their creators own publication of pre-existing ancestor links. A failure may
-//! leave visible directories. Before relying on a retry, the creator must repair
-//! the failed publication (including its containing-parent sync); existence is
-//! not evidence of durability, and a retry does not republish existing ancestry.
+//! leave visible directories. Existence, a later successful retry or sync is
+//! not a receipt for failed earlier publication or proof of host-crash durability.
+//! Fresh per-call roots avoid reuse of failed lineage. Deliberate recovery must
+//! name its roots/lineage and establish the required guarantee at its consumer;
+//! this helper supplies no general recovery machinery or host-created-link receipt.
 
 use sha2::{Digest, Sha256};
 use std::fs;

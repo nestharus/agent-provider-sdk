@@ -52,6 +52,20 @@ insertion store is unknown (`-32011`), without a consumption ACK. Duplicate ACKs
 attest the original key's insertion only, not the resubmission's bytes. `ResidentSessionMeta`,
 `TurnStopReason` and `NativeTurnMeta` define the `_meta` payloads it emits.
 
+Directory publication scopes every durable configuration/session/input/ACK claim:
+the incoming root lineage must have been successfully published, and the SDK
+publishes only the links it creates. A visible path or later successful
+initialize/new/resume/ACK does not certify an earlier failed publication. These
+preconditions are not runtime-enforced by the endpoint. Current per-call uses
+fresh roots and discards failed publication; diagnostic keep is inspection.
+Deliberate recovery must name its roots and lineage and establish its required
+guarantee at that consumer boundary. Consumers unable to establish it use fresh
+roots and carry prior input uncertainty as do-not-replay, rather than treating a
+retry as durable recovery. No whole-lineage recovery machinery, receipt for
+host-created administrative links or hardware-crash qualification is supplied.
+This scopes documentation of the existing publication behavior; it changes no
+resident wire payload, selector, ACK ordering or runtime operation.
+
 Logical session identity, ancestry, admission, scheduling and delivery policy
 remain the host's. A resident session id names a provider-native resident
 session, not a second logical registry.
