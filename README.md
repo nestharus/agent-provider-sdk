@@ -158,6 +158,24 @@ a new prepare field. A provider honours it with
 `agent_provider_execution::tool_bridge` as its native agent's only command
 tool, or refuses; it never ignores it.
 
+The [`exploration/v1` extension](crates/provider-contract/contract/extensions/exploration/README.md)
+(`exploration` module) is selected by
+`host.env.OULIPOLY_HOST_EXPLORATION_V1=1` and advertised as
+`capabilities.exploration_v1`.
+- **The offer.** The host may offer a registered parent opaque child route
+  labels, its child requester (the root-child v1 requester surface) and the
+  name of its owner ingress variable. These go in one JSON object in
+  `OULIPOLY_EXPLORATION_V1`, beside the tool-mediation object.
+- **No offer.** A launch without the object keeps the mediated `bash` tool
+  alone.
+- **Admission.** An offer the request's host did not select, or one without
+  tool mediation, is refused (`exploration::admit`).
+- **Serving.** The provider serves the offer with the same `tool_bridge`. The
+  added `explore` tool runs no command. The host's owner admits or refuses
+  each child, and the bridge renders its outcome with the launch, end, stop
+  and lifecycle qualifiers. Route labels carry no provider, model or account
+  meaning here, and a child is never offered exploration.
+
 The independently versioned
 [`terminal-unavailable/v1` extension](crates/provider-contract/contract/extensions/terminal-unavailable/README.md)
 adds an explicitly selected `provider_unavailable` terminal result for temporary
@@ -287,7 +305,16 @@ does not change the pinned v1 snapshot.
   running; a validated detach/identity preserves the later completion obligation,
   while incomplete delivery remains unconfirmed. Code 127 alone is an ordinary
   numeric wait, not evidence of failed start. These are existing v1 stage facts,
-  not a new wire version or capability. The server and requesters stay in the native
+  not a new wire version or capability.
+  - **`serve_offered` and `explore_tool`.** When the bridge's environment
+    carries an `exploration/v1` offer, the same server adds `explore`. It
+    runs only `requester ROUTE QUESTION` for an offered route.
+  - **Rendering.** It renders the root-child v1 requester's owner `result` or
+    `refused` (`explore_tool::render_child`). `lost`, mismatched, unknown or
+    inconsistent replies are unresolved: a child may have been admitted and
+    run, and is never asked for again automatically.
+  - **No offer.** The bridge is `bash` alone, as before. `serve` keeps its
+    signature. The server and requesters stay in the native
   process group, so turn cancellation ends them; `notifications/cancelled`
   ends one call's requester without an answer.
 - `resident`: the agent side of the ACP v2 draft subset Agent Runner's root

@@ -1,0 +1,33 @@
+{
+  "valid": {
+    "Exploration": [
+      {"protocol": "oulipoly.exploration/v1", "routes": ["luna-max"], "requester": "/opt/agent-runner/oulipoly-root-child", "ingress_env": "OULIPOLY_ROOT_BASH_V1"},
+      {"protocol": "oulipoly.exploration/v1", "routes": ["luna-max", "site.route_2"], "requester": "/opt/agent-runner/oulipoly-root-child", "ingress_env": "OULIPOLY_ROOT_BASH_V1", "limits": {"max_starts": 4, "max_concurrent": 2}},
+      {"protocol": "oulipoly.exploration/v1", "routes": ["a"], "requester": "/r", "ingress_env": "X", "limits": {}}
+    ],
+    "EffectiveExploration": [
+      {"protocol": "oulipoly.exploration/v1", "routes": ["luna-max"], "tool": "mcp__oulipoly__explore", "ingress_env": "OULIPOLY_ROOT_BASH_V1"}
+    ],
+    "RouteLabel": ["luna-max", "a", "Route.2_x", "0123456789012345678901234567890123456789012345678901234567890123"]
+  },
+  "invalid": {
+    "Exploration": [
+      {"protocol": "oulipoly.exploration/v2", "routes": ["a"], "requester": "/r", "ingress_env": "X"},
+      {"protocol": "oulipoly.exploration/v1", "routes": [], "requester": "/r", "ingress_env": "X"},
+      {"protocol": "oulipoly.exploration/v1", "routes": ["a", "a"], "requester": "/r", "ingress_env": "X"},
+      {"protocol": "oulipoly.exploration/v1", "routes": ["-a"], "requester": "/r", "ingress_env": "X"},
+      {"protocol": "oulipoly.exploration/v1", "routes": ["a b"], "requester": "/r", "ingress_env": "X"},
+      {"protocol": "oulipoly.exploration/v1", "routes": ["a"], "requester": "oulipoly-root-child", "ingress_env": "X"},
+      {"protocol": "oulipoly.exploration/v1", "routes": ["a"], "requester": "/r", "ingress_env": "BAD=NAME"},
+      {"protocol": "oulipoly.exploration/v1", "routes": ["a"], "requester": "/r"},
+      {"protocol": "oulipoly.exploration/v1", "routes": ["a"], "requester": "/r", "ingress_env": "X", "limits": {"max_starts": 0}},
+      {"protocol": "oulipoly.exploration/v1", "routes": ["a"], "requester": "/r", "ingress_env": "X", "limits": {"depth": 2}},
+      {"protocol": "oulipoly.exploration/v1", "routes": ["a"], "requester": "/r", "ingress_env": "X", "model": "luna"},
+      {"protocol": "oulipoly.exploration/v1", "routes": ["a"], "requester": "/r", "ingress_env": "X", "children": {"routes": ["a"]}}
+    ],
+    "EffectiveExploration": [
+      {"protocol": "oulipoly.exploration/v1", "routes": ["a"], "ingress_env": "X"}
+    ],
+    "RouteLabel": ["", "-x", ".x", "a/b", "a\nb", "01234567890123456789012345678901234567890123456789012345678901234"]
+  }
+}

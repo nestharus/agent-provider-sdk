@@ -18,7 +18,9 @@
 //! launch at a time; [`lifecycle::run_launch_until`] adds a caller-scoped stop,
 //! and [`resident`] serves resident ACP v2 sessions whose turns each run one
 //! launch through it. [`tool_bridge`] is the mediated `bash` tool a provider
-//! registers natively under `oulipoly.tool_mediation/v1`.
+//! registers natively under `oulipoly.tool_mediation/v1`; under
+//! `oulipoly.exploration/v1` it also serves [`explore_tool`], the
+//! non-command child exploration tool.
 //!
 //! Callers of the individual modules, rather than [`lifecycle::run_launch`],
 //! enforce lifecycle ordering, hold request custody, and unwind child custody
@@ -35,6 +37,8 @@ pub mod custody;
 pub mod delivery;
 pub mod durable_fs;
 pub mod encoding;
+#[cfg(unix)]
+pub mod explore_tool;
 pub mod framing;
 #[cfg(unix)]
 pub mod lifecycle;
