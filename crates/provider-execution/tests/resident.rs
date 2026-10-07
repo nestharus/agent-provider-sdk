@@ -61,7 +61,7 @@ fn main() {
         Some("--resident") => std::process::exit(serve(&args[2])),
         _ => {}
     }
-    let tests: [(&str, fn()); 27] = [
+    let tests: [(&str, fn()); 28] = [
         (
             "initialize_serves_only_v2_with_dedup_and_resident_contract",
             initialize_serves_only_v2_with_dedup_and_resident_contract,
@@ -130,6 +130,10 @@ fn main() {
         (
             "refused_preparation_is_not_an_insertion",
             refused_preparation_is_not_an_insertion,
+        ),
+        (
+            "insertion_missing_launch_preserves_ack_and_restored_reconciliation",
+            insertion_missing_launch_preserves_ack_and_restored_reconciliation,
         ),
         (
             "custody_corrupt_own_input_settles_without_reconstruction",
@@ -1012,6 +1016,8 @@ fn refused_preparation_is_not_an_insertion() {
     assert_eq!(native["failure"]["code"], json!("fixture_refused"));
     extension::validate("NativeTurnMeta", native).unwrap();
     assert_eq!(fixture.runs(), 0);
+    let duplicate = client.prompt(&session, "ignored", Some("r"));
+    assert_eq!(client.response(duplicate)["error"]["code"], json!(-32010));
     let next = client.prompt(&session, "reply fine", None);
     let next = message_id(&client.response(next));
     assert_eq!(client.idle_for(&next)["stopReason"], json!("end_turn"));
@@ -1682,5 +1688,46 @@ fn custody_unreadable_launch_refuses_close_and_eof() {
     assert!(alive(actor.actor.descendant));
     assert_eq!(std::fs::read(&input).unwrap(), b"{corrupt own input");
     assert_eq!(std::fs::read(&launch).unwrap(), b"{unreadable launch");
+    assert_eq!(fixture.runs(), 1);
+}
+
+fn insertion_missing_launch_preserves_ack_and_restored_reconciliation() {
+    let fixture = Fixture::new();
+    let (session, id, actor) = CustodyActors::capture(&fixture);
+    let input = bounds_input(&fixture, &session, &id);
+    let journal = bounds_journal(&fixture, &session, &id);
+    let launch = journal.with_extension("json");
+    let input_bytes = std::fs::read(&input).unwrap();
+    let launch_bytes = std::fs::read(&launch).unwrap();
+    let journal_bytes = std::fs::read(&journal).unwrap();
+    std::fs::remove_file(&launch).unwrap();
+    let (mut client, response) = bounds_resume(&fixture, &session);
+    assert_eq!(response["error"]["code"], json!(-32012));
+    assert!(alive(actor.actor.descendant));
+    let duplicate = client.prompt(&session, "ignored", Some("bounds-lost"));
+    assert_eq!(message_id(&client.response(duplicate)), id);
+    assert_eq!(std::fs::read(&input).unwrap(), input_bytes);
+    assert_eq!(
+        client.call("session/close", json!({"sessionId":session}))["error"]["code"],
+        json!(-32012)
+    );
+    assert!(!client.end().success());
+    std::fs::write(&launch, &launch_bytes).unwrap();
+    let (mut client, response) = bounds_resume(&fixture, &session);
+    assert_eq!(response["result"], json!({}));
+    assert_dies(actor.actor.descendant);
+    let duplicate = client.prompt(&session, "ignored", Some("bounds-lost"));
+    assert_eq!(message_id(&client.response(duplicate)), id);
+    assert_eq!(
+        client.idle_for(&id)["_meta"]["oulipoly.ai/nativeTurn"]["custody"],
+        json!("reconciled")
+    );
+    assert_eq!(
+        client.call("session/close", json!({"sessionId":session}))["result"],
+        json!({})
+    );
+    assert!(client.end().success());
+    assert_eq!(std::fs::read(&launch).unwrap(), launch_bytes);
+    assert_eq!(std::fs::read(&journal).unwrap(), journal_bytes);
     assert_eq!(fixture.runs(), 1);
 }

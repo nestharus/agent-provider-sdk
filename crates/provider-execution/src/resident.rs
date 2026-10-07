@@ -32,8 +32,8 @@
 //!   the input (`oulipoly.submitted_user_turn` marker): that is the insertion
 //!   acknowledgement, recorded durably before `user_message`, then the ACK and
 //!   `state_update: running`. It is not turn completion.
-//!   A turn that ends without that evidence answers a JSON-RPC error and
-//!   records the input as not inserted.
+//!   A completed non-consuming turn or a justified pre-start refusal records
+//!   non-insertion. Unavailable settlement evidence retains uncertainty.
 //! * Each native `stdout` data event of a consumed turn becomes one
 //!   `agent_message` tagged with [`PARENT_MESSAGE_META`] = that input. The end
 //!   of a consumed turn is one `state_update: idle` tagged with
@@ -491,6 +491,8 @@ struct SessionShared {
 #[derive(Default)]
 struct SessionInputs {
     unreadable: Vec<String>,
+    /// Reconstructable inputs whose settlement evidence is unavailable.
+    recovery_errors: Vec<String>,
     /// Session launch records not established as physically settled.
     unsettled_launches: Vec<String>,
     by_id: HashMap<String, InputRecord>,
@@ -961,7 +963,9 @@ fn duplicate(
                 .push(id.clone());
             Ok(None)
         }
-        phase::NOT_INSERTED => Err((
+        phase::NOT_INSERTED
+            if input.value["consumption_seen"] != json!(true)
+                && !inputs.recovery_errors.iter().any(|error| error.starts_with(message_id)) => Err((
             INPUT_NOT_INSERTED,
             format!("input {message_id} with this key was not inserted; send a new key"),
         )),
@@ -1091,8 +1095,14 @@ fn refuse(shared: &SessionShared, wire: &Wire, message_id: &str, reason: &str) {
     let mut inputs = shared.inputs.lock().unwrap_or_else(|e| e.into_inner());
     inputs.live.remove(message_id);
     let waiters = inputs.waiters.remove(message_id).unwrap_or_default();
+    let mut code = INPUT_UNCERTAIN;
     if let Some(input) = inputs.by_id.get_mut(message_id) {
-        input.value["phase"] = json!(phase::NOT_INSERTED);
+        if undispatched(input) && no_launch_evidence(shared, input) {
+            code = INPUT_NOT_INSERTED;
+            input.value["phase"] = json!(phase::NOT_INSERTED);
+        } else if !matches!(input.phase(), phase::INSERTED | phase::ENDED) {
+            input.value["phase"] = json!(phase::UNCERTAIN);
+        }
         input.value["refusal"] = json!(reason);
         let mut input = input.clone();
         drop(inputs);
@@ -1105,7 +1115,7 @@ fn refuse(shared: &SessionShared, wire: &Wire, message_id: &str, reason: &str) {
             .insert(message_id.to_owned(), input);
     }
     for waiter in waiters {
-        wire.error(&waiter, INPUT_NOT_INSERTED, reason, None);
+        wire.error(&waiter, code, reason, None);
     }
 }
 
@@ -1115,6 +1125,7 @@ fn refuse(shared: &SessionShared, wire: &Wire, message_id: &str, reason: &str) {
 fn has_unsettled_custody(shared: &SessionShared) -> bool {
     let inputs = shared.inputs.lock().unwrap_or_else(|e| e.into_inner());
     !inputs.unsettled_launches.is_empty()
+        || !inputs.recovery_errors.is_empty()
         || inputs
             .by_id
             .values()
@@ -1127,6 +1138,12 @@ fn recovery_uncertainty(shared: &SessionShared) -> Option<String> {
         return Some(format!(
             "input evidence unreadable; new input blocked and continuity uncertain; input records retained: {}",
             inputs.unreadable.join("; ")
+        ));
+    }
+    if !inputs.recovery_errors.is_empty() {
+        return Some(format!(
+            "input settlement evidence unavailable; new input blocked: {}",
+            inputs.recovery_errors.join("; ")
         ));
     }
     let record = shared.record.lock().unwrap_or_else(|e| e.into_inner());
@@ -1172,7 +1189,8 @@ fn recover_markers(sink: &mut TurnSink<'_>, journal: &Path) -> io::Result<()> {
 
 fn settle_unfinished<T: ResidentTurns>(turns: &T, shared: &SessionShared) {
     let unfinished: Vec<String> = {
-        let inputs = shared.inputs.lock().unwrap_or_else(|e| e.into_inner());
+        let mut inputs = shared.inputs.lock().unwrap_or_else(|e| e.into_inner());
+        inputs.recovery_errors.clear();
         let mut ids: Vec<String> = inputs
             .by_id
             .values()
@@ -1181,7 +1199,10 @@ fn settle_unfinished<T: ResidentTurns>(turns: &T, shared: &SessionShared) {
                     && (matches!(
                         input.phase(),
                         phase::ACCEPTED | phase::INSERTED | phase::UNCERTAIN
-                    ) || input.value["native_turn"]["custody"] == json!("incomplete"))
+                    ) || input.value["native_turn"]["custody"] == json!("incomplete")
+                        || (input.phase() == phase::NOT_INSERTED
+                            && (input.value["consumption_seen"] == json!(true)
+                                || launch_evidence_may_exist(shared, input))))
             })
             .map(|input| input.message_id().to_owned())
             .collect();
@@ -1189,25 +1210,8 @@ fn settle_unfinished<T: ResidentTurns>(turns: &T, shared: &SessionShared) {
         ids
     };
     for message_id in unfinished {
-        let request_id = shared
-            .inputs
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .by_id
-            .get(&message_id)
-            .and_then(|input| input.value["request_id"].as_str().map(str::to_owned))
-            .unwrap_or_default();
-        let key = custody::request_key(None, &request_id);
-        if shared
-            .dir
-            .join("turns")
-            .join(format!("{key}.json"))
-            .is_file()
-        {
+        if !not_started(shared, &message_id) {
             run(turns, shared, None, &message_id);
-        } else {
-            // No launch state was ever recorded: nothing native ran.
-            not_started(shared, &message_id);
         }
     }
     let unsettled = settle_recorded_launches(&shared.dir.join("turns"));
@@ -1253,14 +1257,45 @@ fn settle_recorded_launches(turns: &Path) -> Vec<String> {
     unsettled
 }
 
-fn not_started(shared: &SessionShared, message_id: &str) {
+fn undispatched(input: &InputRecord) -> bool {
+    input.phase() == phase::ACCEPTED
+        && input.value["dispatched"] == json!(false)
+        && (input.value["consumption_seen"].is_null()
+            || input.value["consumption_seen"] == json!(false))
+        && input.value["native_turn"].is_null()
+}
+
+// Absence is useful only alongside positive pre-dispatch evidence. Hold request
+// custody and distinguish NotFound from unreadable/non-file/other evidence.
+fn no_launch_evidence(shared: &SessionShared, input: &InputRecord) -> bool {
+    let root = shared.dir.join("turns");
+    let key = custody::request_key(None, input.value["request_id"].as_str().unwrap_or_default());
+    let Ok(_custody) = custody::RequestCustody::acquire(&root, &key) else {
+        return false;
+    };
+    ["json", "jsonl"].iter().all(|extension| {
+        matches!(fs::symlink_metadata(root.join(format!("{key}.{extension}"))),
+            Err(error) if error.kind() == io::ErrorKind::NotFound)
+    })
+}
+
+fn launch_evidence_may_exist(shared: &SessionShared, input: &InputRecord) -> bool {
+    !no_launch_evidence(shared, input)
+}
+
+fn not_started(shared: &SessionShared, message_id: &str) -> bool {
     let mut inputs = shared.inputs.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(input) = inputs.by_id.get_mut(message_id) {
+        if !undispatched(input) || !no_launch_evidence(shared, input) {
+            return false;
+        }
         input.value["phase"] = json!(phase::NOT_INSERTED);
         input.value["refusal"] = json!("earlier process ended before the native turn was recorded");
         let mut copy = input.clone();
         let _ = store(shared, &mut copy);
+        return true;
     }
+    false
 }
 
 fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>, message_id: &str) {
@@ -1274,7 +1309,8 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
     else {
         return;
     };
-    if input.value["dispatched"] == json!(false) {
+    let fresh = undispatched(&input);
+    if wire.is_some() && input.value["dispatched"] == json!(false) {
         let record = shared.record.lock().unwrap_or_else(|e| e.into_inner());
         input.value["native_session_id"] = record["native_session_id"].clone();
         input.value["create_native_session_id"] = if record["native_session_id"].is_null() {
@@ -1292,8 +1328,6 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
                     message_id,
                     &format!("cannot record dispatch: {error}"),
                 );
-            } else {
-                not_started(shared, message_id);
             }
             return;
         }
@@ -1322,7 +1356,7 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
             .as_str()
             .map(str::to_owned),
     };
-    let previously_inserted = input.phase() == phase::INSERTED;
+    let previously_inserted = matches!(input.phase(), phase::INSERTED | phase::ENDED);
     let mut sink = TurnSink {
         shared,
         wire,
@@ -1340,10 +1374,9 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
     // Recovery settles the recorded actor before calling any adapter admission
     // logic. Adapters may validate current policy before entering the lifecycle.
     let mut result = if wire.is_none() {
-        match crate::lifecycle::reconcile_interrupted_launch(
+        match crate::lifecycle::reconcile_recorded_launch(
             &request.state_root,
-            None,
-            &request.request_id,
+            &custody::request_key(None, &request.request_id),
         ) {
             Ok(true) => Err(TurnFailure {
                 kind: TurnFailureKind::ReconciliationRequired,
@@ -1352,11 +1385,15 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
                     .into(),
             }),
             Ok(false) => turns.run_turn(&request, &shared.stop, &mut sink),
-            Err(error) => Err(TurnFailure {
-                kind: TurnFailureKind::Failed,
-                code: "custody_recovery_failed".into(),
-                message: error.to_string(),
-            }),
+            Err(error) => {
+                shared
+                    .inputs
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .recovery_errors
+                    .push(format!("{message_id}: {error}"));
+                return;
+            }
         }
     } else {
         turns.run_turn(&request, &shared.stop, &mut sink)
@@ -1411,14 +1448,9 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
     {
         input = current.clone();
     }
-    // Without a recorded launch state nothing native ran for this request.
-    let launch_recorded = request
-        .state_root
-        .join(format!(
-            "{}.json",
-            custody::request_key(None, &request.request_id)
-        ))
-        .is_file();
+    // A fresh local attempt with neither consumption nor durable launch/journal
+    // evidence can be refused before start. Lost recovery evidence cannot.
+    let not_started = fresh && !consumption_seen && no_launch_evidence(shared, &input);
     let launch_complete = read_json(
         &request.state_root.join(format!(
             "{}.json",
@@ -1453,7 +1485,7 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
         (Err(failure), _) => {
             native_turn["failure"] = json!({"code":failure.code,"message":failure.message});
             match failure.kind {
-                TurnFailureKind::Cancelled => {
+                TurnFailureKind::Cancelled if not_started => {
                     native_turn["custody"] = json!("not_admitted");
                     "cancelled"
                 }
@@ -1461,15 +1493,15 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
                     native_turn["custody"] = json!("reconciled");
                     "_oulipoly_reconciliation_required"
                 }
-                TurnFailureKind::Failed if !launch_recorded => {
+                TurnFailureKind::Failed if not_started => {
                     native_turn["custody"] = json!("not_admitted");
                     "_oulipoly_turn_failed"
                 }
-                TurnFailureKind::Failed if launch_complete => {
+                TurnFailureKind::Failed | TurnFailureKind::Cancelled if launch_complete => {
                     native_turn["custody"] = json!("complete_without_exit");
                     "_oulipoly_turn_failed"
                 }
-                TurnFailureKind::Failed => {
+                TurnFailureKind::Failed | TurnFailureKind::Cancelled => {
                     native_turn["custody"] = json!("incomplete");
                     "_oulipoly_turn_failed"
                 }
@@ -1492,7 +1524,7 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
     let not_consumed_but_known = !consumption_seen
         && match &result {
             Ok(_) => exit.is_some(),
-            Err(failure) => failure.kind == TurnFailureKind::Cancelled || !launch_recorded,
+            Err(_) => not_started,
         };
     let phase = if consumed && !settled {
         phase::INSERTED
@@ -1535,7 +1567,7 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
             );
         }
     } else {
-        let (code, reason) = if phase == phase::NOT_INSERTED && !launch_recorded {
+        let (code, reason) = if phase == phase::NOT_INSERTED && not_started {
             (
                 INPUT_NOT_INSERTED,
                 "native turn was refused before it started",

@@ -365,7 +365,7 @@ does not change the pinned v1 snapshot.
   (`end_turn`, `cancelled`, `_oulipoly_native_failed`, `_oulipoly_turn_failed`,
   `_oulipoly_reconciliation_required`) and `oulipoly.ai/nativeTurn` (launch
   request id, status, terminal signal, launch-output accounting and custody).
-  A turn that ends, or is refused before it starts, without consumption answers
+  A completed turn, or a justified refusal before start, without consumption answers
   a JSON-RPC error and records the input as not inserted; a failure whose
   consumption is unknown is never rerun. A resent message key inserts nothing:
   it answers the original `messageId` once insertion is known and repeats the
@@ -407,6 +407,14 @@ does not change the pinned v1 snapshot.
   clears the native ID and blocks new input. Resume settles readable inputs even
   alongside an unreadable input, then reports `-32012`; known duplicate ACK/end
   remains available, while new input is blocked. No corrupt evidence is deleted.
+  Missing, busy, unreadable, invalid or over-bound launch evidence never turns
+  a recorded insertion into non-insertion. Known duplicate ACKs remain usable;
+  inputs without a justified ACK retain explicit uncertainty, with no new-key
+  advice. Unusable recovery evidence leaves input bytes intact and the input
+  eligible for settlement after restoration. Non-start requires a recorded
+  undispatched input with no consumption evidence and neither launch nor journal
+  evidence under its request lock, or a fresh locally refused attempt under
+  that same absence check. A completed non-consuming turn remains non-inserted.
   An unreadable input is not reconstructed, but readable launch evidence still
   discharges its recorded interrupted actor without prompt reconstruction, replay,
   inferred insertion or rewriting custody bytes. Unreadable/invalid launch evidence,
@@ -423,6 +431,10 @@ does not change the pinned v1 snapshot.
   descendants outside a PID namespace running; later resume reconciles recorded
   session actors, subject to the unreadable-launch-evidence limits above;
   Linux-tested only.
+
+A missing launch state alongside a retained journal is unusable custody evidence;
+the shared lifecycle refuses before adapter preparation or a fresh native launch,
+preserving that journal for restoration and reconciliation.
 
 Adapters that compose the individual modules instead of `run_launch` own the
 lifecycle themselves: keep request custody held, check the digest

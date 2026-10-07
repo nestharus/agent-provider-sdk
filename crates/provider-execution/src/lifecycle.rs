@@ -619,6 +619,7 @@ pub fn reconcile_interrupted_launch(
     let Some(state) = launch_custody.load_state()? else {
         return Ok(false);
     };
+    validate_recorded_state(&state)?;
     if state.is_complete() {
         return Ok(false);
     }
@@ -629,14 +630,22 @@ pub fn reconcile_interrupted_launch(
 // Resident session custody can outlive an unreadable input. The trusted
 // session turns directory supplies the key; no prompt/digest reconstruction,
 // adapter admission, journal replay or durable state rewrite is needed.
+// Returns true for incomplete custody and false only for a valid complete
+// record. Missing/unusable evidence is an error, never replay/admission advice.
 pub(crate) fn reconcile_recorded_launch(
     state_root: &std::path::Path,
     key: &str,
-) -> Result<(), LifecycleError> {
+) -> Result<bool, LifecycleError> {
     let launch_custody = RequestCustody::acquire(state_root, key)?;
     let state = launch_custody
         .load_state()?
         .ok_or(CustodyError::InvalidState)?;
+    validate_recorded_state(&state)?;
+    reconcile_actor(&state)?;
+    Ok(!state.is_complete())
+}
+
+fn validate_recorded_state(state: &LaunchState) -> Result<(), LifecycleError> {
     let paired_actor = state.actor_id.is_some() == state.incarnation.is_some();
     let valid_phase = match state.phase.as_str() {
         custody::PHASE_PREPARED => state.actor_id.is_none(),
@@ -647,7 +656,7 @@ pub(crate) fn reconcile_recorded_launch(
     if !paired_actor || !valid_phase {
         return Err(CustodyError::InvalidState.into());
     }
-    reconcile_actor(&state)
+    Ok(())
 }
 
 fn reconcile_actor(state: &LaunchState) -> Result<(), LifecycleError> {
@@ -687,6 +696,7 @@ where
     let launch_custody =
         RequestCustody::acquire(spec.state_root, &key).map_err(LifecycleError::from)?;
     if let Some(state) = launch_custody.load_state().map_err(LifecycleError::from)? {
+        validate_recorded_state(&state)?;
         if state.is_complete() {
             if state.digest != adapter.request_digest()? {
                 return Err(LifecycleError::RequestChanged.into());
