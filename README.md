@@ -388,7 +388,21 @@ does not change the pinned v1 snapshot.
   reconciliation may discharge it; unresolved settlement refuses subsequent
   native dispatch and successful close/resume. Config content hashes protect
   private prepare records, not compatibility or recovery admission. Limits: no per-turn deadline or silence kill; only text prompt
-  content; outputs are not replayed to a later connection; session records and
+  content. ACP records are bounded at 32 MiB (including newline); an over-bound
+  record receives an error with null request ID and closes the connection after
+  settling its running turns. Ingress buffering holds at most one queued record.
+  New serialized input records are limited to 8 MiB before admission, reserving
+  room for updates under the 16 MiB recovery/publication bound; session records
+  are limited to 64 KiB. Refused input starts nothing and reserves no message key.
+  Interrupted journal recovery streams records under a 16 MiB per-record bound,
+  independent of total journal length. Missing/cut/invalid/over-bound evidence is
+  explicit uncertainty, preserves known insertion and reconciled actor custody,
+  clears the native ID and blocks new input. Resume settles readable inputs even
+  alongside an unreadable input, then reports `-32012`; known duplicate ACK/end
+  remains available, while new input is blocked. No corrupt evidence is deleted.
+  These errors do not prove non-insertion. These are per-record bounds, not a
+  session-count or retention policy. Outputs are not replayed to a later
+  connection; session records and
   turn journals are never pruned; the provider's own process loss leaves
   descendants outside a PID namespace running until a later resume discharges
   them; Linux-tested only.
