@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oulipoly:tool-mediation:v1",
+  "title": "Oulipoly Tool Mediation v1 Extension",
+  "description": "Host-selected provider/v1 extension by which a host supplies its Bash tool policy and its Bash requester and ingress to a provider as launch-environment data. Selected by host.env.OULIPOLY_HOST_TOOL_MEDIATION_V1=1 in describe and advertised as capabilities.tool_mediation_v1. The host places one ToolMediation object, JSON-encoded, in the launch environment variable OULIPOLY_TOOL_MEDIATION_V1 (policy.evaluate launch.env, and so the evaluated and resident template env). A provider that reads it either makes its native agent's only command tool the mediated bash tool under exactly this policy or refuses; it never ignores it.",
+  "$defs": {
+    "Protocol": { "const": "oulipoly.tool_mediation/v1" },
+    "EnvName": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+    "AbsolutePath": { "type": "string", "pattern": "^/[^\\u0000]*$" },
+    "BashPolicy": {
+      "description": "allow: only these whole command strings run, matched exactly; anything else is refused by the mediated tool and nothing runs. authority trusted-task: any command, as the host's once-per-task authority. Exactly one form.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "allow": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1, "pattern": "\\S" }
+            }
+          },
+          "required": ["allow"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "authority": { "const": "trusted-task" } },
+          "required": ["authority"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ToolMediation": {
+      "type": "object",
+      "properties": {
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "bash": { "$ref": "#/$defs/BashPolicy" },
+        "requester": {
+          "description": "Absolute path of the host's Bash requester. It implements the agent-bash root v1 requester surface: `run --delivery sync|async -- ARGV...`, `native-output IDENTITY --offset N --length N` and `native-accept IDENTITY`, each writing one JSON result object (result_surface agent-bash-root-v1 or agent-bash-root-v1-output) and reaching only the ingress named by ingress_env.",
+          "$ref": "#/$defs/AbsolutePath"
+        },
+        "ingress_env": {
+          "description": "Name of the environment variable through which the host names the root's Bash ingress to the serving process and its descendants. It is not part of this object's value; it must be present in the environment of the process that serves a turn, or the turn is refused before any native effect.",
+          "$ref": "#/$defs/EnvName"
+        }
+      },
+      "required": ["protocol", "bash", "requester", "ingress_env"],
+      "additionalProperties": false
+    },
+    "EffectiveMediation": {
+      "description": "Value of the oulipoly.tool_mediation/v1 policy.evaluate marker: what the provider will configure natively for this policy. native_tools are the provider's native tool names the agent is offered; tool is the mediated bash tool's native name. Construction, not a certificate that the native CLI honours it.",
+      "type": "object",
+      "properties": {
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "bash": { "$ref": "#/$defs/BashPolicy" },
+        "tool": { "type": "string", "minLength": 1 },
+        "native_tools": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "ingress_env": { "$ref": "#/$defs/EnvName" }
+      },
+      "required": ["protocol", "bash", "tool", "native_tools", "ingress_env"],
+      "additionalProperties": false
+    }
+  }
+}
