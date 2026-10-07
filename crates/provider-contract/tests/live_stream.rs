@@ -1,4 +1,4 @@
-//! live_stream/v1: structural schema versus semantic admission; frame and field
+//! live_stream/v2: structural schema versus semantic admission; frame and field
 //! bounds; exact gap, cursor, incarnation and finalization semantics; peer
 //! version selection; and separation from provider launch outcomes.
 //!
@@ -23,7 +23,7 @@ use support::contract_matrix::{
 };
 
 fn fixtures() -> Value {
-    serde_json::from_str(include_str!("fixtures/live_stream/v1.json")).unwrap()
+    serde_json::from_str(include_str!("fixtures/live_stream/v2.json")).unwrap()
 }
 
 fn reason(value: &Value) -> UnavailableReason {
@@ -188,7 +188,7 @@ fn selection_vectors() {
         select(&offer, &advertisement(&offer)).unwrap().channels,
         offer.channels
     );
-    assert_eq!(live_stream::SUPPORTED_VERSIONS, &[1]);
+    assert_eq!(live_stream::SUPPORTED_VERSIONS, &[2]);
 }
 
 fn run_follow(case: &Value) -> (Follower, Vec<Result<Accepted, LiveUnavailable>>) {
@@ -442,7 +442,7 @@ fn selected_descriptor_and_follow_setup_share_capability_agreement() {
     invalid_selected.channels.push(live_stream::Channel::Stdout);
     assert!(agreed.agree(&invalid_selected).is_err());
     invalid_selected = selected;
-    invalid_selected.protocol = "oulipoly.live_stream/v2".into();
+    invalid_selected.protocol = "oulipoly.live_stream/v3".into();
     assert!(agreed.agree(&invalid_selected).is_err());
     // A supported scoped claim is agreement about shape, never an access grant.
     let scoped = Offer {

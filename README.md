@@ -178,7 +178,7 @@ The [`exploration/v1` extension](crates/provider-contract/contract/extensions/ex
   Route labels carry no provider, model or account
   meaning here, and a child is never offered exploration.
 
-The [`live-stream/v1` contract](crates/provider-contract/contract/extensions/live-stream/README.md)
+The [`live-stream/v2` contract](crates/provider-contract/contract/extensions/live-stream/README.md)
 (`live_stream` module) is the record vocabulary of the optional live-output
 plane. It is defined but not adopted yet.
 - **What it covers.** Stream identity, publisher incarnation and sequence;
@@ -187,7 +187,7 @@ plane. It is defined but not adopted yet.
   cursors with terminal knowledge; and visibility claims. Structural schema plus
   documented normative semantics define conformance in every language.
 - **Selection.** Peers select it by a bounded advertisement, not provider
-  `describe`. Unknown or newer entries are ignored, and the selected v1 entry
+  `describe`. Unknown or newer entries are ignored, and the selected v2 entry
   and records are strict.
 - **Admission.** Descriptor/follow setup joins selected channel, byte and
   advertised audience support. Resuming at a final cursor retains the durable
@@ -199,9 +199,20 @@ plane. It is defined but not adopted yet.
 - **What it does not replace.** Launch events and request custody, resident
   records, transcript page tokens and retained Bash output stay as they are,
   and the contract stores nothing.
-- **Not established.** Capture, the broker, enforcement of visibility and
-  runtime non-blocking behaviour remain later work. Control claims live in
-  `session-control/v3`; incident DTOs are not yet defined.
+- **Version agreement.** Attachment and `not_authorized` use the distinct optional
+  `oulipoly.live_stream/v2` schema. Only v2 is selected; a baseline v1-only peer
+  gets `no_common_version` for live viewing. Provider/v1 and session-control v3
+  remain independent. The retained v1 schema is baseline evidence, with no
+  runtime fallback or source/binary compatibility promise.
+- **Attachment.** `live_stream::attachment` gives the publisher, broker and
+  subscriber messages: hello, register, list/directory, attach/attached,
+  record and unavailable. Registration and attachment need an explicit host
+  decision, which the SDK never constructs. The contract states the host's
+  scope, identity, finalization and drop-not-block duties without performing
+  them.
+- **Not established.** Capture, the broker, endpoints and sockets, enforcement
+  of visibility and runtime non-blocking behaviour remain later work. Control
+  claims live in `session-control/v3`; incident DTOs are not yet defined.
 
 The [`session-control/v3` contract](crates/provider-contract/contract/extensions/session-control/README.md)
 (`session_control` module) is the one provider-neutral vocabulary of root

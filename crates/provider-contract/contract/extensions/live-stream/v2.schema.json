@@ -1,0 +1,562 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oulipoly:live-stream:v2",
+  "title": "Oulipoly Live Stream v2",
+  "description": "Provider-neutral, optional, bounded live-output observation records exchanged between a publisher, a broker and subscribers. Selected by peer advertisement of oulipoly.live_stream/v2, not by provider describe, CLI, binary, package or source identity. It is not launch output, request custody, completed replay, a session transcript page or a durable store: completed turns stay canonical in the host's normal durable session storage, named here only by opaque host-owned references. Contract refusals are live_unavailable diagnostics. Structural schema and the adjacent README normative semantic rules together define conformance; raw schema validation alone is insufficient.",
+  "$defs": {
+    "Protocol": { "const": "oulipoly.live_stream/v2" },
+    "Id128": {
+      "description": "128 random bits as 32 lowercase hex digits.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "StreamId": {
+      "description": "One ephemeral live-output source. Not a logical agent, session, turn, process or Agent Bash handle.",
+      "$ref": "#/$defs/Id128"
+    },
+    "Incarnation": {
+      "description": "One run of the publisher of a stream, chosen afresh whenever the publisher (re)starts. Distinct from process actor incarnation (PID and start ticks), owner generation and incident epoch.",
+      "$ref": "#/$defs/Id128"
+    },
+    "Seq": {
+      "description": "Per (stream, incarnation) publisher sequence: the first frame is 1 and each later frame adds exactly 1.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "AfterSeq": {
+      "description": "The last sequence a cursor holder has; 0 holds nothing yet.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "UnixMilliseconds": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "HostRef": {
+      "description": "Opaque host-owned value (root, session, work, generation, epoch). The SDK compares it only for equality and is not its authority.",
+      "type": "string",
+      "pattern": "^[\\x21-\\x7e]{1,256}$"
+    },
+    "DurableReference": {
+      "description": "Opaque host-owned reference to where the canonical durable record of this output lives after normal durable publication. The SDK does not resolve it and keeps no copy.",
+      "type": "string",
+      "pattern": "^[\\x21-\\x7e]{1,1024}$"
+    },
+    "Channel": { "enum": ["stdout", "stderr", "pty", "control"] },
+    "DataChannel": { "enum": ["stdout", "stderr", "pty"] },
+    "Channels": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/Channel" }
+    },
+    "MaxDataBytes": { "type": "integer", "minimum": 1, "maximum": 65536 },
+    "Audience": {
+      "description": "Who the publisher claims may observe: owner (the publishing principal only), same_user (any process of the same OS user) or scoped (a host-named scope).",
+      "enum": ["owner", "same_user", "scoped"]
+    },
+    "VisibilityClaim": {
+      "description": "An advertised claim of intended audience and exposed channels. Validating it checks its shape only; authorization is enforced, or not, by the broker and host.",
+      "type": "object",
+      "properties": {
+        "audience": { "$ref": "#/$defs/Audience" },
+        "scope": { "$ref": "#/$defs/HostRef" },
+        "channels": { "$ref": "#/$defs/Channels" }
+      },
+      "required": ["audience", "channels"],
+      "additionalProperties": false,
+      "if": { "properties": { "audience": { "const": "scoped" } } },
+      "then": { "required": ["scope"] },
+      "else": { "not": { "required": ["scope"] } }
+    },
+    "Correlation": {
+      "description": "Optional opaque host correlations. Carried, never interpreted or registered by the SDK.",
+      "type": "object",
+      "properties": {
+        "root": { "$ref": "#/$defs/HostRef" },
+        "session": { "$ref": "#/$defs/HostRef" },
+        "work": { "$ref": "#/$defs/HostRef" },
+        "generation": { "$ref": "#/$defs/HostRef" },
+        "epoch": { "$ref": "#/$defs/HostRef" }
+      },
+      "additionalProperties": false
+    },
+    "Descriptor": {
+      "description": "What a publisher declares for one incarnation of a stream. visibility.channels must be a subset of channels.",
+      "type": "object",
+      "properties": {
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "stream_id": { "$ref": "#/$defs/StreamId" },
+        "incarnation": { "$ref": "#/$defs/Incarnation" },
+        "channels": { "$ref": "#/$defs/Channels" },
+        "max_data_bytes": { "$ref": "#/$defs/MaxDataBytes" },
+        "visibility": { "$ref": "#/$defs/VisibilityClaim" },
+        "correlation": { "$ref": "#/$defs/Correlation" }
+      },
+      "required": ["protocol", "stream_id", "incarnation", "channels", "max_data_bytes", "visibility"],
+      "additionalProperties": false
+    },
+    "DataFrame": {
+      "description": "Captured output bytes of one data channel. Separate channels preserve host observation order only.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "data" },
+        "stream_id": { "$ref": "#/$defs/StreamId" },
+        "incarnation": { "$ref": "#/$defs/Incarnation" },
+        "seq": { "$ref": "#/$defs/Seq" },
+        "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" },
+        "channel": { "$ref": "#/$defs/DataChannel" },
+        "data_base64": {
+          "description": "1 to 65536 bytes, standard padded base64; the selected max_data_bytes may be lower.",
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 87384,
+          "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+        }
+      },
+      "required": ["kind", "stream_id", "incarnation", "seq", "observed_at_unix_ms", "channel", "data_base64"],
+      "additionalProperties": false
+    },
+    "ControlFact": {
+      "description": "A typed fact the publisher observed. It reports; it never commands, authorizes or acknowledges anything, and its receipt is not a semantic acknowledgement.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "type": { "const": "heartbeat" } },
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "channel_closed" },
+            "channel": { "$ref": "#/$defs/DataChannel" }
+          },
+          "required": ["type", "channel"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The captured process was observed to exit. Not completion: completion is the host's durable outcome.",
+          "type": "object",
+          "properties": {
+            "type": { "const": "exit_observed" },
+            "code": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 },
+            "signal": { "type": "integer", "minimum": 1, "maximum": 128 }
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ControlFrame": {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "control" },
+        "stream_id": { "$ref": "#/$defs/StreamId" },
+        "incarnation": { "$ref": "#/$defs/Incarnation" },
+        "seq": { "$ref": "#/$defs/Seq" },
+        "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" },
+        "fact": { "$ref": "#/$defs/ControlFact" }
+      },
+      "required": ["kind", "stream_id", "incarnation", "seq", "observed_at_unix_ms", "fact"],
+      "additionalProperties": false
+    },
+    "FinalizedFrame": {
+      "description": "Last frame of an incarnation, published only after the host's normal durable publication. Brokers retain it while they know the stream, so a cursor behind eviction reaches it after an exact gap.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "finalized" },
+        "stream_id": { "$ref": "#/$defs/StreamId" },
+        "incarnation": { "$ref": "#/$defs/Incarnation" },
+        "seq": { "$ref": "#/$defs/Seq" },
+        "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" },
+        "durable_reference": { "$ref": "#/$defs/DurableReference" }
+      },
+      "required": ["kind", "stream_id", "incarnation", "seq", "observed_at_unix_ms", "durable_reference"],
+      "additionalProperties": false
+    },
+    "EndedFrame": {
+      "description": "Last frame of an incarnation that claims no durable reference.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "ended" },
+        "stream_id": { "$ref": "#/$defs/StreamId" },
+        "incarnation": { "$ref": "#/$defs/Incarnation" },
+        "seq": { "$ref": "#/$defs/Seq" },
+        "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
+      },
+      "required": ["kind", "stream_id", "incarnation", "seq", "observed_at_unix_ms"],
+      "additionalProperties": false
+    },
+    "Gap": {
+      "description": "Frames first..=last of this incarnation will never be delivered. Delivery record, not a publisher frame: it has no sequence of its own.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "gap" },
+        "stream_id": { "$ref": "#/$defs/StreamId" },
+        "incarnation": { "$ref": "#/$defs/Incarnation" },
+        "first": { "$ref": "#/$defs/Seq" },
+        "last": { "$ref": "#/$defs/Seq" },
+        "reason": { "enum": ["evicted", "capture_overflow"] }
+      },
+      "required": ["kind", "stream_id", "incarnation", "first", "last", "reason"],
+      "additionalProperties": false
+    },
+    "Discontinuity": {
+      "description": "The cursor's incarnation is not the current one. Delivery continues only from the current incarnation's start. previous_last_seq, when known, makes the lost tail after after_seq exact; absent, its extent is unknown.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "discontinuity" },
+        "stream_id": { "$ref": "#/$defs/StreamId" },
+        "previous_incarnation": { "$ref": "#/$defs/Incarnation" },
+        "after_seq": { "$ref": "#/$defs/AfterSeq" },
+        "previous_last_seq": { "$ref": "#/$defs/AfterSeq" },
+        "incarnation": { "$ref": "#/$defs/Incarnation" }
+      },
+      "required": ["kind", "stream_id", "previous_incarnation", "after_seq", "incarnation"],
+      "additionalProperties": false
+    },
+    "Record": {
+      "oneOf": [
+        { "$ref": "#/$defs/DataFrame" },
+        { "$ref": "#/$defs/ControlFrame" },
+        { "$ref": "#/$defs/FinalizedFrame" },
+        { "$ref": "#/$defs/EndedFrame" },
+        { "$ref": "#/$defs/Gap" },
+        { "$ref": "#/$defs/Discontinuity" }
+      ]
+    },
+    "Cursor": {
+      "description": "Caller-owned position and terminal knowledge. Persist the whole cursor. Terminal identity and sequence must match its containing cursor. Not a session transcript page token or retained-output offset.",
+      "type": "object",
+      "properties": {
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "stream_id": { "$ref": "#/$defs/StreamId" },
+        "incarnation": { "$ref": "#/$defs/Incarnation" },
+        "after_seq": { "$ref": "#/$defs/AfterSeq" },
+        "terminal": { "$ref": "#/$defs/Terminal" }
+      },
+      "required": ["protocol", "stream_id", "incarnation", "after_seq"],
+      "additionalProperties": false
+    },
+    "Offer": {
+      "description": "One peer's oulipoly.live_stream/v2 advertisement entry.",
+      "type": "object",
+      "properties": {
+        "channels": { "$ref": "#/$defs/Channels" },
+        "audiences": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/Audience" }
+        },
+        "max_data_bytes": { "$ref": "#/$defs/MaxDataBytes" }
+      },
+      "required": ["channels", "audiences", "max_data_bytes"],
+      "additionalProperties": false
+    },
+    "Advertisement": {
+      "description": "Protocol identifier -> that protocol's offer. Bounded, but tolerant: entries for unknown or newer families and versions are kept and ignored; only the selected version's entry must be strict.",
+      "type": "object",
+      "maxProperties": 32,
+      "propertyNames": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "Terminal": {
+      "description": "Complete retained terminal knowledge. Its identity and sequence must match its containing cursor/window.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/FinalizedFrame"
+        },
+        {
+          "$ref": "#/$defs/EndedFrame"
+        }
+      ]
+    },
+    "PreviousIncarnation": {
+      "type": "object",
+      "properties": {
+        "incarnation": {
+          "$ref": "#/$defs/Incarnation"
+        },
+        "last_seq": {
+          "$ref": "#/$defs/AfterSeq"
+        }
+      },
+      "required": [
+        "incarnation"
+      ],
+      "additionalProperties": false
+    },
+    "ReplayStart": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740992,
+      "description": "Next delivery position; maximum is the sentinel one beyond the last valid sequence, never a publisher sequence."
+    },
+    "RetainedWindow": {
+      "type": "object",
+      "properties": {
+        "stream_id": {
+          "$ref": "#/$defs/StreamId"
+        },
+        "incarnation": {
+          "$ref": "#/$defs/Incarnation"
+        },
+        "first_retained": {
+          "$ref": "#/$defs/ReplayStart"
+        },
+        "last_published": {
+          "$ref": "#/$defs/AfterSeq"
+        },
+        "terminal": {
+          "$ref": "#/$defs/Terminal"
+        },
+        "previous": {
+          "$ref": "#/$defs/PreviousIncarnation"
+        }
+      },
+      "required": [
+        "stream_id",
+        "incarnation",
+        "first_retained",
+        "last_published"
+      ],
+      "additionalProperties": false
+    },
+    "ReplayPlan": {
+      "type": "object",
+      "properties": {
+        "prefix": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/Record"
+          }
+        },
+        "deliver_from": {
+          "$ref": "#/$defs/ReplayStart"
+        },
+        "terminal": {
+          "$ref": "#/$defs/Terminal"
+        }
+      },
+      "required": [
+        "prefix",
+        "deliver_from"
+      ],
+      "additionalProperties": false
+    },
+    "Role": {
+      "description": "The part a peer plays on one live-stream connection. Every connection joins a broker to a publisher or to a subscriber.",
+      "enum": [
+        "publisher",
+        "broker",
+        "subscriber"
+      ]
+    },
+    "Finalization": {
+      "description": "Whether this publisher may send finalized frames. custody_owner: it sends finalized only from the custody owner's terminal retained result after normal durable publication. never: it can only end. A declaration the host wires, not a proof.",
+      "enum": [
+        "custody_owner",
+        "never"
+      ]
+    },
+    "Message": {
+      "description": "One line of a live-stream connection. The host supplies the endpoint and an ordered, reliable byte stream; the SDK opens no socket and runs no broker.",
+      "oneOf": [
+        {
+          "description": "First message from both ends. Selection uses the advertisement; the role pair must join a broker to a publisher or a subscriber.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "hello"
+            },
+            "role": {
+              "$ref": "#/$defs/Role"
+            },
+            "advertisement": {
+              "$ref": "#/$defs/Advertisement"
+            }
+          },
+          "required": [
+            "op",
+            "role",
+            "advertisement"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Publisher to broker: attach one incarnation. The broker admits it only with a host decision.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "register"
+            },
+            "descriptor": {
+              "$ref": "#/$defs/Descriptor"
+            },
+            "finalization": {
+              "$ref": "#/$defs/Finalization"
+            }
+          },
+          "required": [
+            "op",
+            "descriptor",
+            "finalization"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Broker to publisher: the incarnation is attached. Not an observer grant, durable custody or finalization.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "registered"
+            },
+            "stream_id": {
+              "$ref": "#/$defs/StreamId"
+            },
+            "incarnation": {
+              "$ref": "#/$defs/Incarnation"
+            }
+          },
+          "required": [
+            "op",
+            "stream_id",
+            "incarnation"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Subscriber to broker: ask for the streams the host lets it see.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "list"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Broker to subscriber: descriptors the host chose to list. Listing is not permission to attach.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "directory"
+            },
+            "streams": {
+              "type": "array",
+              "maxItems": 32,
+              "items": {
+                "$ref": "#/$defs/Descriptor"
+              }
+            }
+          },
+          "required": [
+            "op",
+            "streams"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Subscriber to broker: follow one stream from a caller-owned cursor.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "attach"
+            },
+            "cursor": {
+              "$ref": "#/$defs/Cursor"
+            }
+          },
+          "required": [
+            "op",
+            "cursor"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Broker to subscriber: the current descriptor and the replay plan for the cursor. Retained records follow from plan.deliver_from.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "attached"
+            },
+            "descriptor": {
+              "$ref": "#/$defs/Descriptor"
+            },
+            "plan": {
+              "$ref": "#/$defs/ReplayPlan"
+            }
+          },
+          "required": [
+            "op",
+            "descriptor",
+            "plan"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "One live-stream record: publisher to broker, or broker to subscriber.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "record"
+            },
+            "record": {
+              "$ref": "#/$defs/Record"
+            }
+          },
+          "required": [
+            "op",
+            "record"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Either end: live viewing is unavailable. The receiver stops live viewing; nothing else changes.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "unavailable"
+            },
+            "diagnostic": {
+              "$ref": "#/$defs/LiveUnavailable"
+            }
+          },
+          "required": [
+            "op",
+            "diagnostic"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "LiveUnavailable": {
+      "description": "Observability diagnostic: live viewing is unavailable for the stated reason. It disables live viewing only and is not a provider error, launch event or completion outcome.",
+      "type": "object",
+      "properties": {
+        "diagnostic": { "const": "live_unavailable" },
+        "reason": {
+          "enum": [
+            "broker_absent",
+            "no_common_version",
+            "invalid_advertisement",
+            "no_common_capability",
+            "invalid_record",
+            "protocol_violation",
+            "unknown_stream",
+            "not_authorized"
+          ]
+        },
+        "detail": { "type": "string", "maxLength": 512 }
+      },
+      "required": ["diagnostic", "reason"],
+      "additionalProperties": false
+    }
+  }
+}
