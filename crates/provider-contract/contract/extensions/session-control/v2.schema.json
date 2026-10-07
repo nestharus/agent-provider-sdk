@@ -239,6 +239,48 @@
         "transition_failed"
       ]
     },
+    "Fulfillment": {
+      "description": "Same-incarnation successor reports its own present fulfillment of an inherited admitted intent; never a predecessor ACK or a new intent.",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/Correlation"
+        }
+      ],
+      "properties": {
+        "kind": {
+          "const": "fulfillment"
+        },
+        "protocol": true,
+        "request_key": true,
+        "requester": true,
+        "addressed": true,
+        "operation": {
+          "$ref": "#/$defs/Operation"
+        },
+        "from": {
+          "$ref": "#/$defs/State"
+        },
+        "to": {
+          "$ref": "#/$defs/State"
+        },
+        "observed_at_unix_ms": {
+          "$ref": "#/$defs/UnixMilliseconds"
+        },
+        "reporter": {
+          "$ref": "#/$defs/Authority"
+        }
+      },
+      "required": [
+        "kind",
+        "reporter",
+        "operation",
+        "from",
+        "to",
+        "observed_at_unix_ms"
+      ],
+      "additionalProperties": false
+    },
     "Refusal": {
       "description": "An explicit refusal, at admission or at transition. A refusal is an outcome, not an absent acknowledgment.",
       "type": "object",
@@ -260,7 +302,7 @@
       "additionalProperties": false
     },
     "Outcome": {
-      "description": "What a reporter currently knows about one request's own transition. unknown can later be refined to acknowledged or refused for the same request; acknowledged and refused are final. Uncertainty never erases an earlier acknowledgment or refusal.",
+      "description": "Later knowledge of the same immutable intent: acknowledged, fulfilled or refused are final; unknown is refinable and preserves earlier claims.",
       "type": "object",
       "allOf": [{ "$ref": "#/$defs/Correlation" }],
       "properties": {
@@ -269,7 +311,7 @@
         "request_key": true,
         "requester": true,
         "addressed": true,
-        "result": { "enum": ["acknowledged", "refused", "unknown"] },
+        "result": { "enum": ["acknowledged", "fulfilled", "refused", "unknown"] },
         "uncertainty": { "enum": ["authority_changed", "transport_lost", "evidence_unavailable"] },
         "reporter": { "$ref": "#/$defs/Authority" },
         "observed_at_unix_ms": { "$ref": "#/$defs/UnixMilliseconds" }
@@ -396,6 +438,7 @@
         { "$ref": "#/$defs/Receipt" },
         { "$ref": "#/$defs/Admission" },
         { "$ref": "#/$defs/Acknowledgment" },
+        { "$ref": "#/$defs/Fulfillment" },
         { "$ref": "#/$defs/Refusal" },
         { "$ref": "#/$defs/Outcome" },
         { "$ref": "#/$defs/Observation" },

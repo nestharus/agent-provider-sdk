@@ -492,12 +492,17 @@ fn actual_u112_ack_without_end_stays_owed_after_physical_wait() {
     let observations = observations(&case["observations"]);
     let reading = read_settlement(&subject, Some(&lineage), &observations);
     assert_eq!(reading.logical, LogicalReading::Owed);
-    // The physical exit and wait remain a separate, reported fact.
+    // Raw exit/wait is retained; this historical mapping supplies no actor
+    // reference for its physical fact, so it cannot yield a correlated summary.
     let physical = serde_json::to_value(reading.physical_custody).unwrap();
-    assert_eq!(
-        physical,
-        json!({"reading": "reported", "state": "exited_waited"})
-    );
+    assert_eq!(physical, json!({"reading": "conflicting"}));
+    assert!(observations.iter().any(|o| matches!(
+        o.fact,
+        Fact::PhysicalCustody {
+            state: agent_provider_contract::session_control::PhysicalCustodyState::ExitedWaited,
+            ..
+        }
+    )));
     // Without the exit the logical reading is the same; the exit adds nothing.
     let before_exit: Vec<Observation> = observations
         .iter()
@@ -646,4 +651,401 @@ fn control_records_and_diagnostics_are_not_provider_outcomes() {
                 .is_err());
         }
     }
+}
+
+// ROOT D1-B/D2-i: authored claim encounters, not executed owner death/actors.
+fn control_claim(request: &Request, kind: &str) -> Value {
+    json!({"kind": kind, "protocol": PROTOCOL, "request_key": request.request_key,
+        "requester": request.requester, "addressed": request.addressed})
+}
+
+fn inherited_claims(request: &Request) -> (Record, Record, Record) {
+    let mut admission = control_claim(request, "admission");
+    admission["operation"] = json!(request.operation);
+    admission["responder"] = json!(request.addressed);
+    admission["observed_at_unix_ms"] = json!(1);
+    let mut successor = request.addressed.clone();
+    successor.owner = "successor".into();
+    successor.generation = "later-generation-claim".into();
+    let mut fulfillment = control_claim(request, "fulfillment");
+    fulfillment["operation"] = json!(request.operation);
+    fulfillment["reporter"] = json!(successor);
+    fulfillment["from"] = json!("unknown");
+    fulfillment["to"] = json!(request.operation.target());
+    fulfillment["observed_at_unix_ms"] = json!(2);
+    let mut ack = control_claim(request, "acknowledgment");
+    ack["operation"] = json!(request.operation);
+    ack["responder"] = json!(request.addressed);
+    ack["from"] = json!("unknown");
+    ack["to"] = json!(request.operation.target());
+    ack["observed_at_unix_ms"] = json!(1);
+    (
+        Record::decode(&admission).unwrap(),
+        Record::decode(&fulfillment).unwrap(),
+        Record::decode(&ack).unwrap(),
+    )
+}
+
+fn knowledge(request: &Request, result: &str, at: u64) -> Record {
+    let mut value = control_claim(request, "outcome");
+    value["result"] = json!(result);
+    value["observed_at_unix_ms"] = json!(at);
+    if result == "unknown" {
+        value["uncertainty"] = json!("evidence_unavailable");
+    }
+    Record::decode(&value).unwrap()
+}
+
+fn rejected_unchanged(trace: &mut RequestTrace, record: &Record) {
+    let before = trace.clone();
+    assert!(trace.accept(record).is_err());
+    assert_eq!(*trace, before);
+}
+
+#[test]
+fn correction_final_knowledge_survives_full_unknown_history() {
+    for final_result in ["acknowledged", "refused", "fulfilled"] {
+        let req = hold();
+        let mut trace = RequestTrace::new(req.clone()).unwrap();
+        let (admit, fulfilled, ack) = inherited_claims(&req);
+        for at in 0..MAX_TRACE_OUTCOMES as u64 {
+            let unknown = knowledge(&req, "unknown", at);
+            trace.accept(&unknown).unwrap();
+            assert_eq!(trace.accept(&unknown).unwrap(), Step::Duplicate);
+        }
+        rejected_unchanged(&mut trace, &knowledge(&req, "unknown", 99));
+        match final_result {
+            "acknowledged" => {
+                trace.accept(&admit).unwrap();
+                trace.accept(&ack).unwrap();
+            }
+            "fulfilled" => {
+                trace.accept(&admit).unwrap();
+                trace.accept(&fulfilled).unwrap();
+            }
+            _ => {
+                let mut refusal = control_claim(&req, "refusal");
+                refusal["operation"] = json!(req.operation);
+                refusal["stage"] = json!("admission");
+                refusal["reason"] = json!("not_permitted");
+                refusal["observed_at_unix_ms"] = json!(100);
+                trace.accept(&Record::decode(&refusal).unwrap()).unwrap();
+            }
+        }
+        let final_record = knowledge(&req, final_result, 101);
+        assert_eq!(
+            trace.accept(&final_record).unwrap(),
+            Step::Concluded {
+                result: serde_json::from_value(json!(final_result)).unwrap(),
+                refines: true
+            }
+        );
+        assert_eq!(trace.outcomes().len(), MAX_TRACE_OUTCOMES + 1);
+        assert_eq!(trace.accept(&final_record).unwrap(), Step::Duplicate);
+        assert_eq!(
+            trace.accept(&knowledge(&req, "unknown", 0)).unwrap(),
+            Step::Duplicate
+        );
+        rejected_unchanged(&mut trace, &knowledge(&req, "unknown", 102));
+        rejected_unchanged(&mut trace, &knowledge(&req, final_result, 103));
+        rejected_unchanged(
+            &mut trace,
+            &knowledge(
+                &req,
+                if final_result == "refused" {
+                    "acknowledged"
+                } else {
+                    "refused"
+                },
+                104,
+            ),
+        );
+    }
+}
+
+#[test]
+fn correction_successor_fulfills_original_admitted_intent_without_predecessor_ack() {
+    for operation in [
+        Operation::InputHold,
+        Operation::InputRelease,
+        Operation::Close,
+        Operation::Cancel,
+    ] {
+        let req = Request {
+            operation,
+            ..hold()
+        };
+        let (admit, fulfilled, ack) = inherited_claims(&req);
+        let mut trace = RequestTrace::new(req.clone()).unwrap();
+        rejected_unchanged(&mut trace, &fulfilled); // retention alone is not admission
+        rejected_unchanged(&mut trace, &knowledge(&req, "fulfilled", 0));
+        let mut receipt = control_claim(&req, "receipt");
+        receipt["durable"] = json!(true);
+        receipt["observed_at_unix_ms"] = json!(0);
+        trace.accept(&Record::decode(&receipt).unwrap()).unwrap();
+        trace.accept(&admit).unwrap();
+        trace.accept(&knowledge(&req, "unknown", 1)).unwrap();
+        rejected_unchanged(&mut trace, &knowledge(&req, "acknowledged", 2));
+        trace.accept(&fulfilled).unwrap();
+        assert!(
+            trace.acknowledgment().is_none(),
+            "no predecessor ACK was manufactured"
+        );
+        assert_eq!(
+            trace.admission(),
+            match &admit {
+                Record::Admission(a) => Some(a),
+                _ => unreachable!(),
+            }
+        );
+        assert_eq!(trace.request().reference(), req.reference());
+        assert_eq!(trace.accept(&fulfilled).unwrap(), Step::Duplicate);
+        let mut restamped = serde_json::to_value(&fulfilled).unwrap();
+        restamped["observed_at_unix_ms"] = json!(99);
+        rejected_unchanged(&mut trace, &Record::decode(&restamped).unwrap());
+        let mut refusal = control_claim(&req, "refusal");
+        refusal["operation"] = json!(operation);
+        refusal["stage"] = json!("transition");
+        refusal["reason"] = json!("transition_failed");
+        refusal["responder"] = json!(req.addressed);
+        refusal["observed_at_unix_ms"] = json!(3);
+        rejected_unchanged(&mut trace, &Record::decode(&refusal).unwrap());
+        let mut state_value = json!({"kind":"control_state", "protocol":PROTOCOL,
+            "reporter":trace.fulfillment().unwrap().reporter, "scope":req.scope,
+            "input":{"state":"unknown"}, "lifecycle":{"state":"unknown"}, "observed_at_unix_ms":3});
+        let domain = if matches!(operation, Operation::Close | Operation::Cancel) {
+            "lifecycle"
+        } else {
+            "input"
+        };
+        state_value[domain] = json!({"state":operation.target(),"since":req.reference()});
+        let state = |v: &Value| match Record::decode(v).unwrap() {
+            Record::ControlState(s) => s,
+            _ => unreachable!(),
+        };
+        assert_eq!(trace.relate(&state(&state_value)), Relation::Current);
+        state_value[domain]["state"] = json!("unknown");
+        assert_eq!(trace.relate(&state(&state_value)), Relation::PriorRetained);
+        state_value[domain]["state"] = json!(if domain == "lifecycle" {
+            "open"
+        } else if operation == Operation::InputHold {
+            "input_open"
+        } else {
+            "input_held"
+        });
+        assert_eq!(trace.relate(&state(&state_value)), Relation::Contradicts);
+        state_value[domain]["state"] = json!(operation.target());
+        state_value["pending"] =
+            json!([{"request":req.reference(),"operation":operation,"status":"admitted"}]);
+        assert_eq!(trace.relate(&state(&state_value)), Relation::Contradicts);
+        let mut no_ack_final = trace.clone();
+        no_ack_final
+            .accept(&knowledge(&req, "fulfilled", 4))
+            .unwrap();
+        assert!(no_ack_final.acknowledgment().is_none());
+        assert_eq!(no_ack_final.request().reference(), req.reference());
+        assert_eq!(no_ack_final.admission(), trace.admission());
+        // Faithful prior positive evidence can be retained alongside own fulfillment.
+        trace.accept(&ack).unwrap();
+        assert_eq!(trace.acknowledgment().unwrap().responder, req.addressed);
+        trace.accept(&knowledge(&req, "fulfilled", 4)).unwrap();
+        assert_eq!(trace.accept(&admit).unwrap(), Step::Duplicate);
+        assert_eq!(trace.accept(&ack).unwrap(), Step::Duplicate);
+        assert!(trace.fulfillment().is_some());
+        let mut readdressed = req.clone();
+        readdressed.addressed = trace.fulfillment().unwrap().reporter.clone();
+        assert_eq!(
+            classify_repetition(&req, &readdressed),
+            Repetition::KeyConflict
+        );
+    }
+}
+
+#[test]
+fn correction_cancel_precedence_is_shared_by_ack_fulfillment_and_relation() {
+    for kind in ["acknowledgment", "fulfillment"] {
+        for (operation, from, accepted) in [
+            (Operation::Close, "cancelling", false),
+            (Operation::Close, "closing", true),
+            (Operation::Close, "open", true),
+            (Operation::Close, "unknown", true),
+            (Operation::Cancel, "closing", true),
+            (Operation::Cancel, "cancelling", true),
+        ] {
+            let req = Request {
+                operation,
+                ..hold()
+            };
+            let (admit, fulfilled, ack) = inherited_claims(&req);
+            let base = if kind == "fulfillment" {
+                fulfilled
+            } else {
+                ack
+            };
+            let mut v = serde_json::to_value(base).unwrap();
+            v["from"] = json!(from);
+            validate("Record", &v, UnavailableReason::InvalidRecord).unwrap();
+            assert_eq!(Record::decode(&v).is_ok(), accepted);
+            let raw: Record = serde_json::from_value(v).unwrap();
+            let mut trace = RequestTrace::new(req).unwrap();
+            trace.accept(&admit).unwrap();
+            if accepted {
+                trace.accept(&raw).unwrap();
+            } else {
+                rejected_unchanged(&mut trace, &raw);
+            }
+        }
+    }
+    let req = Request {
+        operation: Operation::Cancel,
+        ..hold()
+    };
+    let (admit, _, ack) = inherited_claims(&req);
+    let mut trace = RequestTrace::new(req.clone()).unwrap();
+    trace.accept(&admit).unwrap();
+    trace.accept(&ack).unwrap();
+    let mut other = req.reference();
+    other.request_key = "other-close-claim".into();
+    let v = json!({"kind":"control_state","protocol":PROTOCOL,"reporter":req.addressed,"scope":req.scope,
+        "input":{"state":"unknown"},"lifecycle":{"state":"closing","since":other},"observed_at_unix_ms":3});
+    let Record::ControlState(state) = Record::decode(&v).unwrap() else {
+        unreachable!()
+    };
+    assert_eq!(trace.relate(&state), Relation::Contradicts);
+}
+
+#[test]
+fn correction_physical_wait_refines_one_actor_and_never_discharges_multiple_actors() {
+    use agent_provider_contract::session_control::{FactReading, PhysicalCustodyState};
+    let subject: LogicalRef =
+        serde_json::from_value(json!({"root":"root-7","input":"input-1"})).unwrap();
+    let reporter = hold().addressed;
+    let physical = |actor: &str, state: &str, at: u64| {
+        let v = json!({"kind":"observation","protocol":PROTOCOL,"reporter":reporter,"subject":subject,
+            "fact":{"type":"physical_custody","state":state},"evidence":[{"actor":"os_process","exactness":"exact",
+            "ref":{"state":"present","ref":actor}}],"observed_at_unix_ms":at});
+        match Record::decode(&v).unwrap() {
+            Record::Observation(o) => o,
+            _ => unreachable!(),
+        }
+    };
+    let a_waited = physical("actor-A/incarnation-1", "exited_waited", 1);
+    let b_live = physical("actor-B/incarnation-2", "live", 2);
+    let lineage = Lineage {
+        root: subject.root.clone(),
+        authorities: vec![reporter.clone()],
+    };
+    for pair in [
+        vec![a_waited.clone(), b_live.clone()],
+        vec![b_live.clone(), a_waited.clone()],
+    ] {
+        let r = read_settlement(&subject, Some(&lineage), &pair);
+        assert_eq!(r.physical_custody, FactReading::Conflicting);
+        assert_eq!(r.logical, LogicalReading::Unknown);
+    }
+    let same = vec![
+        physical("actor-A/incarnation-1", "unsettled", 3),
+        a_waited.clone(),
+    ];
+    assert_eq!(
+        read_settlement(&subject, Some(&lineage), &same).physical_custody,
+        FactReading::Reported(PhysicalCustodyState::ExitedWaited)
+    );
+    let mut other_reporter = a_waited.clone();
+    other_reporter.reporter.owner = "successor".into();
+    let joined = Lineage {
+        root: subject.root.clone(),
+        authorities: vec![reporter.clone(), other_reporter.reporter.clone()],
+    };
+    assert_eq!(
+        read_settlement(&subject, Some(&joined), &[a_waited.clone(), other_reporter])
+            .physical_custody,
+        FactReading::Reported(PhysicalCustodyState::ExitedWaited)
+    ); // reporter is not actor
+    for exactness in ["legacy", "incomplete"] {
+        let mut v = serde_json::to_value(Record::Observation(a_waited.clone())).unwrap();
+        v["evidence"][0]["exactness"] = json!(exactness);
+        let Record::Observation(o) = Record::decode(&v).unwrap() else {
+            unreachable!()
+        };
+        assert_eq!(
+            read_settlement(&subject, Some(&lineage), &[o]).physical_custody,
+            FactReading::Conflicting
+        );
+    }
+    let mut anonymous = a_waited.clone();
+    anonymous.evidence.clear();
+    assert_eq!(
+        read_settlement(&subject, Some(&lineage), &[anonymous]).physical_custody,
+        FactReading::Conflicting
+    );
+    let mut multiple = a_waited.clone();
+    multiple.evidence.extend(b_live.evidence.clone());
+    assert_eq!(
+        read_settlement(&subject, Some(&lineage), &[multiple]).physical_custody,
+        FactReading::Conflicting
+    );
+    let mut cross_root = b_live.clone();
+    cross_root.reporter.root = "root-8".into();
+    let r = read_settlement(&subject, Some(&lineage), &[a_waited, cross_root]);
+    assert_eq!(
+        r.physical_custody,
+        FactReading::Reported(PhysicalCustodyState::ExitedWaited)
+    );
+    assert_eq!(r.excluded, 1);
+    // Fully settled logical claims still do not repair another live actor's custody.
+    let mut logical = Vec::new();
+    for (kind, state) in [
+        ("insertion", "acknowledged"),
+        ("tagged_end", "observed"),
+        ("logical_settlement", "settled"),
+    ] {
+        let mut v = serde_json::to_value(Record::Observation(b_live.clone())).unwrap();
+        v["fact"] = json!({"type":kind,"state":state});
+        let Record::Observation(o) = Record::decode(&v).unwrap() else {
+            unreachable!()
+        };
+        logical.push(o);
+    }
+    logical.extend([
+        physical("actor-A/incarnation-1", "exited_waited", 1),
+        b_live,
+    ]);
+    let r = read_settlement(&subject, Some(&lineage), &logical);
+    assert_eq!(r.logical, LogicalReading::Settled);
+    assert_eq!(r.physical_custody, FactReading::Conflicting);
+}
+
+#[test]
+fn correction_fulfillment_retains_known_prior_positive_and_negative_claims() {
+    let req = hold();
+    let (admit, fulfilled, ack) = inherited_claims(&req);
+    let mut trace = RequestTrace::new(req.clone()).unwrap();
+    trace.accept(&admit).unwrap();
+    trace.accept(&ack).unwrap();
+    trace.accept(&knowledge(&req, "unknown", 1)).unwrap();
+    let prior = trace.acknowledgment().unwrap().clone();
+    trace.accept(&fulfilled).unwrap();
+    assert_eq!(trace.acknowledgment(), Some(&prior));
+    assert_eq!(trace.accept(&ack).unwrap(), Step::Duplicate);
+    let mut other = serde_json::to_value(&fulfilled).unwrap();
+    other["request_key"] = json!("another-intent");
+    rejected_unchanged(&mut trace, &Record::decode(&other).unwrap());
+    other = serde_json::to_value(&fulfilled).unwrap();
+    other["operation"] = json!("input_release");
+    other["to"] = json!("input_open");
+    rejected_unchanged(&mut trace, &Record::decode(&other).unwrap());
+    let mut refused = RequestTrace::new(req.clone()).unwrap();
+    refused.accept(&admit).unwrap();
+    let mut negative = control_claim(&req, "refusal");
+    negative["operation"] = json!(req.operation);
+    negative["stage"] = json!("transition");
+    negative["reason"] = json!("transition_failed");
+    negative["responder"] = json!(req.addressed);
+    negative["observed_at_unix_ms"] = json!(3);
+    refused.accept(&Record::decode(&negative).unwrap()).unwrap();
+    rejected_unchanged(&mut refused, &fulfilled);
+    rejected_unchanged(&mut refused, &knowledge(&req, "fulfilled", 4));
+    assert!(refused.refusal().is_some());
+    assert!(refused.fulfillment().is_none());
 }

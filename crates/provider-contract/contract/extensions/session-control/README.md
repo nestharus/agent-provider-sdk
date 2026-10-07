@@ -93,11 +93,16 @@ pause, and none may be expressed as another.
   generation. It never starts a new incarnation: an answer from another
   incarnation is invalid, and finding no survivor is the transition refusal
   `root_absent`. An owner that still holds the root makes it `owner_live`.
-  After recovery, further controls are new requests addressed to the
-  successor.
+  After recovery, new control intents address the successor. Already admitted
+  durable intent retains its original identity and can be fulfilled there.
 
 The acknowledgment's `from` is the prior state in the operation's domain, or
-`unknown`. State repetition is separate from key repetition: a hold while
+`unknown`. Lifecycle transitions cannot regress: a close from `cancelling`
+is invalid,
+including in a successor fulfillment. Admission only admits an attempt; it
+does not claim a transition and does not defeat cancel precedence.
+
+State repetition is separate from key repetition: a hold while
 already held is acknowledged `input_held` → `input_held`.
 
 Ticket mapping: the "pause/resume acknowledgements" named in the session and
@@ -167,8 +172,9 @@ identifier to its offer:
 | `receipt` | The request reached a queue or endpoint; `durable` is the receiver's retention claim | Admission, acknowledgment, execution or outcome |
 | `admission` | The answering authority admitted the request for its transition | That the transition happened |
 | `acknowledgment` | The operation's state moved `from` → `to` at the answering authority | Running work, ended work or physical custody |
+| `fulfillment` | A same-incarnation successor reports its own present `from` → `to` fulfillment of an inherited admitted intent, correlated to the original request | Predecessor ACK, predecessor authority, new admission or a new intent |
 | `refusal` | Explicit refusal at `admission` or `transition`, with a reason | — a refusal is an outcome, not an absent acknowledgment |
-| `outcome` | What a reporter knows of the request's own transition: `acknowledged`, `refused`, or `unknown` with an uncertainty reason | — `unknown` never erases an earlier acknowledgment or refusal; reporting confers no authority |
+| `outcome` | What a reporter knows of the request's own transition: `acknowledged`, `fulfilled`, `refused`, or `unknown` with an uncertainty reason | — `unknown` never erases an earlier acknowledgment or refusal; reporting confers no authority |
 | `observation` | One settlement fact about a logical link, with actor evidence | Any control, request, admission or acknowledgment |
 | `root_entry` | Discovery: a descriptive root address | Authority, admission, scheduling, capacity or ownership |
 | `control_state` | Inspection: an authority's current knowledge | An effect or acknowledgment |
@@ -188,21 +194,32 @@ A request's identity is immutable, and it stays addressable after an outcome
 reported `unknown`:
 
 - **Refinement.** After `unknown`, later claims for the same request — a
-  receipt, the admission, the acknowledgment or refusal, and a definite
+  receipt, the admission, the acknowledgment, fulfillment or refusal, and a definite
   outcome — are accepted in ladder order. `unknown` may also be repeated with
-  another reason. The trace keeps every outcome report.
-- **Contradiction.** `acknowledged` and `refused` are final. A later
+  another reason. The trace retains at most 8 distinct unknown reports and
+  reserves one additional slot for definite knowledge. A ninth distinct
+  unknown is refused without mutation; it cannot block later definite knowledge.
+  Exact retained reports still replay as duplicates.
+- **Contradiction.** `acknowledged`, `fulfilled` and `refused` are final. A later
   different outcome, an acknowledgment after a refusal, a refusal after an
   acknowledgment, or a second different admission or acknowledgment is a
   protocol violation and leaves the trace unchanged.
 - **Successors.** Only the addressed authority admits, acknowledges or
   refuses (other than `stale_authority`) a non-recover request. A successor
-  owner may report `outcome` knowledge, with itself as `reporter`, and may
-  faithfully replay its predecessor's persisted claims unchanged (their
-  responder stays the predecessor). It cannot acknowledge its predecessor's
-  request, gains no authority over it, and its reports never erase the
-  predecessor's acknowledgment. A new control intent to the successor is a
-  new request.
+  may faithfully replay persisted predecessor claims unchanged, preserving
+  their responder, and report later outcome knowledge. It cannot produce a
+  predecessor ACK. Separately, a `fulfillment` names the successor as `reporter`
+  and claims its own present fulfillment of the original admitted intent.
+  The reporter must differ in owner or generation within the same root and
+  incarnation. `recover` uses its own original attachment ladder, not fulfillment.
+  The trace requires the inherited admission, matching operation/domain/target,
+  at most one fulfillment, and no refusal. It preserves the original admission,
+  immutable correlation and any predecessor ACK; a truthful prior ACK may also
+  be replayed before a definite outcome. `outcome: fulfilled` requires that
+  fulfillment; `outcome: acknowledged` still requires the predecessor ACK.
+  Neither inspection nor receipt alone supplies inherited admission.
+  Inheritance, positive newer-owner attribution, fencing and actual fulfillment
+  are Runner realization. Equality checks establish none of those truths.
 
 Faithful persisted replay, durable intent and the acknowledgment surviving
 owner death are producer realizations. The contract states what such claims
@@ -214,19 +231,23 @@ mean and refuses ones that contradict; it cannot make a producer keep them.
 
 - `input` and `lifecycle`: each a state of its domain or `unknown`, with an
   optional `since` naming the request that established it;
-- `pending`: up to 8 intents the reporter holds without an acknowledgment or
+- `pending`: up to 8 intents the reporter holds without an acknowledgment, fulfillment or
   refusal (`received` or `admitted`).
 
-Current knowledge is not an acknowledgment and never erases one.
+Current knowledge is not an acknowledgment or fulfillment and never erases
+either. The relation reader uses a retained ACK or fulfillment target. A
+pending entry naming this request with another operation, or listing it pending
+after its ACK/fulfillment/refusal, reads `contradicts`. Producers owe coherent
+pending reports, including immutable keys across generations.
 `RequestTrace::relate` states how a report relates to one request:
 
 | Relation | Meaning |
 | --- | --- |
-| `current` | The report shows the acknowledged state |
-| `prior_retained` | The report no longer knows the state (`unknown`); the acknowledgment stands |
-| `superseded` | A different state, explained by **another** request in `since` (a later release; a cancel over a close) |
+| `current` | The report shows the acknowledged or fulfilled state |
+| `prior_retained` | The report no longer knows the state (`unknown`); the acknowledgment or fulfillment stands |
+| `superseded` | The reporter cites **another** request in `since` as superseding (a later release; a cancel over a close). The producer owes a real, newer, same-domain admitted intent; this reader does not look it up or verify its ordering |
 | `contradicts` | A different state with no other request as its basis, or a lifecycle regression (`cancelling` → `closing` → `open`): the acknowledged transition silently vanished, as an acknowledged close becoming open after successor attach would |
-| `pending` / `no_acknowledgment` | Not acknowledged; the report does or does not hold it as pending |
+| `pending` / `no_acknowledgment` | No retained ACK or fulfillment; the report does or does not hold it as pending |
 | `unrelated` | Another scope, or the attachment domain, which inspection does not describe |
 
 ## Settlement facts
@@ -238,7 +259,7 @@ Four fact types stay distinct:
 | `insertion` | `uncertain` → `acknowledged` or `not_inserted` |
 | `tagged_end` | `absent` → `observed` |
 | `logical_settlement` | `owed` → `settled` |
-| `physical_custody` | `unsettled` → `live` → `exited_wait_pending` → `exited_waited` |
+| `physical_custody` | Within **one exact actor reference**: `unsettled` → `live` → `exited_wait_pending` → `exited_waited` |
 
 Every fact may also be `missing` (with `missing_reason`: `not_captured`,
 `access_denied`, `unsupported`, `not_applicable`) or `redacted`. Neither is a
@@ -259,13 +280,29 @@ states:
 - The reading does not depend on report order. Timestamps are bounded host
   observations, not ordered clocks or causal evidence.
 
+### Physical correlation
+
+The physical summary is knowledge about one actor reference, never subject-wide
+or all-actor discharge. For a non-withheld physical state, the report must carry
+exactly one `exact` actor evidence item with a present reference to compose.
+Different actor references, missing/ambiguous identity, or legacy/incomplete
+identity yield `conflicting` in the summary. The raw reports keep their separate
+facts and references; this label includes inability to correlate and does not
+assert the raw facts are false. Different reporters of the same exact actor
+can compose; reporter authority is not actor identity. Missing/redacted states
+remain withheld, and never establish custody. Same-actor refinement presupposes
+truthful incarnation-sensitive references and coherent encounter selection.
+Runner establishes actual actor relations and independently appropriate
+all-actor custody; this reader neither inspects processes nor attests identity.
+
 ### Warranted reporters
 
 - A reporter of another root is never composed.
 - A `Lineage {root, authorities}` is the consumer's statement of which owner
   generations and incarnations are warranted reporters for the root — its
   owner/generation lineage. With a lineage for the subject's root, only its
-  authorities are composed and the reading's `basis` is `warranted`.
+  authorities are composed and the reading's `basis` is `warranted`, meaning only that the caller supplied a matching
+  lineage filter; the SDK has verified no warrant or coherent encounter.
   Old histories and arbitrary same-root reporters outside it are left out
   and counted in `excluded`. An earlier generation in the lineage is not
   erased by its successor.
@@ -324,13 +361,13 @@ Distinct receipts count toward the trace's bound of 8.
 
 | Operation | Required semantic checks / result |
 | --- | --- |
-| Record admission | Record lines are at most 32768 UTF-8 bytes before parsing. A request's `scope.root` equals its `addressed.root`. An admission's or acknowledgment's responder may answer its operation: the addressed authority, or for `recover` an authority with the same root and incarnation and a different owner or generation. An acknowledgment's `to` is its operation's target and its `from` is in the operation's domain or `unknown`. A refusal's stage matches its reason. `owner_live` and `root_absent` refuse only `recover`; `stale_authority` never refuses `recover`. A `stale_authority` or `owner_live` responder, when present, differs from `addressed` with the same root; any other refusal's responder, when present, may answer the operation. An outcome's `reporter`, when present, has the addressed root. `exact` actor evidence has a present reference. A control state's reporter and every cited request have the scope's root; `input` and `lifecycle` are in their domains; a pending intent is listed once. |
+| Record admission | Record lines are at most 32768 UTF-8 bytes before parsing. A request's `scope.root` equals its `addressed.root`. An admission's or acknowledgment's responder may answer its operation: the addressed authority, or for `recover` an authority with the same root and incarnation and a different owner or generation. ACK and fulfillment `to` match the operation target; `from` belongs to the operation domain or is `unknown`, and lifecycle cannot regress. Fulfillment excludes recover and names a distinct same-incarnation successor reporter. A refusal's stage matches its reason. `owner_live` and `root_absent` refuse only `recover`; `stale_authority` never refuses `recover`. A `stale_authority` or `owner_live` responder, when present, differs from `addressed` with the same root; any other refusal's responder, when present, may answer the operation. An outcome's `reporter`, when present, has the addressed root. `exact` actor evidence has a present reference. A control state's reporter and every cited request have the scope's root; `input` and `lifecycle` are in their domains; a pending intent is listed once. |
 | Selection | Validate the local offer, the advertisement bound and shape, and the strict v2 entry; ignore unknown entries; intersect operations, reports and facts; at least one operation or report is common. |
 | Agreement | The selected protocol is v2 and its offer is structurally valid (including the hold/release pairing); the record's operation, fact type or report is selected. |
 | Repetition | Classify by key scope then exact content, as above. |
-| Trace | A trace starts from an admitted request. Every record must be admissible, correlate exactly and name the request's operation; observations, root entries and control states are refused. Identical redelivery is `duplicate`. Nothing new follows a definite (`acknowledged`/`refused`) outcome; after `unknown` the ladder continues. Receipts at most 8 distinct, outcome reports at most 8. Admission at most once and not after a refusal. Acknowledgment only after admission, from the admitting responder, at most once, never with a refusal. Admission-stage refusal only before admission; transition-stage refusal only after admission; never after an acknowledgment. Outcome `acknowledged` needs an acknowledgment, `refused` needs a refusal, `unknown` is always admissible and retains earlier claims. Refused records leave the trace unchanged. |
+| Trace | A trace starts from an admitted request. Every record must be admissible, correlate exactly and name the request's operation; observations, root entries and control states are refused. Identical redelivery is `duplicate`. Nothing new follows a definite (`acknowledged`/`fulfilled`/`refused`) outcome; after `unknown` the ladder continues. Receipts at most 8 distinct, unknown reports at most 8 plus one reserved definite outcome. Admission at most once and not after a refusal. Acknowledgment only after admission, from the admitting responder, at most once, never with a refusal. Admission-stage refusal only before admission; transition-stage refusal only after admission; never after an acknowledgment or fulfillment. Fulfillment needs inherited admission, a distinct same-incarnation successor, the same operation and a valid non-regressing transition, at most once and never with refusal. Outcome `fulfilled` needs fulfillment; `acknowledged` needs an acknowledgment, `refused` needs a refusal, `unknown` is admissible within its separate bound and retains earlier claims. Refused records leave the trace unchanged. |
 | Relation | As in the table above, for the request's scope and domain. |
-| Settlement reading | As above: exact subject; refinement order; same-root reporters only; lineage filter when supplied; physical custody does not affect the logical reading. |
+| Settlement reading | As above: exact subject; refinement order; same-root reporters only; lineage filter when supplied; physical states compose only within one exact actor reference; ambiguous/differing actor evidence reads conflicting; physical custody does not affect the logical reading. |
 
 ## Bounds and redaction
 
@@ -342,7 +379,7 @@ Distinct receipts count toward the trace's bound of 8.
 | Reason/detail text | 1–512 characters |
 | Actor evidence per observation | 16 |
 | Pending intents per control state | 8 |
-| Receipts / outcome reports per trace | 8 / 8 |
+| Receipts / unknown outcome reports per trace | 8 / 8, plus one reserved definite outcome |
 | Advertisement | 32 entries, 16384 bytes |
 | Diagnostic detail | 512 characters |
 

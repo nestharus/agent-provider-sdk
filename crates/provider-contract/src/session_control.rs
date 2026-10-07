@@ -14,7 +14,8 @@
 //! intent ([`Request`]), transport receipt ([`Receipt`]), admission
 //! ([`Admission`]), semantic transition acknowledgment ([`Acknowledgment`]) or
 //! refusal ([`Refusal`]), and what is known of the request's outcome
-//! ([`Outcome`]). An `unknown` outcome can later be refined for the same
+//! ([`Outcome`]). A successor may report its own [`Fulfillment`] of inherited
+//! admitted intent without asserting predecessor transition authority. An `unknown` outcome can later be refined for the same
 //! immutable request; a definite outcome is final. An [`Observation`] reports
 //! one settlement fact — insertion acknowledgment, tagged turn end, logical
 //! settlement/debt or physical custody/waits — and is never a control.
@@ -57,7 +58,8 @@ pub const MAX_RECORD_BYTES: usize = 32_768;
 pub const MAX_ADVERTISEMENT_BYTES: usize = 16_384;
 /// Distinct receipts one [`RequestTrace`] retains for duplicate detection.
 pub const MAX_TRACE_RECEIPTS: usize = 8;
-/// Distinct outcome reports one [`RequestTrace`] retains.
+/// Distinct unknown reports retained; one additional slot is reserved for
+/// definite knowledge, which cannot be blocked by unknown history.
 pub const MAX_TRACE_OUTCOMES: usize = 8;
 /// Pending intents one [`ControlState`] lists.
 pub const MAX_PENDING: usize = 8;
@@ -348,6 +350,23 @@ pub struct Acknowledgment {
     pub observed_at_unix_ms: u64,
 }
 
+/// A successor reports its own present fulfillment of an inherited admitted
+/// intent. This is not a predecessor acknowledgment or a new request. Runner
+/// establishes inheritance, positive successor attribution and fencing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Fulfillment {
+    pub protocol: String,
+    pub request_key: String,
+    pub requester: String,
+    pub addressed: Authority,
+    pub reporter: Authority,
+    pub operation: Operation,
+    pub from: State,
+    pub to: State,
+    pub observed_at_unix_ms: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RefusalStage {
@@ -402,6 +421,7 @@ pub struct Refusal {
 #[serde(rename_all = "snake_case")]
 pub enum OutcomeResult {
     Acknowledged,
+    Fulfilled,
     Refused,
     Unknown,
 }
@@ -594,6 +614,7 @@ pub enum Record {
     Receipt(Receipt),
     Admission(Admission),
     Acknowledgment(Acknowledgment),
+    Fulfillment(Fulfillment),
     Refusal(Refusal),
     Outcome(Outcome),
     Observation(Observation),
@@ -756,6 +777,24 @@ fn may_answer(operation: Operation, addressed: &Authority, responder: &Authority
     }
 }
 
+/// One transition meaning across original ACKs and successor fulfillment.
+fn check_transition(
+    operation: Operation,
+    from: State,
+    to: State,
+) -> Result<(), ControlUnavailable> {
+    if to != operation.target() || !from.in_domain(operation.domain()) {
+        return Err(invalid_record("transition outside its operation or domain"));
+    }
+    if matches!((from.lifecycle_rank(), to.lifecycle_rank()), (Some(prior), Some(next)) if next < prior)
+    {
+        return Err(invalid_record(
+            "lifecycle transition regresses cancel precedence",
+        ));
+    }
+    Ok(())
+}
+
 impl Record {
     /// Admits one record line: bounded before parsing, schema-strict, then
     /// the normative cross-field rules.
@@ -806,16 +845,19 @@ impl Record {
                         "acknowledgment responder may not answer this operation",
                     ));
                 }
-                if ack.to != ack.operation.target() {
+                check_transition(ack.operation, ack.from, ack.to)?;
+            }
+            Record::Fulfillment(fulfilled) => {
+                if fulfilled.operation == Operation::Recover
+                    || !fulfilled
+                        .reporter
+                        .succeeds_within_incarnation(&fulfilled.addressed)
+                {
                     return Err(invalid_record(
-                        "acknowledged state does not match the operation",
+                        "fulfillment needs a distinct same-incarnation successor",
                     ));
                 }
-                if !ack.from.in_domain(ack.operation.domain()) {
-                    return Err(invalid_record(
-                        "acknowledged prior state belongs to another domain",
-                    ));
-                }
+                check_transition(fulfilled.operation, fulfilled.from, fulfilled.to)?;
             }
             Record::Refusal(refusal) => check_refusal(refusal)?,
             Record::Outcome(outcome) => {
@@ -874,6 +916,7 @@ impl Record {
             Record::Receipt(r) => (&r.request_key, &r.requester, &r.addressed),
             Record::Admission(r) => (&r.request_key, &r.requester, &r.addressed),
             Record::Acknowledgment(r) => (&r.request_key, &r.requester, &r.addressed),
+            Record::Fulfillment(r) => (&r.request_key, &r.requester, &r.addressed),
             Record::Refusal(r) => (&r.request_key, &r.requester, &r.addressed),
             Record::Outcome(r) => (&r.request_key, &r.requester, &r.addressed),
             Record::Observation(_) | Record::RootEntry(_) | Record::ControlState(_) => return None,
@@ -1119,6 +1162,10 @@ pub enum Step {
         from: State,
         to: State,
     },
+    Fulfilled {
+        from: State,
+        to: State,
+    },
     Refused {
         stage: RefusalStage,
         reason: RefusalReason,
@@ -1143,6 +1190,7 @@ pub struct RequestTrace {
     receipts: Vec<Receipt>,
     admission: Option<Admission>,
     acknowledgment: Option<Acknowledgment>,
+    fulfillment: Option<Fulfillment>,
     refusal: Option<Refusal>,
     outcomes: Vec<Outcome>,
 }
@@ -1155,6 +1203,7 @@ impl RequestTrace {
             receipts: Vec::new(),
             admission: None,
             acknowledgment: None,
+            fulfillment: None,
             refusal: None,
             outcomes: Vec::new(),
         })
@@ -1169,6 +1218,9 @@ impl RequestTrace {
     pub fn acknowledgment(&self) -> Option<&Acknowledgment> {
         self.acknowledgment.as_ref()
     }
+    pub fn fulfillment(&self) -> Option<&Fulfillment> {
+        self.fulfillment.as_ref()
+    }
     pub fn refusal(&self) -> Option<&Refusal> {
         self.refusal.as_ref()
     }
@@ -1176,7 +1228,7 @@ impl RequestTrace {
     pub fn outcome(&self) -> Option<&Outcome> {
         self.outcomes.last()
     }
-    /// Every accepted outcome report, earliest first.
+    /// Accepted unknown reports (at most 8), then at most one definite report.
     pub fn outcomes(&self) -> &[Outcome] {
         &self.outcomes
     }
@@ -1248,11 +1300,30 @@ impl RequestTrace {
                     to: ack.to,
                 })
             }
+            Record::Fulfillment(fulfilled) => {
+                if fulfilled.operation != operation {
+                    return Err(violation("fulfillment of another operation"));
+                }
+                if self.admission.is_none() {
+                    return Err(violation("fulfillment before inherited admission"));
+                }
+                if self.fulfillment.is_some() || self.refusal.is_some() {
+                    return Err(violation("fulfillment contradicts an earlier claim"));
+                }
+                self.fulfillment = Some(fulfilled.clone());
+                Ok(Step::Fulfilled {
+                    from: fulfilled.from,
+                    to: fulfilled.to,
+                })
+            }
             Record::Refusal(refusal) => {
                 if refusal.operation != operation {
                     return Err(violation("refusal of another operation"));
                 }
-                if self.refusal.is_some() || self.acknowledgment.is_some() {
+                if self.refusal.is_some()
+                    || self.acknowledgment.is_some()
+                    || self.fulfillment.is_some()
+                {
                     return Err(violation("refusal contradicts an earlier claim"));
                 }
                 match (refusal.stage, self.admission.is_some()) {
@@ -1274,6 +1345,7 @@ impl RequestTrace {
                 let consistent = match outcome.result {
                     OutcomeResult::Acknowledged => self.acknowledgment.is_some(),
                     OutcomeResult::Refused => self.refusal.is_some(),
+                    OutcomeResult::Fulfilled => self.fulfillment.is_some(),
                     // Uncertainty is retained alongside, never instead of,
                     // an earlier acknowledgment or refusal.
                     OutcomeResult::Unknown => true,
@@ -1281,7 +1353,9 @@ impl RequestTrace {
                 if !consistent {
                     return Err(violation("outcome contradicts the recorded claims"));
                 }
-                if self.outcomes.len() >= MAX_TRACE_OUTCOMES {
+                if outcome.result == OutcomeResult::Unknown
+                    && self.outcomes.len() >= MAX_TRACE_OUTCOMES
+                {
                     return Err(violation("outcome bound exceeded"));
                 }
                 let refines = !self.outcomes.is_empty();
@@ -1300,6 +1374,7 @@ impl RequestTrace {
             Record::Receipt(receipt) => self.receipts.contains(receipt),
             Record::Admission(admission) => self.admission.as_ref() == Some(admission),
             Record::Acknowledgment(ack) => self.acknowledgment.as_ref() == Some(ack),
+            Record::Fulfillment(fulfilled) => self.fulfillment.as_ref() == Some(fulfilled),
             Record::Refusal(refusal) => self.refusal.as_ref() == Some(refusal),
             Record::Outcome(outcome) => self.outcomes.contains(outcome),
             Record::Observation(_) | Record::RootEntry(_) | Record::ControlState(_) => false,
@@ -1320,27 +1395,38 @@ impl RequestTrace {
             Domain::Lifecycle => &state.lifecycle,
             Domain::Attachment => return Relation::Unrelated,
         };
-        let Some(ack) = &self.acknowledgment else {
-            if state
-                .pending
-                .iter()
-                .any(|pending| pending.request == reference)
-            {
-                return Relation::Pending;
-            }
-            return Relation::NoAcknowledgment;
+        let target = self
+            .acknowledgment
+            .as_ref()
+            .map(|ack| ack.to)
+            .or_else(|| self.fulfillment.as_ref().map(|fulfilled| fulfilled.to));
+        let pending = state
+            .pending
+            .iter()
+            .find(|pending| pending.request == reference);
+        if pending.is_some_and(|pending| pending.operation != self.request.operation)
+            || (pending.is_some() && (target.is_some() || self.refusal.is_some()))
+        {
+            return Relation::Contradicts;
+        }
+        let Some(target) = target else {
+            return if pending.is_some() {
+                Relation::Pending
+            } else {
+                Relation::NoAcknowledgment
+            };
         };
         if current.state == State::Unknown {
             return Relation::PriorRetained;
         }
-        if current.state == ack.to {
+        if current.state == target {
             return Relation::Current;
         }
         let explained = current
             .since
             .as_ref()
             .is_some_and(|since| since != &reference);
-        let regresses = match (current.state.lifecycle_rank(), ack.to.lifecycle_rank()) {
+        let regresses = match (current.state.lifecycle_rank(), target.lifecycle_rank()) {
             (Some(now), Some(acked)) => now < acked,
             _ => false,
         };
@@ -1358,15 +1444,17 @@ impl RequestTrace {
 pub enum Relation {
     /// Another scope, or a domain the report does not describe.
     Unrelated,
-    /// No acknowledgment, and the report does not list the intent as pending.
+    /// No ACK or fulfillment; the report does not list the intent as pending.
     NoAcknowledgment,
-    /// No acknowledgment yet; the report holds the intent as pending.
+    /// No ACK or fulfillment yet; the report holds the intent as pending.
     Pending,
-    /// The report shows the acknowledged state.
+    /// The report shows the acknowledged or fulfilled state.
     Current,
-    /// The report no longer knows the state; the acknowledgment stands.
+    /// The report no longer knows the state; the ACK or fulfillment stands.
     PriorRetained,
-    /// A later request explains a different current state.
+    /// The reporter cites another request as superseding. The producer owes
+    /// a real newer admitted intent in the same domain; this reader does not
+    /// look up that intent or establish its temporal authority.
     Superseded,
     /// A different state without another request as its basis, or a
     /// lifecycle regression: the acknowledged transition silently vanished.
@@ -1515,6 +1603,9 @@ pub struct SettlementReading {
     pub insertion: FactReading<InsertionState>,
     pub tagged_end: FactReading<TaggedEndState>,
     pub logical_settlement: FactReading<LogicalSettlementState>,
+    /// Single exact actor-reference knowledge only, never subject discharge.
+    /// Differing or ambiguous actor references also read `Conflicting`;
+    /// retained raw observations carry the physical facts and references.
     pub physical_custody: FactReading<PhysicalCustodyState>,
     pub logical: LogicalReading,
     pub basis: Basis,
@@ -1540,6 +1631,7 @@ pub fn read_settlement(
     let mut tagged_end = FactReading::NotObserved;
     let mut logical_settlement = FactReading::NotObserved;
     let mut physical_custody = FactReading::NotObserved;
+    let mut physical_actor: Option<&ActorEvidence> = None;
     let mut excluded = 0;
     for observation in observations.iter().filter(|o| &o.subject == subject) {
         let warranted = observation.reporter.root == subject.root
@@ -1552,7 +1644,25 @@ pub fn read_settlement(
             Fact::Insertion { state, .. } => add(&mut insertion, state),
             Fact::TaggedEnd { state, .. } => add(&mut tagged_end, state),
             Fact::LogicalSettlement { state, .. } => add(&mut logical_settlement, state),
-            Fact::PhysicalCustody { state, .. } => add(&mut physical_custody, state),
+            Fact::PhysicalCustody { state, .. } => {
+                // Refinement is meaningful only within one exact actor reference.
+                // Withheld evidence is not a negative physical state.
+                if !state.withheld() {
+                    match observation.evidence.as_slice() {
+                        [actor]
+                            if actor.exactness == Exactness::Exact
+                                && matches!(actor.reference, DisclosedRef::Present { .. }) =>
+                        {
+                            if physical_actor.is_some_and(|seen| seen != actor) {
+                                physical_custody = FactReading::Conflicting;
+                            }
+                            physical_actor = Some(actor);
+                        }
+                        _ => physical_custody = FactReading::Conflicting,
+                    }
+                }
+                add(&mut physical_custody, state);
+            }
         }
     }
     use FactReading::Reported;

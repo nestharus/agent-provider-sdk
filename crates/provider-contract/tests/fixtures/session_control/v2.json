@@ -936,6 +936,31 @@
           },
           "observed_at_unix_ms": 1760000000600
         }
+      },
+      {
+        "name": "successor fulfillment of inherited admitted hold",
+        "value": {
+          "kind": "fulfillment",
+          "protocol": "oulipoly.session_control/v2",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-b",
+            "generation": "g13",
+            "incarnation": "inc-3f9"
+          },
+          "from": "unknown",
+          "to": "input_held",
+          "observed_at_unix_ms": 20
+        }
       }
     ]
   },
@@ -2813,6 +2838,131 @@
               "status": "admitted"
             }
           ]
+        }
+      },
+      {
+        "name": "fulfillment cannot impersonate predecessor",
+        "value": {
+          "kind": "fulfillment",
+          "protocol": "oulipoly.session_control/v2",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "from": "unknown",
+          "to": "input_held",
+          "observed_at_unix_ms": 20
+        }
+      },
+      {
+        "name": "fulfillment cannot change incarnation",
+        "value": {
+          "kind": "fulfillment",
+          "protocol": "oulipoly.session_control/v2",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "input_hold",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-b",
+            "generation": "g13",
+            "incarnation": "other"
+          },
+          "from": "unknown",
+          "to": "input_held",
+          "observed_at_unix_ms": 20
+        }
+      },
+      {
+        "name": "fulfillment cannot answer recover",
+        "value": {
+          "kind": "fulfillment",
+          "protocol": "oulipoly.session_control/v2",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "recover",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-b",
+            "generation": "g13",
+            "incarnation": "inc-3f9"
+          },
+          "from": "unknown",
+          "to": "attached",
+          "observed_at_unix_ms": 20
+        }
+      },
+      {
+        "name": "fulfillment cannot regress cancel into close",
+        "value": {
+          "kind": "fulfillment",
+          "protocol": "oulipoly.session_control/v2",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "close",
+          "reporter": {
+            "root": "root-7",
+            "owner": "owner-b",
+            "generation": "g13",
+            "incarnation": "inc-3f9"
+          },
+          "from": "cancelling",
+          "to": "closing",
+          "observed_at_unix_ms": 20
+        }
+      },
+      {
+        "name": "ACK cannot regress cancel into close",
+        "value": {
+          "kind": "acknowledgment",
+          "protocol": "oulipoly.session_control/v2",
+          "request_key": "k-hold-1",
+          "requester": "cli:user-1000",
+          "addressed": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          },
+          "operation": "close",
+          "from": "cancelling",
+          "to": "closing",
+          "observed_at_unix_ms": 20,
+          "responder": {
+            "root": "root-7",
+            "owner": "owner-a",
+            "generation": "g12",
+            "incarnation": "inc-3f9"
+          }
         }
       }
     ]
@@ -8833,8 +8983,7 @@
           "reading": "not_observed"
         },
         "physical_custody": {
-          "reading": "reported",
-          "state": "exited_waited"
+          "reading": "conflicting"
         },
         "logical": "owed",
         "basis": "warranted",
@@ -9064,8 +9213,7 @@
           "reading": "not_observed"
         },
         "physical_custody": {
-          "reading": "reported",
-          "state": "exited_waited"
+          "reading": "conflicting"
         },
         "logical": "unknown",
         "basis": "warranted",
@@ -9154,8 +9302,7 @@
           "reading": "not_observed"
         },
         "physical_custody": {
-          "reading": "reported",
-          "state": "exited_waited"
+          "reading": "conflicting"
         },
         "logical": "unknown",
         "basis": "warranted",
@@ -9561,8 +9708,7 @@
           "state": "owed"
         },
         "physical_custody": {
-          "reading": "reported",
-          "state": "exited_waited"
+          "reading": "conflicting"
         },
         "logical": "owed",
         "basis": "warranted",
@@ -9704,8 +9850,7 @@
           "state": "owed"
         },
         "physical_custody": {
-          "reading": "reported",
-          "state": "exited_waited"
+          "reading": "conflicting"
         },
         "logical": "owed",
         "basis": "warranted",

@@ -211,20 +211,26 @@ defined but not adopted yet; it replaces the never-adopted hold-only v1.
   and pending control intent, and requests for `input_hold`/`input_release`,
   same-incarnation `recover`, `cancel` and `close` on one claim ladder:
   requester intent, transport receipt, admission, semantic transition
-  acknowledgment or refusal, and outcome as distinct records. The existing
+  acknowledgment, inherited-intent fulfillment, refusal and outcome as distinct
+  records. Lifecycle transitions preserve cancel precedence. The existing
   root owner/generation/incarnation is the addressed and answering authority;
   logical root/child/work/input links stay apart from attached process, Bash
   handle, provider-session and stream evidence; insertion, tagged end, logical
   debt and physical custody/wait facts stay apart.
 - **Knowledge over time.** An `unknown` outcome can later be refined for the
-  same immutable request; definite outcomes are final and contradictions are
-  refused. A successor owner reports knowledge without acknowledging or
-  erasing its predecessor's claims, and current-state reports relate to prior
-  acknowledgments (current, retained, superseded or contradicted).
+  same immutable request; eight retained unknown reports cannot consume the
+  reserved definite-outcome slot. Definite outcomes are final and contradictions
+  are refused. A successor owner reports knowledge without acknowledging or
+  erasing its predecessor's claims. It can report its own present fulfillment of
+  an inherited admitted intent under the original immutable correlation, without
+  predecessor transition authority. Current-state reports relate to prior ACKs
+  and fulfillment (current, retained, reporter-claimed supersession or contradiction).
 - **Settlement.** Observations of one subject read as one order-independent
   evolving account; other roots' reporters are never composed, and a
-  caller-supplied root lineage marks a reading `warranted`. Physical exit never
-  implies logical settlement.
+  caller-supplied root lineage marks a reading `warranted` only under the
+  caller’s warrant and coherent encounter selection. Physical summaries compose
+  one exact actor reference; distinct or ambiguous references read conflicting.
+  A waited actor is never subject-wide custody or logical settlement.
 - **Selection.** Peers select it by a bounded advertisement, not provider
   `describe`; providers do not speak it. Hold is offered only with release.
   Absent or incompatible control capability is a `control_unavailable`
