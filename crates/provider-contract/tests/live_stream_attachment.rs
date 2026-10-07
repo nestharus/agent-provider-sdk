@@ -1,4 +1,4 @@
-//! live_stream/v1 attachment: message admission, role pairing, host decisions
+//! live_stream/v2 attachment: message admission, role pairing, host decisions
 //! for registration and attachment, publisher ingest, and the subscriber's
 //! replay continuation, end to end in memory.
 //!
@@ -147,7 +147,7 @@ fn register(
 #[test]
 fn classified_messages_distinguish_raw_schema_from_semantic_admission() {
     let cases: Value =
-        serde_json::from_str(include_str!("fixtures/live_stream/attachment-v1.json")).unwrap();
+        serde_json::from_str(include_str!("fixtures/live_stream/attachment-v2.json")).unwrap();
     assert_eq!(cases["protocol"], PROTOCOL);
     for value in cases["valid"]["Message"].as_array().unwrap() {
         let message = Message::decode(value).unwrap_or_else(|e| panic!("{value}: {e}"));
@@ -562,4 +562,234 @@ fn subscriber_refuses_an_attached_answer_that_does_not_continue_its_cursor() {
         let error = follow_attached(&subscriber, &request, &attached).unwrap_err();
         assert_eq!(error.reason, UnavailableReason::ProtocolViolation);
     }
+}
+
+// P1's retained U132 counterexample: data@1 then finalized@1 must not
+// terminalize publisher state. Reader terminal catch-up is a separate role.
+#[test]
+fn publisher_requires_new_positions_while_reader_catch_up_keeps_terminal_knowledge() {
+    let selected = handshake(Role::Publisher, Audience::Owner);
+    let claim = descriptor(FIRST, Audience::Owner);
+    let mut ingest = register(
+        &selected,
+        claim.clone(),
+        Finalization::CustodyOwner,
+        &granted("host:owner"),
+    )
+    .unwrap();
+    ingest.accept(&data(FIRST, 1, "x")).unwrap();
+    let before = ingest.clone();
+    for record in [
+        finalized(FIRST, 1),
+        data(FIRST, 1, "replacement"),
+        Record::Ended(EndedFrame {
+            stream_id: STREAM.into(),
+            incarnation: FIRST.into(),
+            seq: 1,
+            observed_at_unix_ms: 2,
+        }),
+        gap(1, 1, GapReason::CaptureOverflow),
+    ] {
+        assert_eq!(
+            ingest.accept(&record).unwrap_err().reason,
+            UnavailableReason::ProtocolViolation
+        );
+        assert_eq!(ingest, before);
+        assert_eq!(ingest.retire().last_seq, None);
+    }
+    // The same-position rule remains legitimate for a reader that already
+    // holds a terminal position but has not learned its retained metadata.
+    let mut reader = agent_provider_contract::live_stream::Follower::from_descriptor(
+        &selected,
+        &claim,
+        claim.start(),
+    )
+    .unwrap();
+    reader.accept(&data(FIRST, 1, "x")).unwrap();
+    assert!(matches!(
+        reader.accept(&finalized(FIRST, 1)).unwrap(),
+        Accepted::Finalized { seq: 1, .. }
+    ));
+    assert!(reader.ended());
+    assert_eq!(
+        reader.accept(&finalized(FIRST, 1)).unwrap(),
+        Accepted::Duplicate
+    );
+    ingest.accept(&finalized(FIRST, 2)).unwrap();
+    let before = ingest.clone();
+    assert!(ingest.accept(&finalized(FIRST, 2)).is_err());
+    assert_eq!(ingest, before);
+    assert_eq!(ingest.retire().last_seq, Some(2));
+}
+
+// P2/P3's real answer conditions: at-final cursor, terminal metadata,
+// same continuation, but omitted prefix or unrelated declared terminal.
+#[test]
+fn at_final_attachment_requires_consistent_terminal_prefix_and_declaration() {
+    use agent_provider_contract::live_stream::Terminal;
+    let selected = handshake(Role::Subscriber, Audience::Owner);
+    let claim = descriptor(FIRST, Audience::Owner);
+    let decision = granted("host:owner");
+    for terminal in [
+        finalized(FIRST, 1),
+        Record::Ended(EndedFrame {
+            stream_id: STREAM.into(),
+            incarnation: FIRST.into(),
+            seq: 1,
+            observed_at_unix_ms: 1,
+        }),
+    ] {
+        let mut ingest = register(
+            &selected,
+            claim.clone(),
+            Finalization::CustodyOwner,
+            &decision,
+        )
+        .unwrap();
+        ingest.accept(&terminal).unwrap();
+        let mut cursor = claim.start();
+        cursor.after_seq = 1;
+        let request = Attach { cursor };
+        let honest = attach(
+            &selected,
+            &claim,
+            &ingest.window(1, None),
+            &request,
+            &decision,
+        )
+        .unwrap();
+        let (f, accepted) = follow_attached(&selected, &request, &honest).unwrap();
+        assert!(f.ended());
+        assert_eq!(accepted.len(), 1);
+        assert_eq!(f.cursor().terminal, honest.plan.terminal);
+        let known = Attach {
+            cursor: f.cursor().clone(),
+        };
+        assert_eq!(
+            follow_attached(&selected, &known, &honest).unwrap().1,
+            vec![Accepted::Duplicate]
+        );
+        for mutation in 0..10 {
+            let mut answer = honest.clone();
+            match mutation {
+                0 => answer.plan.prefix.clear(), // P2: correct deliver_from retained.
+                1 => answer.plan.terminal = None,
+                2..=6 => {
+                    let t = answer.plan.terminal.as_mut().unwrap();
+                    match t {
+                        Terminal::Finalized(t) => match mutation {
+                            2 => {
+                                t.stream_id = "f".repeat(32);
+                                t.durable_reference = "host:contradiction".into();
+                            }
+                            3 => t.incarnation = SECOND.into(),
+                            4 => t.seq = 2,
+                            5 => t.observed_at_unix_ms += 1,
+                            _ => t.durable_reference = "host:contradiction".into(),
+                        },
+                        Terminal::Ended(t) => match mutation {
+                            2 => t.stream_id = "f".repeat(32),
+                            3 => t.incarnation = SECOND.into(),
+                            4 => t.seq = 2,
+                            _ => t.observed_at_unix_ms += 1,
+                        },
+                    }
+                }
+                7 => answer.plan.deliver_from = 3,
+                8 => answer.plan.prefix = vec![data(FIRST, 1, "invented prefix")],
+                _ => answer.plan.prefix.push(terminal.clone()),
+            }
+            // These are structurally valid; contextual follow must discriminate.
+            let Message::Attached(answer) =
+                Message::decode_line(&Message::Attached(answer).encode_line()).unwrap()
+            else {
+                panic!()
+            };
+            assert!(
+                follow_attached(&selected, &request, &answer).is_err(),
+                "mutation {mutation}"
+            );
+            assert!(
+                follow_attached(&selected, &known, &answer).is_err(),
+                "known mutation {mutation}"
+            );
+        }
+        // A lagging attach advertises terminal metadata without learning it
+        // early. Only delivery of the real terminal ends the follower.
+        let lagging = Attach {
+            cursor: claim.start(),
+        };
+        let answer = attach(
+            &selected,
+            &claim,
+            &ingest.window(1, None),
+            &lagging,
+            &decision,
+        )
+        .unwrap();
+        let (mut f, accepted) = follow_attached(&selected, &lagging, &answer).unwrap();
+        assert!(accepted.is_empty());
+        assert!(!f.ended());
+        f.accept(&terminal).unwrap();
+        assert!(f.ended());
+    }
+}
+
+#[test]
+fn attachment_agreement_distinguishes_baseline_v1_from_declared_v2() {
+    use agent_provider_contract::live_stream::{
+        advertisement, select, SCHEMA_JSON, SUPPORTED_VERSIONS,
+    };
+    let local = offer(Audience::Owner);
+    let baseline = serde_json::json!({"oulipoly.live_stream/v1": local});
+    let hello = Hello {
+        role: Role::Broker,
+        advertisement: baseline.clone(),
+    };
+    assert_eq!(
+        hello.select(Role::Subscriber, &local).unwrap_err().reason,
+        UnavailableReason::NoCommonVersion
+    );
+    assert_eq!(
+        select(&local, &baseline).unwrap_err().reason,
+        UnavailableReason::NoCommonVersion
+    );
+    let current = Hello::new(Role::Broker, &local);
+    assert_eq!(current.advertisement, advertisement(&local));
+    assert_eq!(
+        current.select(Role::Subscriber, &local).unwrap().protocol,
+        "oulipoly.live_stream/v2"
+    );
+    assert_eq!(SUPPORTED_VERSIONS, &[2]);
+    let schema: Value = serde_json::from_str(SCHEMA_JSON).unwrap();
+    assert_eq!(schema["$id"], "urn:oulipoly:live-stream:v2");
+    assert_eq!(schema["$defs"]["Protocol"]["const"], PROTOCOL);
+    let old: Value = serde_json::from_str(include_str!(
+        "../contract/extensions/live-stream/v1.schema.json"
+    ))
+    .unwrap();
+    assert_eq!(old["$id"], "urn:oulipoly:live-stream:v1");
+    assert!(old["$defs"].get("Message").is_none());
+    let diagnostic = serde_json::json!({"diagnostic":"live_unavailable","reason":"not_authorized"});
+    let old_validator = jsonschema::validator_for(
+        &serde_json::json!({"$defs":old["$defs"],"$ref":"#/$defs/LiveUnavailable"}),
+    )
+    .unwrap();
+    assert!(!old_validator.is_valid(&diagnostic));
+    validate(
+        "LiveUnavailable",
+        &diagnostic,
+        UnavailableReason::InvalidRecord,
+    )
+    .unwrap();
+    Message::decode(&serde_json::json!({"op":"unavailable","diagnostic":diagnostic})).unwrap();
+    // An unknown newer entry never overrides the selected v2 entry's shape.
+    let mixed = serde_json::json!({"oulipoly.live_stream/v1":{},PROTOCOL:local,"oulipoly.live_stream/v3":{}});
+    assert!(select(&local, &mixed).is_ok());
+    assert_eq!(
+        select(&local, &serde_json::json!({PROTOCOL:{}}))
+            .unwrap_err()
+            .reason,
+        UnavailableReason::InvalidAdvertisement
+    );
 }

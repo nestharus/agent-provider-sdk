@@ -313,6 +313,17 @@ impl Ingest {
             }
             _ => {}
         }
+        // Reader catch-up may learn terminal metadata at its current position.
+        // A publisher must originate a new position, never replace or redeliver one.
+        let first = match record {
+            Record::Gap(gap) => gap.first,
+            _ => record.sequenced().expect("publisher frame").1,
+        };
+        if self.last_published().checked_add(1) != Some(first) {
+            return Err(violation(
+                "publisher record does not start at the next position",
+            ));
+        }
         self.follower.accept(record)
     }
 
@@ -393,6 +404,33 @@ pub fn follow_attached(
     )?;
     let mut follower =
         Follower::from_descriptor(selected, &attached.descriptor, request.cursor.clone())?;
+    // Reconstruct only the window facts expressed by the answer, then require
+    // the canonical replay shape. This checks consistency, not retention truth.
+    let terminal_seq = attached
+        .plan
+        .terminal
+        .as_ref()
+        .map(|t| t.record().sequenced().expect("terminal frame").1);
+    let previous = match attached.plan.prefix.first() {
+        Some(Record::Discontinuity(d)) => Some(PreviousIncarnation {
+            incarnation: d.previous_incarnation.clone(),
+            last_seq: d.previous_last_seq,
+        }),
+        _ => None,
+    };
+    let window = RetainedWindow {
+        stream_id: attached.descriptor.stream_id.clone(),
+        incarnation: attached.descriptor.incarnation.clone(),
+        first_retained: terminal_seq.map_or(attached.plan.deliver_from, |seq| {
+            attached.plan.deliver_from.min(seq)
+        }),
+        last_published: terminal_seq.unwrap_or(attached.plan.deliver_from - 1),
+        terminal: attached.plan.terminal.clone(),
+        previous,
+    };
+    if plan_replay(&window, &request.cursor)? != attached.plan {
+        return Err(violation("replay plan contradicts its terminal or prefix"));
+    }
     let mut accepted = Vec::with_capacity(attached.plan.prefix.len());
     for record in &attached.plan.prefix {
         accepted.push(follower.accept(record)?);

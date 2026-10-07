@@ -1,4 +1,4 @@
-//! Optional `oulipoly.live_stream/v1` live-output observation contract.
+//! Optional `oulipoly.live_stream/v2` live-output observation contract.
 //!
 //! Records a publisher (capture at a host seam), a broker and subscribers
 //! exchange about live output: one stream's identity, its publisher
@@ -40,10 +40,10 @@ use std::sync::OnceLock;
 
 pub mod attachment;
 
-pub const PROTOCOL: &str = "oulipoly.live_stream/v1";
-pub const SCHEMA_JSON: &str = include_str!("../contract/extensions/live-stream/v1.schema.json");
+pub const PROTOCOL: &str = "oulipoly.live_stream/v2";
+pub const SCHEMA_JSON: &str = include_str!("../contract/extensions/live-stream/v2.schema.json");
 /// Live-stream versions this SDK release defines.
-pub const SUPPORTED_VERSIONS: &[u32] = &[1];
+pub const SUPPORTED_VERSIONS: &[u32] = &[2];
 /// Upper bound of captured bytes in one data frame; a selection may lower it.
 pub const MAX_DATA_BYTES: u32 = 65_536;
 /// Upper bound of one serialized record line, checked before parsing.
@@ -282,7 +282,7 @@ pub struct Cursor {
     pub terminal: Option<Terminal>,
 }
 
-/// One peer's `oulipoly.live_stream/v1` advertisement entry.
+/// One peer's `oulipoly.live_stream/v2` advertisement entry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Offer {
@@ -605,7 +605,7 @@ pub fn advertisement(offer: &Offer) -> Value {
 }
 
 /// Selects what `local` and a peer's advertisement can both use. Entries for
-/// unknown or newer protocols are ignored; the `oulipoly.live_stream/v1`
+/// unknown or newer protocols are ignored; the `oulipoly.live_stream/v2`
 /// entry must be strict. Every refusal is a [`LiveUnavailable`].
 pub fn select(local: &Offer, remote: &Value) -> Result<Selected, LiveUnavailable> {
     let local_value = serde_json::to_value(local).expect("offer serializes");

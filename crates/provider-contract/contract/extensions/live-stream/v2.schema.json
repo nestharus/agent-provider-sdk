@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:oulipoly:live-stream:v1",
-  "title": "Oulipoly Live Stream v1",
-  "description": "Provider-neutral, optional, bounded live-output observation records exchanged between a publisher, a broker and subscribers. Selected by peer advertisement of oulipoly.live_stream/v1, not by provider describe, CLI, binary, package or source identity. It is not launch output, request custody, completed replay, a session transcript page or a durable store: completed turns stay canonical in the host's normal durable session storage, named here only by opaque host-owned references. Contract refusals are live_unavailable diagnostics. Structural schema and the adjacent README normative semantic rules together define conformance; raw schema validation alone is insufficient.",
+  "$id": "urn:oulipoly:live-stream:v2",
+  "title": "Oulipoly Live Stream v2",
+  "description": "Provider-neutral, optional, bounded live-output observation records exchanged between a publisher, a broker and subscribers. Selected by peer advertisement of oulipoly.live_stream/v2, not by provider describe, CLI, binary, package or source identity. It is not launch output, request custody, completed replay, a session transcript page or a durable store: completed turns stay canonical in the host's normal durable session storage, named here only by opaque host-owned references. Contract refusals are live_unavailable diagnostics. Structural schema and the adjacent README normative semantic rules together define conformance; raw schema validation alone is insufficient.",
   "$defs": {
-    "Protocol": { "const": "oulipoly.live_stream/v1" },
+    "Protocol": { "const": "oulipoly.live_stream/v2" },
     "Id128": {
       "description": "128 random bits as 32 lowercase hex digits.",
       "type": "string",
@@ -240,7 +240,7 @@
       "additionalProperties": false
     },
     "Offer": {
-      "description": "One peer's oulipoly.live_stream/v1 advertisement entry.",
+      "description": "One peer's oulipoly.live_stream/v2 advertisement entry.",
       "type": "object",
       "properties": {
         "channels": { "$ref": "#/$defs/Channels" },
@@ -347,6 +347,195 @@
       ],
       "additionalProperties": false
     },
+    "Role": {
+      "description": "The part a peer plays on one live-stream connection. Every connection joins a broker to a publisher or to a subscriber.",
+      "enum": [
+        "publisher",
+        "broker",
+        "subscriber"
+      ]
+    },
+    "Finalization": {
+      "description": "Whether this publisher may send finalized frames. custody_owner: it sends finalized only from the custody owner's terminal retained result after normal durable publication. never: it can only end. A declaration the host wires, not a proof.",
+      "enum": [
+        "custody_owner",
+        "never"
+      ]
+    },
+    "Message": {
+      "description": "One line of a live-stream connection. The host supplies the endpoint and an ordered, reliable byte stream; the SDK opens no socket and runs no broker.",
+      "oneOf": [
+        {
+          "description": "First message from both ends. Selection uses the advertisement; the role pair must join a broker to a publisher or a subscriber.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "hello"
+            },
+            "role": {
+              "$ref": "#/$defs/Role"
+            },
+            "advertisement": {
+              "$ref": "#/$defs/Advertisement"
+            }
+          },
+          "required": [
+            "op",
+            "role",
+            "advertisement"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Publisher to broker: attach one incarnation. The broker admits it only with a host decision.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "register"
+            },
+            "descriptor": {
+              "$ref": "#/$defs/Descriptor"
+            },
+            "finalization": {
+              "$ref": "#/$defs/Finalization"
+            }
+          },
+          "required": [
+            "op",
+            "descriptor",
+            "finalization"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Broker to publisher: the incarnation is attached. Not an observer grant, durable custody or finalization.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "registered"
+            },
+            "stream_id": {
+              "$ref": "#/$defs/StreamId"
+            },
+            "incarnation": {
+              "$ref": "#/$defs/Incarnation"
+            }
+          },
+          "required": [
+            "op",
+            "stream_id",
+            "incarnation"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Subscriber to broker: ask for the streams the host lets it see.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "list"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Broker to subscriber: descriptors the host chose to list. Listing is not permission to attach.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "directory"
+            },
+            "streams": {
+              "type": "array",
+              "maxItems": 32,
+              "items": {
+                "$ref": "#/$defs/Descriptor"
+              }
+            }
+          },
+          "required": [
+            "op",
+            "streams"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Subscriber to broker: follow one stream from a caller-owned cursor.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "attach"
+            },
+            "cursor": {
+              "$ref": "#/$defs/Cursor"
+            }
+          },
+          "required": [
+            "op",
+            "cursor"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Broker to subscriber: the current descriptor and the replay plan for the cursor. Retained records follow from plan.deliver_from.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "attached"
+            },
+            "descriptor": {
+              "$ref": "#/$defs/Descriptor"
+            },
+            "plan": {
+              "$ref": "#/$defs/ReplayPlan"
+            }
+          },
+          "required": [
+            "op",
+            "descriptor",
+            "plan"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "One live-stream record: publisher to broker, or broker to subscriber.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "record"
+            },
+            "record": {
+              "$ref": "#/$defs/Record"
+            }
+          },
+          "required": [
+            "op",
+            "record"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Either end: live viewing is unavailable. The receiver stops live viewing; nothing else changes.",
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "unavailable"
+            },
+            "diagnostic": {
+              "$ref": "#/$defs/LiveUnavailable"
+            }
+          },
+          "required": [
+            "op",
+            "diagnostic"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
     "LiveUnavailable": {
       "description": "Observability diagnostic: live viewing is unavailable for the stated reason. It disables live viewing only and is not a provider error, launch event or completion outcome.",
       "type": "object",
@@ -360,7 +549,8 @@
             "no_common_capability",
             "invalid_record",
             "protocol_violation",
-            "unknown_stream"
+            "unknown_stream",
+            "not_authorized"
           ]
         },
         "detail": { "type": "string", "maxLength": 512 }

@@ -1,6 +1,6 @@
-# Live stream v1
+# Live stream v2
 
-`oulipoly.live_stream/v1` is the provider-neutral record vocabulary of the
+`oulipoly.live_stream/v2` is the provider-neutral record vocabulary of the
 optional live-output plane. A publisher, a broker and subscribers use it to
 exchange the following about live output:
 
@@ -12,8 +12,8 @@ exchange the following about live output:
 - caller-owned cursors;
 - advertised visibility claims.
 
-[v1.schema.json](v1.schema.json) defines structural validation. That schema
-**plus the normative semantic rules below** defines v1 conformance in every
+[v2.schema.json](v2.schema.json) defines structural validation. That schema
+**plus the normative semantic rules below** defines v2 conformance in every
 language. Raw JSON Schema validation alone is insufficient. `live_stream`
 implements both layers and their context-dependent agreement/follow/replay
 operations. Raw Serde deserialization supplies representation only.
@@ -55,21 +55,30 @@ is a bounded JSON object (at most 32 entries and 16 KiB) mapping a protocol
 identifier to that protocol's offer:
 
 ```json
-{"oulipoly.live_stream/v1": {"channels": ["stdout", "stderr", "control"],
+{"oulipoly.live_stream/v2": {"channels": ["stdout", "stderr", "control"],
                               "audiences": ["owner", "same_user"],
                               "max_data_bytes": 65536},
- "oulipoly.live_stream/v2": {"anything": "a newer peer adds"}}
+ "oulipoly.live_stream/v3": {"anything": "a newer peer adds"}}
 ```
 
 `live_stream::select` handles each kind of entry as follows:
 
 - **Unknown entries** (other families and newer versions) are kept in the
   advertisement and ignored.
-- **The v1 entry** must be a strict `Offer`. A malformed v1 entry is refused
+- **The v2 entry** must be a strict `Offer`. A malformed v2 entry is refused
   (`invalid_advertisement`), not skipped.
 - **The selection** is the common channels, the common audiences and the lower
   `max_data_bytes`. If no channel or no audience is common, the result is
   `no_common_capability`.
+
+The attachment messages and `not_authorized` diagnostic belong to
+`oulipoly.live_stream/v2`, schema identity `urn:oulipoly:live-stream:v2`.
+This SDK selects only v2 (`SUPPORTED_VERSIONS = [2]`). A peer advertising only
+baseline `oulipoly.live_stream/v1` gets `no_common_version`, disabling optional
+live viewing. The retained [v1 schema](v1.schema.json) describes the baseline
+record vocabulary without attachment messages or `not_authorized`; it is not
+a runtime fallback. There is no source or binary compatibility guarantee.
+Required `oulipoly.provider/v1` and session-control v3 negotiation are unrelated.
 
 ## Identity and sequence
 
@@ -246,16 +255,16 @@ schema. Diagnostic reasons describe optional observation failure only.
 | Record admission | Standard padded canonical base64 decodes to 1–65536 bytes. `gap.first <= gap.last`. A discontinuity changes incarnation; known `previous_last_seq >= after_seq`. Record lines are at most 90112 UTF-8 bytes before parsing. |
 | Descriptor admission | `visibility.channels` is a subset of declared `channels`. This checks the claim, not enforcement. |
 | Cursor admission | Any terminal frame matches the cursor's stream/incarnation and has `seq == after_seq`. Persist all terminal metadata. |
-| Selection | The serialized advertisement is at most 16384 UTF-8 bytes. Validate the local offer and the advertised v1 entry; ignore unknown/newer entries. Intersect channels and audiences (both nonempty); choose the smaller byte limit. |
-| Joined agreement | Selected protocol is v1 and its offer fields are structurally valid. Descriptor channels are a subset of selected channels, descriptor byte limit is no greater than selected limit, and its audience is supported by the selection. The cursor names the descriptor stream. A terminal cursor cannot start following another incarnation. |
+| Selection | The serialized advertisement is at most 16384 UTF-8 bytes. Validate the local offer and the advertised v2 entry; ignore unknown/newer entries. Intersect channels and audiences (both nonempty); choose the smaller byte limit. |
+| Joined agreement | Selected protocol is v2 and its offer fields are structurally valid. Descriptor channels are a subset of selected channels, descriptor byte limit is no greater than selected limit, and its audience is supported by the selection. The cursor names the descriptor stream. A terminal cursor cannot start following another incarnation. |
 | Typed follower/replay entry | Validate public typed inputs even if constructed directly or through raw Serde. Malformations return bounded diagnostics before state mutation or generated output. |
 | Follow | Stream/incarnation must match; incarnation changes only through a matching discontinuity. Forward sequence is exactly `after_seq + 1`; fresh gaps start there and advance through their last sequence. Old sequenced positions / fully covered gaps are positional duplicates. Fresh data/control uses declared channels; fresh data respects the context byte limit; closure facts name declared data channels. Learn terminal knowledge at its position, retain it in the cursor, and refuse conflicting terminal knowledge or forward frames/gaps/discontinuities after it. |
 | Discontinuity | It answers the cursor's incarnation and position. Known old last equal to the cursor means nothing lost; a greater value yields the exact remaining range; absent means unknown. Reset only an open follow context to the new incarnation and position zero. |
 | Retained window | `1 <= first_retained <= last_published + 1`; `last_published` fits the sequence ceiling. Previous incarnation differs from current and known previous last fits the ceiling. Terminal metadata, required once ended, matches window identity and last published sequence; the terminal position is retained (`first_retained <= last_published`). |
 | Message admission | Line at most 91136 bytes before parsing; schema-strict; every carried record, descriptor and cursor passes its own admission; `hello` advertisement at most 16384 bytes. A role sends only its own messages. |
 | Host decision | `Granted` names the descriptor's stream and a valid host reference; for `scoped` claims it equals the claimed scope. `Refused` or a mismatch is `not_authorized`. |
-| Ingest | Follow semantics from the descriptor's start for the registered incarnation only. Refuse eviction gaps, discontinuities, and `finalized` from a `never` publisher. A retired incarnation's last sequence is known only after its terminal frame. |
-| Attached | Descriptor agrees with the subscriber selection; the window is the descriptor's; after the prefix, `deliver_from` is exactly the follower's next position. |
+| Ingest | Require each publisher frame or overflow gap to start at the next new position in the registered incarnation; refuse redelivery and same-position terminal replacement without mutation. Refuse eviction gaps, discontinuities, and `finalized` from a `never` publisher. A retired incarnation's last sequence is known only after its terminal frame. |
+| Attached | Descriptor agrees with the subscriber selection; the window is the descriptor's. Require the canonical replay prefix and terminal/cursor consistency, including the terminal prefix at an at-final cursor; after the prefix, `deliver_from` is exactly the follower's next position. |
 | Replay | Refuse a cursor ahead of known publication, another stream, or a window contradicting terminal cursor knowledge (including a later incarnation). An open old cursor gets a discontinuity with known/unknown old tail, then any exact eviction gap. `deliver_from` is the next retained position or the sentinel `last_published + 1`. Terminal metadata is retained in the plan; at-final replay reoffers the terminal frame in its prefix. |
 
 The sentinel may equal 2^53 at the maximum sequence. It is an exactly
@@ -288,7 +297,7 @@ ceiling requires a newly selected schema family if later benchmarks warrant it.
 
 ## Limits
 
-The golden vectors in `tests/fixtures/live_stream/v1.json` and their tests
+The golden vectors in `tests/fixtures/live_stream/v2.json` and their tests
 establish the following:
 
 - classified structural acceptance versus normative semantic admission and DTO
@@ -317,3 +326,26 @@ Incident reports and recovery authorization are not defined here. Control
 claims, including input hold/release acknowledgements, are defined by
 [`session-control/v3`](../session-control/README.md); a live-stream
 `ControlFact` stays report-only.
+
+### Publisher and attachment consistency
+
+Publisher ingest requires every frame, or the first position of a
+`capture_overflow` gap, to start exactly one past the last ingested position.
+Duplicates and same-position terminal replacements are refused without mutation.
+The reader's positional redelivery and terminal catch-up semantics remain valid
+for delivered replay; they do not authorize a publisher to replace a position.
+
+Subscriber attachment checks canonical replay consistency using the window facts
+expressed by the answer. A declared terminal must belong to the descriptor's
+stream/incarnation, agree with any known cursor terminal and the prefix, and not
+lie behind the continuation. An at-final answer must carry its terminal prefix;
+omission is refused. Lagging followers learn terminal knowledge on actual
+terminal delivery. These checks cannot authenticate retention, a fabricated
+in-range cursor, truthful gaps, random identities or durable-reference existence.
+
+Selection covers the descriptor's full channel set. A stdout-only selection can
+therefore fail for a stdout+control descriptor even when visibility claims only
+stdout. Widening selection permits those declared channels; visibility filtering
+is not implemented, and the host must restrict delivery. `HostDecision` and
+`custody_owner` remain publicly constructible claims and host duties, not
+SDK authentication or proof of authority/custody.
