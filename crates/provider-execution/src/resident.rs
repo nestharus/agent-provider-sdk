@@ -36,9 +36,11 @@
 //!
 //! * `session/new` creates a provider-private durable session record under
 //!   the state root and answers its id. The native session id is learned from
-//!   the first turn (`oulipoly.provider_session` marker) or chosen by the
-//!   adapter ([`ResidentTurns::create_native_session_id`]), recorded, and
-//!   resumed by every later turn.
+//!   the first turn's `oulipoly.provider_session` marker, recorded, and resumed
+//!   by later turns. An adapter-chosen create id is only a candidate until
+//!   observed in that marker. Interrupted work without a known native identity
+//!   blocks new input and reports uncertainty; actor discharge is not proof
+//!   that no native work happened.
 //! * `session/prompt` accepts text content only. The input is durably
 //!   recorded with a fresh ascending `messageId` before its native turn
 //!   starts. Turns of one session run one at a time in arrival order. The
@@ -186,9 +188,10 @@ pub trait ResidentTurns: Send + Sync + 'static {
     /// `name` and `version` reported in `initialize`.
     fn implementation(&self) -> (String, String);
 
-    /// A native session id the adapter assigns when a session's first turn
-    /// creates its native session. `None` lets the native program choose and
-    /// report it with the `oulipoly.provider_session` marker.
+    /// A candidate id for creating the session's first native turn. It becomes
+    /// known only through the `oulipoly.provider_session` marker; choosing it
+    /// does not authorize a recovery probe or prove native creation. `None`
+    /// lets the native program choose and report its id.
     fn create_native_session_id(&self) -> Option<String> {
         None
     }
@@ -790,12 +793,13 @@ impl<T: ResidentTurns> Endpoint<T> {
                 "input evidence unreadable; new input is blocked".into(),
             ));
         }
-        if shared.record.lock().unwrap_or_else(|e| e.into_inner())["native_session_uncertain"]
-            .is_string()
+        if let Some(reason) = shared.record.lock().unwrap_or_else(|e| e.into_inner())
+            ["native_session_uncertain"]
+            .as_str()
         {
             return Err((
                 SESSION_UNAVAILABLE,
-                "journal evidence unreadable; native session identity is uncertain".into(),
+                format!("native session identity is uncertain; new input blocked: {reason}"),
             ));
         }
         let number = next_message_number(inputs.last_message);
@@ -1170,9 +1174,9 @@ fn recovery_uncertainty(shared: &SessionShared) -> Option<String> {
         ));
     }
     let record = shared.record.lock().unwrap_or_else(|e| e.into_inner());
-    record["native_session_uncertain"].as_str().map(|reason| {
-        format!("journal evidence unreadable; native session identity is uncertain: {reason}")
-    })
+    record["native_session_uncertain"]
+        .as_str()
+        .map(|reason| format!("native session identity is uncertain; new input blocked: {reason}"))
 }
 
 // Streaming evidence recovery never allocates the whole journal and never
@@ -1437,31 +1441,80 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
     };
     sink.drain_line();
     let mut evidence_error = None;
-    if matches!(&result, Err(failure) if failure.kind == TurnFailureKind::ReconciliationRequired) {
-        // The interrupted launch's journal precedes its delivery, so its
-        // markers are the best evidence of native session identity and
-        // consumption. Its output is not delivered again.
+    let mut no_native_start = false;
+    let reconciled =
+        matches!(&result, Err(failure) if failure.kind == TurnFailureKind::ReconciliationRequired);
+    let recovered_complete = wire.is_none() && result.is_ok() && sink.exit.is_some();
+    let mut uncertainty = None;
+    if reconciled {
+        // The lifecycle publishes running actor custody before releasing the
+        // effect gate. A validated prepared record therefore proves native
+        // admission never occurred; a running/reconciled actor or ACK does not.
+        let key = custody::request_key(None, &request.request_id);
+        let prepared = read_json(
+            &request.state_root.join(format!("{key}.json")),
+            custody::LAUNCH_STATE_MAX_BYTES,
+        )
+        .is_ok_and(|state| {
+            state["phase"] == json!(custody::PHASE_PREPARED)
+                && state["actor_id"].is_null()
+                && state["incarnation"].is_null()
+        });
+        // Recover any journal markers even for prepared custody: adapter
+        // settlement can report insertion without a native process. A missing
+        // journal is expected only when prepared custody proves no start.
         sink.markers_only = true;
-        let journal = request.state_root.join(format!(
-            "{}.jsonl",
-            custody::request_key(None, &request.request_id)
-        ));
-        if let Err(error) = recover_markers(&mut sink, &journal) {
-            let reason = format!("{}: {error}", journal.display());
-            evidence_error = Some(reason.clone());
-            let mut record = shared.record.lock().unwrap_or_else(|e| e.into_inner());
-            let mut updated = record.clone();
+        let journal = request.state_root.join(format!("{key}.jsonl"));
+        let recovered = recover_markers(&mut sink, &journal);
+        no_native_start = prepared
+            && !sink.consumption_seen
+            && (recovered.is_ok()
+                || recovered
+                    .as_ref()
+                    .is_err_and(|error| error.kind() == io::ErrorKind::NotFound));
+        uncertainty = if let Err(error) = recovered {
+            if no_native_start && error.kind() == io::ErrorKind::NotFound {
+                None
+            } else {
+                let reason = format!(
+                    "journal evidence unreadable: {}: {error}",
+                    journal.display()
+                );
+                evidence_error = Some(reason.clone());
+                Some(reason)
+            }
+        } else {
+            None
+        };
+    }
+    // Complete launch custody proves completion/replay, not the identity of
+    // native work. Recovery may replay its receipt but must not start a later
+    // turn with an unobserved identity. No binary or permanent journal gate.
+    if (reconciled || recovered_complete)
+        && uncertainty.is_none()
+        && !no_native_start
+        && shared.record.lock().unwrap_or_else(|e| e.into_inner())["native_session_id"]
+            .as_str()
+            .is_none_or(str::is_empty)
+    {
+        uncertainty = Some(
+            "interrupted native work may have occurred without an observed session identity".into(),
+        );
+    }
+    if let Some(reason) = uncertainty {
+        let mut record = shared.record.lock().unwrap_or_else(|e| e.into_inner());
+        let mut updated = record.clone();
+        if evidence_error.is_some() {
             updated["native_session_id"] = Value::Null;
             updated["create_native_session_id"] = Value::Null;
-            updated["native_session_uncertain"] = json!(reason);
-            // Block this process even if publication fails; a reopen encounters
-            // the same retained unreadable evidence and repeats recovery.
-            *record = updated;
-            if let Err(error) = publish_json(&shared.dir, "session.json", &record) {
-                sink.record_error = Some(format!(
-                    "cannot publish native session uncertainty: {error}"
-                ));
-            }
+        }
+        // A create candidate remains evidence, never an observed identity.
+        updated["native_session_uncertain"] = json!(reason);
+        *record = updated;
+        if let Err(error) = publish_json(&shared.dir, "session.json", &record) {
+            sink.record_error = Some(format!(
+                "cannot publish native session uncertainty: {error}"
+            ));
         }
     }
     if let Some(error) = &sink.record_error {
@@ -1561,7 +1614,7 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
     let not_consumed_but_known = !consumption_seen
         && match &result {
             Ok(_) => exit.is_some(),
-            Err(_) => not_started,
+            Err(_) => not_started || no_native_start,
         };
     let phase = if consumed && !settled {
         phase::INSERTED
