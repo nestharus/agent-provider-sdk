@@ -63,7 +63,8 @@ pub enum NativeCustody {
     Incomplete,
 }
 
-/// A schema-valid `NativeTurnMeta` on a tagged idle: the endpoint's report
+/// A schema-valid `NativeTurnMeta` on a tagged idle or rejected attempt:
+/// the endpoint's report
 /// of the native turn's launch outcome. It is the endpoint's word, not an
 /// observation of the native program.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -258,11 +259,31 @@ pub enum DeliveryOutcome {
     /// No acknowledgement; still owed.
     NotAcknowledged(NoAckCause),
     /// A valid JSON-RPC error; insertion uncertain, still owed and counted.
-    Rejected { code: i64, message: String },
+    Rejected {
+        code: i64,
+        message: String,
+        /// Untrusted error data, including the endpoint's nativeTurn report.
+        /// Absence, explicit null and unknown shapes remain distinct.
+        data: Option<Value>,
+    },
     /// The client has no negotiated v2 peer, so nothing was sent.
     NotNegotiated,
     /// This communication belongs to a different session; nothing sent.
     SessionMismatch,
+}
+
+impl DeliveryOutcome {
+    /// A rejected attempt's schema-valid native launch report, if supplied.
+    /// This is the endpoint's word; it changes no insertion or retry label.
+    /// Raw data stays available even when the report is absent or invalid.
+    pub fn native_turn(&self) -> Option<NativeTurn> {
+        match self {
+            Self::Rejected {
+                data: Some(data), ..
+            } => NativeTurn::from_report(data.get("nativeTurn")?),
+            _ => None,
+        }
+    }
 }
 
 /// A `session/update` the client observed, in arrival order.
@@ -282,6 +303,9 @@ pub enum SessionEvent {
         last_user_message_id: Option<String>,
         /// The agent's schema-valid [`super::NATIVE_TURN_META`] report, if any.
         native_turn: Option<NativeTurn>,
+        /// The raw report, including null, invalid or future shapes. Retention
+        /// establishes no custody or durability claim.
+        native_turn_report: Option<Value>,
     },
     /// `agent_message`: the agent's output, its text blocks joined.
     AgentMessage {
@@ -307,6 +331,9 @@ pub enum SessionEvent {
     Other {
         session_id: String,
         kind: String,
+        /// The full unvalidated update, including session_info_update's
+        /// message-scoped record_error. Not a NativeTurn or completion claim.
+        update: Value,
     },
 }
 
@@ -319,6 +346,9 @@ pub struct SessionIdle {
     pub last_user_message_id: Option<String>,
     /// The agent's schema-valid [`super::NATIVE_TURN_META`] report, if any.
     pub native_turn: Option<NativeTurn>,
+    /// Raw metadata of this idle's own tagged turn, retained independently
+    /// of schema validation. Never evidence of durable host completion.
+    pub native_turn_report: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -333,7 +363,11 @@ pub enum IdleWaitFailure {
 
 enum Reply {
     Result(Value),
-    Error { code: i64, message: String },
+    Error {
+        code: i64,
+        message: String,
+        data: Option<Value>,
+    },
     Gone,
     Violation(String),
 }
@@ -370,6 +404,29 @@ impl<T: Transport> AcpClient<T> {
         &self.events
     }
 
+    /// Receive one inbound record, retaining a recognized event in `events`.
+    /// `None` means an ignored notification; EOF and malformed/unsolicited
+    /// responses are errors. Does not send a request, consume history or move
+    /// idle cursors. Agent-initiated requests are refused as usual.
+    /// The host chooses when to receive; blocking and deadlines are its
+    /// transport's. A later diagnostic may qualify an earlier tagged idle.
+    pub fn receive_event(&mut self) -> Result<Option<SessionEvent>, IdleWaitFailure> {
+        match self.transport.recv() {
+            Incoming::Closed => Err(IdleWaitFailure::PeerGone),
+            Incoming::Malformed(line) => Err(IdleWaitFailure::ProtocolViolation(format!(
+                "malformed message: {line}"
+            ))),
+            Incoming::Message(message) if message.get("method").is_some() => {
+                let previous = self.events.len();
+                self.handle_inbound(&message);
+                Ok(self.events.get(previous).cloned())
+            }
+            Incoming::Message(_) => Err(IdleWaitFailure::ProtocolViolation(
+                "unsolicited response".to_owned(),
+            )),
+        }
+    }
+
     pub fn into_transport(self) -> T {
         self.transport
     }
@@ -393,7 +450,7 @@ impl<T: Transport> AcpClient<T> {
         };
         let result = match self.call(method::INITIALIZE, &request) {
             Reply::Result(result) => result,
-            Reply::Error { code, message } => {
+            Reply::Error { code, message, .. } => {
                 return Err(NegotiationFailure::Rejected { code, message });
             }
             Reply::Gone => return Err(NegotiationFailure::PeerGone),
@@ -548,11 +605,13 @@ impl<T: Transport> AcpClient<T> {
             Reply::Error {
                 code,
                 message: reason,
+                data,
             } => {
                 message.unacknowledged_attempts += 1;
                 return DeliveryOutcome::Rejected {
                     code,
                     message: reason,
+                    data,
                 };
             }
             Reply::Gone => {
@@ -655,12 +714,14 @@ impl<T: Transport> AcpClient<T> {
                             stop_reason,
                             last_user_message_id,
                             native_turn,
+                            native_turn_report,
                         } if id == session_id => Some((
                             scanned + offset + 1,
                             SessionIdle {
                                 stop_reason: stop_reason.clone(),
                                 last_user_message_id: last_user_message_id.clone(),
                                 native_turn: native_turn.clone(),
+                                native_turn_report: native_turn_report.clone(),
                             },
                         )),
                         _ => None,
@@ -670,23 +731,7 @@ impl<T: Transport> AcpClient<T> {
                 return Ok(idle);
             }
             scanned = self.events.len();
-            match self.transport.recv() {
-                Incoming::Closed => return Err(IdleWaitFailure::PeerGone),
-                Incoming::Malformed(line) => {
-                    return Err(IdleWaitFailure::ProtocolViolation(format!(
-                        "malformed message: {line}"
-                    )));
-                }
-                Incoming::Message(message) => {
-                    if message.get("method").is_some() {
-                        self.handle_inbound(&message);
-                    } else {
-                        return Err(IdleWaitFailure::ProtocolViolation(
-                            "unsolicited response".to_owned(),
-                        ));
-                    }
-                }
-            }
+            self.receive_event()?;
         }
     }
 
@@ -714,33 +759,19 @@ impl<T: Transport> AcpClient<T> {
                     stop_reason,
                     last_user_message_id: Some(last),
                     native_turn,
+                    native_turn_report,
                 } if id == session_id && message_id <= last.as_str() => Some(SessionIdle {
                     stop_reason: stop_reason.clone(),
                     last_user_message_id: Some(last.clone()),
                     native_turn: native_turn.clone(),
+                    native_turn_report: native_turn_report.clone(),
                 }),
                 _ => None,
             }) {
                 return Ok(idle);
             }
             scanned = self.events.len();
-            match self.transport.recv() {
-                Incoming::Closed => return Err(IdleWaitFailure::PeerGone),
-                Incoming::Malformed(line) => {
-                    return Err(IdleWaitFailure::ProtocolViolation(format!(
-                        "malformed message: {line}"
-                    )));
-                }
-                Incoming::Message(message) => {
-                    if message.get("method").is_some() {
-                        self.handle_inbound(&message);
-                    } else {
-                        return Err(IdleWaitFailure::ProtocolViolation(
-                            "unsolicited response".to_owned(),
-                        ));
-                    }
-                }
-            }
+            self.receive_event()?;
         }
     }
 
@@ -754,7 +785,7 @@ impl<T: Transport> AcpClient<T> {
         }
         match self.call(name, params) {
             Reply::Result(result) => Ok(result),
-            Reply::Error { code, message } => Err(RequestFailure::Rejected { code, message }),
+            Reply::Error { code, message, .. } => Err(RequestFailure::Rejected { code, message }),
             Reply::Gone => Err(RequestFailure::PeerGone),
             Reply::Violation(why) => Err(RequestFailure::ProtocolViolation(why)),
         }
@@ -810,6 +841,7 @@ impl<T: Transport> AcpClient<T> {
                 return Reply::Error {
                     code,
                     message: reason.to_owned(),
+                    data: error.get("data").cloned(),
                 };
             }
             return match message.get("result") {
@@ -875,10 +907,15 @@ fn session_event(notification: wire::UpdateSessionNotification) -> Option<Sessio
                     .map(str::to_owned),
                 last_user_message_id: meta_str(&update, super::TURN_INPUT_META),
                 native_turn: native_turn(&update),
+                native_turn_report: update
+                    .get("_meta")
+                    .and_then(|meta| meta.get(NATIVE_TURN_META))
+                    .cloned(),
             },
             other => SessionEvent::Other {
                 session_id,
                 kind: format!("state_update:{other}"),
+                update,
             },
         },
         "agent_message" => SessionEvent::AgentMessage {
@@ -903,7 +940,11 @@ fn session_event(notification: wire::UpdateSessionNotification) -> Option<Sessio
                 .and_then(Value::as_str)
                 .map(str::to_owned),
         },
-        _ => SessionEvent::Other { session_id, kind },
+        _ => SessionEvent::Other {
+            session_id,
+            kind,
+            update,
+        },
     })
 }
 
@@ -911,24 +952,32 @@ fn session_event(notification: wire::UpdateSessionNotification) -> Option<Sessio
 /// or invalid report claims nothing.
 fn native_turn(update: &Value) -> Option<NativeTurn> {
     let report = update.get("_meta")?.get(NATIVE_TURN_META)?;
-    resident_session::validate("NativeTurnMeta", report).ok()?;
-    let custody = match report["custody"].as_str()? {
-        "complete" => NativeCustody::Complete,
-        "complete_without_exit" => NativeCustody::CompleteWithoutExit,
-        "not_admitted" => NativeCustody::NotAdmitted,
-        "reconciled" => NativeCustody::Reconciled,
-        "incomplete" => NativeCustody::Incomplete,
-        _ => return None,
-    };
-    Some(NativeTurn {
-        request_id: report["request_id"].as_str()?.to_owned(),
-        custody,
-        failure_code: report
-            .pointer("/failure/code")
-            .and_then(Value::as_str)
-            .map(str::to_owned),
-        report: report.clone(),
-    })
+    NativeTurn::from_report(report)
+}
+
+impl NativeTurn {
+    /// Validate an endpoint-reported value. This parses only the supported
+    /// NativeTurnMeta schema; unknown, null or invalid values claim nothing.
+    pub fn from_report(report: &Value) -> Option<Self> {
+        resident_session::validate("NativeTurnMeta", report).ok()?;
+        let custody = match report["custody"].as_str()? {
+            "complete" => NativeCustody::Complete,
+            "complete_without_exit" => NativeCustody::CompleteWithoutExit,
+            "not_admitted" => NativeCustody::NotAdmitted,
+            "reconciled" => NativeCustody::Reconciled,
+            "incomplete" => NativeCustody::Incomplete,
+            _ => return None,
+        };
+        Some(Self {
+            request_id: report["request_id"].as_str()?.to_owned(),
+            custody,
+            failure_code: report
+                .pointer("/failure/code")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            report: report.clone(),
+        })
+    }
 }
 
 /// A non-empty string under `key` in the update's own `_meta`.

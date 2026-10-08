@@ -51,6 +51,9 @@ case "$1" in
         while [ ! -f "$2/release" ]; do sleep 0.02; done
         [ -z "$NATIVE_SESSION" ] && echo "SESSION native-$$"
         echo CONSUMED; echo "TEXT barrier done"; exit 0 ;;
+  endbarrier) echo CONSUMED; echo $$ > "$2/ready"
+        while [ ! -f "$2/release" ]; do sleep 0.02; done
+        echo "TEXT after ack"; exit 0 ;;
   whoami) echo CONSUMED; echo "TEXT native=$NATIVE_SESSION"; exit 0 ;;
   hang) echo CONSUMED; [ -z "$NATIVE_SESSION" ] && echo "SESSION native-$$"
         sleep 300 & echo $! > "$2/descendant.pid"; echo $$ > "$2/leader.pid"
@@ -68,7 +71,7 @@ fn main() {
         Some("--resident") => std::process::exit(serve(&args[2])),
         _ => {}
     }
-    let tests: [(&str, fn()); 33] = [
+    let tests: [(&str, fn()); 36] = [
         (
             "queued_refusal_recovers_non_start_after_unlock",
             queued_refusal_recovers_non_start_after_unlock,
@@ -181,6 +184,18 @@ fn main() {
         (
             "bounds_missing_marker_differs_from_unreadable_journal",
             bounds_missing_marker_differs_from_unreadable_journal,
+        ),
+        (
+            "sdk_host_rejected_turn_preserves_native_report",
+            sdk_host_rejected_turn_preserves_native_report,
+        ),
+        (
+            "sdk_host_late_record_failure_is_not_durable_completion",
+            sdk_host_late_record_failure_is_not_durable_completion,
+        ),
+        (
+            "sdk_host_rejected_record_failure_preserves_publication_uncertainty",
+            sdk_host_rejected_record_failure_preserves_publication_uncertainty,
         ),
         (
             "sdk_host_starts_from_prepared_argv_and_attributes_turns",
@@ -2084,4 +2099,156 @@ fn sdk_host_refuses_resume_the_endpoint_did_not_declare() {
     assert!(client.peer().is_none(), "refused before initialize");
     assert!(client.into_transport().end().success());
     assert_eq!(fixture.runs(), 0);
+}
+
+fn sdk_host_rejected_turn_preserves_native_report() {
+    let fixture = Fixture::new();
+    let endpoint = prepared(&fixture, extension::OPERATIONS);
+    let mut client = sdk_client(&endpoint);
+    let session = host::start_session(
+        &mut client,
+        &endpoint,
+        SessionStart::New { cwd: fixture.cwd() },
+    )
+    .unwrap();
+    let mut message = OutboundMessage::fresh("noconsume").unwrap();
+    let delivery = host::send_turn(&mut client, &session, &mut message);
+    assert!(delivery.turn.is_none());
+    assert!(matches!(
+        delivery.outcome,
+        DeliveryOutcome::Rejected { code: -32010, .. }
+    ));
+    let native = delivery
+        .outcome
+        .native_turn()
+        .expect("rejection's native report must reach host");
+    assert_eq!(native.custody, NativeCustody::Complete);
+    assert_eq!(native.report["status"], json!({"kind":"exited","code":3}));
+    assert!(!native.request_id.is_empty());
+    assert!(message.is_owed());
+    assert_eq!(message.unacknowledged_attempts(), 1);
+    assert_eq!(fixture.runs(), 1);
+    assert!(client.into_transport().end().success());
+}
+
+fn obstruct_input_store(fixture: &Fixture, session: &str) -> PathBuf {
+    let dir = fixture.state().join("sessions").join(session);
+    std::fs::rename(dir.join("inputs"), dir.join("inputs-held")).unwrap();
+    std::fs::write(dir.join("inputs"), "ENOTDIR").unwrap();
+    dir
+}
+
+fn restore_input_store(dir: &Path) {
+    std::fs::remove_file(dir.join("inputs")).unwrap();
+    std::fs::rename(dir.join("inputs-held"), dir.join("inputs")).unwrap();
+}
+
+fn sdk_host_late_record_failure_is_not_durable_completion() {
+    let fixture = Fixture::new();
+    let endpoint = prepared(&fixture, extension::OPERATIONS);
+    let mut client = sdk_client(&endpoint);
+    let session = host::start_session(
+        &mut client,
+        &endpoint,
+        SessionStart::New { cwd: fixture.cwd() },
+    )
+    .unwrap();
+    let marks = fixture.dir.path().join("endbarrier");
+    std::fs::create_dir(&marks).unwrap();
+    let mut message = OutboundMessage::fresh(format!("endbarrier {}", marks.display())).unwrap();
+    let delivery = host::send_turn(&mut client, &session, &mut message);
+    assert!(matches!(delivery.outcome, DeliveryOutcome::Accepted(_)));
+    let turn = delivery.turn.unwrap();
+    wait_for(&marks.join("ready"));
+    // The insertion ACK is already durable. Fail only the final input record.
+    let dir = obstruct_input_store(&fixture, &session.native.session_id);
+    std::fs::write(marks.join("release"), "release").unwrap();
+    let end = host::await_turn_end(&mut client, &turn).unwrap();
+    assert!(end.is_own());
+    assert_eq!(end.native_turn.unwrap().custody, NativeCustody::Complete);
+    let event = client
+        .receive_event()
+        .unwrap()
+        .expect("late record diagnostic");
+    let SessionEvent::Other {
+        session_id,
+        kind,
+        update,
+    } = event
+    else {
+        panic!("{event:?}")
+    };
+    assert_eq!(session_id, session.native.session_id);
+    assert_eq!(kind, "session_info_update");
+    let report = &update["_meta"]["oulipoly.ai/nativeTurn"];
+    assert_eq!(report["message_id"], turn.message_id);
+    assert!(!report["record_error"].as_str().unwrap().is_empty());
+    assert!(agent_provider_contract::acp::NativeTurn::from_report(report).is_none());
+    restore_input_store(&dir);
+    let input: Value = serde_json::from_slice(
+        &std::fs::read(dir.join("inputs").join(format!("{}.json", turn.message_id))).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        input["phase"], "inserted",
+        "old durable input does not claim ended"
+    );
+    assert_eq!(fixture.runs(), 1);
+    assert!(client.into_transport().end().success());
+}
+
+fn sdk_host_rejected_record_failure_preserves_publication_uncertainty() {
+    let fixture = Fixture::new();
+    let endpoint = prepared(&fixture, extension::OPERATIONS);
+    let mut client = sdk_client(&endpoint);
+    let session = host::start_session(
+        &mut client,
+        &endpoint,
+        SessionStart::New { cwd: fixture.cwd() },
+    )
+    .unwrap();
+    let marks = fixture.dir.path().join("barrier");
+    std::fs::create_dir(&marks).unwrap();
+    let question = format!("barrier {}", marks.display());
+    let session_id = session.native.session_id.clone();
+    let attempt = std::thread::spawn(move || {
+        let mut message = OutboundMessage::fresh(question).unwrap();
+        let delivery = host::send_turn(&mut client, &session, &mut message);
+        (client, delivery, message)
+    });
+    wait_for(&marks.join("ready"));
+    let dir = obstruct_input_store(&fixture, &session_id);
+    std::fs::write(marks.join("release"), "release").unwrap();
+    let (client, delivery, message) = attempt.join().unwrap();
+    assert!(delivery.turn.is_none());
+    let DeliveryOutcome::Rejected {
+        code,
+        data: Some(data),
+        ..
+    } = &delivery.outcome
+    else {
+        panic!("{:?}", delivery.outcome)
+    };
+    assert_eq!(*code, -32011);
+    assert_eq!(
+        delivery.outcome.native_turn().unwrap().custody,
+        NativeCustody::Complete
+    );
+    assert_eq!(
+        data["nativeTurn"]["status"],
+        json!({"kind":"exited","code":0})
+    );
+    assert!(!data["recordError"]["message_id"]
+        .as_str()
+        .unwrap()
+        .is_empty());
+    assert!(!data["recordError"]["record_error"]
+        .as_str()
+        .unwrap()
+        .is_empty());
+    assert!(message.is_owed());
+    assert_eq!(message.unacknowledged_attempts(), 1);
+    assert_eq!(fixture.runs(), 1);
+    restore_input_store(&dir);
+    assert!(client.into_transport().end().success());
 }

@@ -1620,13 +1620,14 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
                 "native turn failed before its consumption was known",
             )
         };
+        let mut data = json!({"nativeTurn":native_turn});
+        if let Err(error) = stored {
+            // A native launch report does not certify input publication.
+            // Keep a failed final record write visible on rejected attempts too.
+            data["recordError"] = json!({"message_id":message_id,"record_error":error.to_string()});
+        }
         for waiter in waiters {
-            wire.error(
-                &waiter,
-                code,
-                reason,
-                Some(json!({"nativeTurn":native_turn})),
-            );
+            wire.error(&waiter, code, reason, Some(data.clone()));
         }
     }
 }

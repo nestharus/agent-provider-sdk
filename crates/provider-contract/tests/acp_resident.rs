@@ -5,7 +5,8 @@ use agent_provider_contract::acp::resident::{
     self as host, Binding, PreparedEndpoint, SessionStart, StartRefusal, TurnRef,
 };
 use agent_provider_contract::acp::{
-    AcpClient, ClientInfo, IdleWaitFailure, LineTransport, NativeCustody, NegotiationFailure,
+    AcpClient, ClientInfo, DeliveryOutcome, IdleWaitFailure, LineTransport, NativeCustody,
+    NativeTurn, NegotiationFailure, OutboundMessage, SessionEvent,
 };
 use agent_provider_contract::generated::PolicyEvaluateResult;
 use agent_provider_contract::resident_session::{
@@ -420,4 +421,232 @@ fn template_refuses_what_it_cannot_honour() {
         resident_session::template_from_policy(&json!({"mode":"agent"}), &policy(|_| {})),
         Err(TemplateRefusal::Invalid(_))
     ));
+}
+
+#[test]
+fn adapter_shaped_evaluations_prepare_and_start_with_exact_prompt_echoes() {
+    // Source-derived stand-ins, not calls to the adapters:
+    // Codex 8de60bf3 src/policy.rs evaluate echoes plan.prompt into both fields;
+    // Claude ad4f3c1a src/lib.rs echoes inputs.prompt by prompt_mode.
+    // Runner 2f6ec679 registered.rs real_published_adapters... supplies these
+    // preparation shapes. The prepare result and peer here remain scripted.
+    let mut codex = settings();
+    codex["mode"] = json!("stdin");
+    codex["model"]["inputs"]["prompt"] = json!("prepare sentinel");
+    let mut claude = settings();
+    claude["mode"] = json!("headless");
+    claude["model"]["inputs"]["prompt"] = Value::Null;
+    for (settings, stdin, prompt) in [
+        (
+            codex.clone(),
+            Some("prepare sentinel"),
+            Some("prepare sentinel"),
+        ),
+        (codex.clone(), Some("prepare sentinel"), None),
+        (codex.clone(), None, Some("prepare sentinel")),
+        (claude, None, None),
+    ] {
+        let evaluated = policy(|p| {
+            p["stdin"] = json!(stdin);
+            p["prompt"] = json!(prompt);
+        });
+        let template = resident_session::template_from_policy(&settings, &evaluated).unwrap();
+        assert_eq!(template.launch.model, settings["model"]);
+        assert_eq!(template.launch.env.unwrap()["KEEP"], "1");
+        let prepared = PreparedEndpoint::agree(&prepare_result()).unwrap();
+        let mut client = scripted(&[
+            init(resident_meta()),
+            json!({"jsonrpc":"2.0","id":2,"result":{"sessionId":"s"}}),
+            json!({"jsonrpc":"2.0","id":3,"result":{"messageId":"msg_0000000000000001"}}),
+            idle(Some("msg_0000000000000001"), None),
+        ]);
+        let session = host::start_session(
+            &mut client,
+            &prepared,
+            SessionStart::New {
+                cwd: "/work".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(session.binding(), &Binding::Unbound);
+        let mut message = OutboundMessage::fresh("actual turn prompt").unwrap();
+        let delivery = host::send_turn(&mut client, &session, &mut message);
+        let end = host::await_turn_end(&mut client, &delivery.turn.unwrap()).unwrap();
+        assert!(end.is_own());
+        assert_eq!(end.native_turn, None);
+        let requests = sent(client);
+        assert_eq!(
+            requests[2]["params"]["prompt"][0]["text"],
+            "actual turn prompt"
+        );
+    }
+    for field in ["stdin", "prompt"] {
+        assert_eq!(
+            resident_session::template_from_policy(
+                &codex,
+                &policy(|p| p[field] = json!("rewritten"))
+            ),
+            Err(TemplateRefusal::Unhonourable(field))
+        );
+    }
+    // Equal outputs without an input echo basis still refuse.
+    assert_eq!(
+        resident_session::template_from_policy(
+            &settings(),
+            &policy(|p| {
+                p["stdin"] = json!("same");
+                p["prompt"] = json!("same");
+            })
+        ),
+        Err(TemplateRefusal::Unhonourable("stdin"))
+    );
+    // Codex's legacy launch.prompt fallback and inputs.prompt precedence.
+    let mut fallback = settings();
+    fallback["launch"]["prompt"] = json!("fallback");
+    assert!(resident_session::template_from_policy(
+        &fallback,
+        &policy(|p| p["stdin"] = json!("fallback"))
+    )
+    .is_ok());
+    fallback["model"]["inputs"]["prompt"] = json!("primary");
+    assert_eq!(
+        resident_session::template_from_policy(
+            &fallback,
+            &policy(|p| p["stdin"] = json!("fallback"))
+        ),
+        Err(TemplateRefusal::Unhonourable("stdin"))
+    );
+}
+
+#[test]
+fn late_record_failure_and_unknown_updates_remain_available_after_turn_end() {
+    let native = json!({"request_id":"r1","custody":"complete"});
+    let update = json!({"sessionUpdate":"session_info_update","_meta":{
+        "oulipoly.ai/nativeTurn":{"message_id":"msg_0000000000000001","record_error":"disk full"}}});
+    let unknown = json!({"sessionUpdate":"future_update","future":{"custody":"settled"}});
+    let mut client = scripted(&[
+        idle(Some("msg_0000000000000001"), Some(native.clone())),
+        json!({"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"s","update":update}}),
+        json!({"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"other","update":unknown}}),
+    ]);
+    let end = host::await_turn_end(&mut client, &turn("msg_0000000000000001")).unwrap();
+    assert_eq!(end.native_turn_report, Some(native));
+    assert_eq!(
+        client.events().len(),
+        1,
+        "end does not consume later diagnostics"
+    );
+    assert_eq!(
+        client.receive_event().unwrap(),
+        Some(SessionEvent::Other {
+            session_id: "s".into(),
+            kind: "session_info_update".into(),
+            update: update.clone(),
+        })
+    );
+    assert!(NativeTurn::from_report(&update["_meta"]["oulipoly.ai/nativeTurn"]).is_none());
+    assert_eq!(
+        client.receive_event().unwrap(),
+        Some(SessionEvent::Other {
+            session_id: "other".into(),
+            kind: "future_update".into(),
+            update: unknown,
+        })
+    );
+    assert_eq!(client.events().len(), 3);
+    assert_eq!(client.receive_event(), Err(IdleWaitFailure::PeerGone));
+    assert!(
+        sent(client).is_empty(),
+        "event consumption sends no probe request"
+    );
+}
+
+#[test]
+fn absent_null_invalid_and_future_native_reports_keep_their_scope() {
+    for raw in [
+        None,
+        Some(Value::Null),
+        Some(json!({"custody":"settled"})),
+        Some(json!({"request_id":"r","custody":"complete","future":true})),
+    ] {
+        let mut client = scripted(&[idle(Some("msg_0000000000000002"), raw.clone())]);
+        let end = host::await_turn_end(&mut client, &turn("msg_0000000000000001")).unwrap();
+        assert!(!end.is_own());
+        assert_eq!(end.native_turn, None);
+        assert_eq!(end.native_turn_report, raw);
+    }
+    let raw = json!({"request_id":"r2","custody":"incomplete"});
+    let mut client = scripted(&[idle(Some("msg_0000000000000002"), Some(raw.clone()))]);
+    let end = host::await_turn_end(&mut client, &turn("msg_0000000000000001")).unwrap();
+    assert!(!end.is_own());
+    assert_eq!(end.native_turn.unwrap().custody, NativeCustody::Incomplete);
+    assert_eq!(end.native_turn_report, Some(raw));
+}
+
+#[test]
+fn rejected_turn_keeps_native_report_and_raw_error_data_without_an_ack() {
+    for data in [
+        None,
+        Some(Value::Null),
+        Some(json!({"nativeTurn":null})),
+        Some(json!({"nativeTurn":{"custody":"settled"},"unknown":7})),
+        Some(
+            json!({"nativeTurn":{"request_id":"r","custody":"incomplete"},
+            "recordError":{"message_id":"m","record_error":"disk full"}}),
+        ),
+        Some(json!({"nativeTurn":{"request_id":"r","custody":"complete"}})),
+    ] {
+        let mut error = json!({"code":-32011,"message":"uncertain"});
+        if let Some(data) = &data {
+            error["data"] = data.clone();
+        }
+        let mut client = scripted(&[
+            init(resident_meta()),
+            json!({"jsonrpc":"2.0","id":2,"error":error}),
+        ]);
+        client.initialize().unwrap();
+        let mut message = OutboundMessage::fresh("turn").unwrap();
+        let outcome = client.submit("s", &mut message);
+        assert_eq!(
+            outcome,
+            DeliveryOutcome::Rejected {
+                code: -32011,
+                message: "uncertain".into(),
+                data: data.clone()
+            }
+        );
+        let expected = data
+            .as_ref()
+            .and_then(|d| d.get("nativeTurn"))
+            .and_then(NativeTurn::from_report);
+        assert_eq!(outcome.native_turn(), expected);
+        assert!(message.is_owed());
+        assert_eq!(message.unacknowledged_attempts(), 1);
+        assert_eq!(message.acceptance(), None);
+    }
+}
+
+#[test]
+fn receiving_late_events_keeps_host_readiness_cursor_and_rejects_unsolicited_replies() {
+    let mut client = scripted(&[
+        json!({"jsonrpc":"2.0","method":"future/notification","params":{}}),
+        idle(Some("msg_0000000000000001"), None),
+        json!({"jsonrpc":"2.0","id":8,"result":{}}),
+    ]);
+    client.observe_session("s");
+    assert_eq!(client.receive_event(), Ok(None));
+    assert!(matches!(
+        client.receive_event(),
+        Ok(Some(SessionEvent::Idle { .. }))
+    ));
+    let readiness = client.await_session_idle("s").unwrap();
+    assert_eq!(
+        readiness.last_user_message_id.as_deref(),
+        Some("msg_0000000000000001")
+    );
+    assert!(matches!(
+        client.receive_event(),
+        Err(IdleWaitFailure::ProtocolViolation(_))
+    ));
+    assert_eq!(client.events().len(), 1);
 }

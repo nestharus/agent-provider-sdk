@@ -159,7 +159,8 @@ fn valid_rejection_counts_before_a_noncontract_retry() {
         client.submit("s", &mut msg),
         DeliveryOutcome::Rejected {
             code: -32002,
-            message: "rejected".into()
+            message: "rejected".into(),
+            data: None,
         }
     );
     assert!(msg.is_owed());

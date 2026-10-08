@@ -10,9 +10,11 @@
 //! What is agreed is declared schema and contracts: the resident protocol,
 //! ACP protocol version 2, an ACP schema tag this SDK implements
 //! ([`super::SUPPORTED_SCHEMA_TAGS`]), the message-key dedup contract, and
-//! the operations a start or turn needs. The endpoint's `initialize` must
-//! repeat what `resident.prepare` declared; a contradiction or an operation
-//! not served is refused before anything is sent, never substituted. The
+//! the operations a start or turn needs. Only the fixed supported schema is
+//! admitted. `initialize` must carry a valid resident declaration and dedup
+//! capability; this does not prove process identity or that declared operations
+//! are implemented. An undeclared resume is refused before it is sent; a
+//! declared but unserved operation can fail when requested. The
 //! endpoint's implementation name and version, the configuration digest and
 //! any executable identity are attribution, never agreement keys.
 //!
@@ -146,8 +148,10 @@ impl PreparedEndpoint {
         self.operations.contains(operation)
     }
 
-    /// Whether `peer` repeats this declaration: the same resident contract
-    /// and schema tag in its `initialize` `_meta`, and the dedup contract.
+    /// Check presence/validity of the fixed supported resident declaration
+    /// and dedup capability. This establishes no endpoint-process identity;
+    /// the host owns the association between prepare, argv and transport.
+    /// Declared operations are not proven served by this check.
     pub fn check_peer(&self, peer: &NegotiatedPeer) -> Result<(), StartRefusal> {
         match &peer.resident_session {
             None => Err(StartRefusal::DeclarationContradicted(
@@ -183,7 +187,7 @@ pub enum SessionStart {
 /// answered it. Not a logical session or durable host reference.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeSession {
-    /// The resident session id the endpoint answered.
+    /// The id answered by new, or supplied by the host to a successful resume.
     pub session_id: String,
     /// The endpoint's self-reported implementation (attribution only).
     pub agent_name: String,
@@ -314,6 +318,10 @@ pub struct TurnEnd {
     /// The stop reason and native report belong to `covered_by`'s turn.
     pub stop_reason: Option<String>,
     pub native_turn: Option<NativeTurn>,
+    /// Raw metadata belongs to `covered_by`, even when invalid or unknown.
+    /// Neither this report nor the idle certifies endpoint input persistence
+    /// or host canonical publication; later events may report contrary facts.
+    pub native_turn_report: Option<serde_json::Value>,
 }
 
 impl TurnEnd {
@@ -335,5 +343,6 @@ pub fn await_turn_end<T: Transport>(
         covered_by: idle.last_user_message_id.unwrap_or_default(),
         stop_reason: idle.stop_reason,
         native_turn: idle.native_turn,
+        native_turn_report: idle.native_turn_report,
     })
 }

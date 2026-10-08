@@ -190,8 +190,11 @@ pub enum TemplateRefusal {
 /// `settings`, the opaque provider/v1 `policy.evaluate` params the host sent:
 /// their `settings_id`, `mode` and `model` with the evaluated `argv` and
 /// `env`. Settings, model and argv stay provider-owned values; this neither
-/// interprets nor resolves them. A refusal, a missing argv or a transform
-/// the template cannot carry is refused, never dropped.
+/// interprets nor resolves them. An exact echo of the preparation prompt
+/// (`model.inputs.prompt`, or `launch.prompt` when absent) is accepted:
+/// resident turns supply their own prompt. A differing stdin/prompt value,
+/// a value without a preparation prompt, a refused policy or missing argv
+/// is refused, never silently dropped.
 pub fn template_from_policy(
     settings: &Value,
     policy: &PolicyEvaluateResult,
@@ -205,11 +208,16 @@ pub fn template_from_policy(
                 .collect(),
         ));
     }
-    if policy.stdin.is_some() {
-        return Err(TemplateRefusal::Unhonourable("stdin"));
-    }
-    if policy.prompt.is_some() {
-        return Err(TemplateRefusal::Unhonourable("prompt"));
+    // Evaluation may echo the preparation prompt. Resident turns replace it;
+    // a different value is a transform this template cannot represent.
+    let prompt = settings
+        .pointer("/model/inputs/prompt")
+        .and_then(Value::as_str)
+        .or_else(|| settings.pointer("/launch/prompt").and_then(Value::as_str));
+    for (field, value) in [("stdin", &policy.stdin), ("prompt", &policy.prompt)] {
+        if value.as_deref().is_some_and(|value| Some(value) != prompt) {
+            return Err(TemplateRefusal::Unhonourable(field));
+        }
     }
     let argv = policy.argv.as_ref().ok_or(TemplateRefusal::MissingArgv)?;
     let params = serde_json::json!({
