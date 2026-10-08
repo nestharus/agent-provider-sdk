@@ -58,6 +58,10 @@ case "$1" in
   hang) echo CONSUMED; [ -z "$NATIVE_SESSION" ] && echo "SESSION native-$$"
         sleep 300 & echo $! > "$2/descendant.pid"; echo $$ > "$2/leader.pid"
         echo "TEXT waiting"; wait ;;
+  hanglate) echo CONSUMED; while [ ! -f "$2/go" ]; do sleep 0.02; done
+        [ -z "$NATIVE_SESSION" ] && echo "SESSION ${CREATE_SESSION:-native-$$}"
+        sleep 300 & echo $! > "$2/descendant.pid"; echo $$ > "$2/leader.pid"
+        echo "TEXT waiting"; wait ;;
   noconsume) echo "warming up" >&2; exit 3 ;;
   fail) echo CONSUMED; echo "TEXT partial"; exit 1 ;;
   *) echo CONSUMED; echo "TEXT unknown"; exit 0 ;;
@@ -71,7 +75,31 @@ fn main() {
         Some("--resident") => std::process::exit(serve(&args[2])),
         _ => {}
     }
-    let tests: [(&str, fn()); 36] = [
+    let tests: [(&str, fn()); 42] = [
+        (
+            "completed_journal_without_identity_blocks_recovery",
+            completed_journal_without_identity_blocks_recovery,
+        ),
+        (
+            "unobserved_native_identity_blocks_recovery",
+            unobserved_native_identity_blocks_recovery,
+        ),
+        (
+            "chosen_native_id_is_not_observed_identity",
+            chosen_native_id_is_not_observed_identity,
+        ),
+        (
+            "journal_only_native_identity_recovers_exactly",
+            journal_only_native_identity_recovers_exactly,
+        ),
+        (
+            "prepared_spawn_failure_allows_fresh_start",
+            prepared_spawn_failure_allows_fresh_start,
+        ),
+        (
+            "refused_preparation_allows_fresh_start_after_reopen",
+            refused_preparation_allows_fresh_start_after_reopen,
+        ),
         (
             "queued_refusal_recovers_non_start_after_unlock",
             queued_refusal_recovers_non_start_after_unlock,
@@ -245,6 +273,10 @@ struct FixtureTurns {
 }
 
 impl ResidentTurns for FixtureTurns {
+    fn create_native_session_id(&self) -> Option<String> {
+        std::fs::read_to_string(self.runs.parent().unwrap().join("create-id")).ok()
+    }
+
     fn implementation(&self) -> (String, String) {
         ("fixture-resident".into(), "0".into())
     }
@@ -349,6 +381,16 @@ impl LaunchAdapter for FixtureTurn {
                 "NATIVE_SESSION",
                 self.turn.native_session_id.as_deref().unwrap_or(""),
             );
+        command.command_mut().env(
+            "CREATE_SESSION",
+            self.turn.create_native_session_id.as_deref().unwrap_or(""),
+        );
+        if self.turn.prompt == "spawnfail" {
+            // The effect-gate process cannot spawn with this nonexistent cwd.
+            command
+                .command_mut()
+                .current_dir(self.runs.parent().unwrap().join("missing-cwd"));
+        }
         Ok(Preparation::Native(NativeCommand {
             command,
             stdin: Some(self.turn.prompt.clone().into_bytes()),
@@ -904,6 +946,12 @@ fn queued_refusal_recovers_non_start_after_unlock() {
     let fixture = Fixture::new();
     let mut client = fixture.start();
     let session = client.open(&fixture.cwd());
+    // This control concerns the queued input's non-start. Establish native
+    // identity independently before cancelling the separate running turn;
+    // cancellation before SESSION would leave session continuity uncertain.
+    let seed = client.prompt(&session, "reply establish identity", None);
+    let seed = message_id(&client.response(seed));
+    client.idle_for(&seed);
     let (running, _marks) = barrier(&fixture, &mut client, &session);
     let queued = client.prompt(&session, "reply must not run", Some("queued"));
     let dir = bounds_dir(&fixture, &session);
@@ -942,7 +990,11 @@ fn queued_refusal_recovers_non_start_after_unlock() {
     assert_eq!(bounds_read(&input_path)["phase"], json!("not_inserted"));
     assert!(!dir.join("turns").join(format!("{key}.json")).exists());
     assert!(!dir.join("turns").join(format!("{key}.jsonl")).exists());
-    assert_eq!(fixture.runs(), 1, "queued input was never dispatched");
+    assert_eq!(
+        fixture.runs(),
+        2,
+        "only seed and running turn were dispatched"
+    );
     assert_eq!(
         client.call("session/close", json!({"sessionId":session}))["result"],
         json!({})
@@ -2260,4 +2312,268 @@ fn sdk_host_rejected_record_failure_preserves_publication_uncertainty() {
     assert_eq!(fixture.runs(), 1);
     restore_input_store(&dir);
     assert!(client.into_transport().end().success());
+}
+
+// D3: interruption may hide native identity even though insertion and actor
+// custody are known. The supplied U219 specimen gates SESSION until the
+// endpoint is SIGSTOPed, so no timing race or invented recovered id is needed.
+fn unobserved_native_identity_blocks_recovery() {
+    unobserved_native_identity(None);
+}
+fn chosen_native_id_is_not_observed_identity() {
+    unobserved_native_identity(Some("12345678-1234-1234-1234-123456789abc"));
+}
+fn unobserved_native_identity(chosen: Option<&str>) {
+    let fixture = Fixture::new();
+    if let Some(chosen) = chosen {
+        std::fs::create_dir_all(fixture.state()).unwrap();
+        std::fs::write(fixture.state().join("create-id"), chosen).unwrap();
+    }
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    let marks = fixture.dir.path().join("late-session");
+    std::fs::create_dir(&marks).unwrap();
+    let prompt = format!("hanglate {}", marks.display());
+    let running = first.prompt(&session, &prompt, Some("lost"));
+    let id = message_id(&first.response(running));
+    assert_eq!(
+        unsafe { libc::kill(first.child.id() as i32, libc::SIGSTOP) },
+        0
+    );
+    std::fs::write(marks.join("go"), "").unwrap();
+    let actor = LostActor {
+        leader: wait_for(&marks.join("leader.pid")),
+        descendant: wait_for(&marks.join("descendant.pid")),
+    };
+    first.child.kill().unwrap();
+    first.child.wait().unwrap();
+    assert!(alive(actor.descendant));
+    let dir = bounds_dir(&fixture, &session);
+    let original_session = bounds_read(&dir.join("session.json"));
+    assert!(original_session["native_session_id"].is_null());
+    assert_eq!(original_session["create_native_session_id"], json!(chosen));
+    let journal = bounds_journal(&fixture, &session, &id);
+    let journal_bytes = std::fs::read(&journal).unwrap();
+    let events = std::str::from_utf8(&journal_bytes)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    assert!(events
+        .iter()
+        .any(|event| event["name"] == json!(resident::SUBMITTED_USER_TURN_MARKER)));
+    assert!(!events
+        .iter()
+        .any(|event| event["name"] == json!(resident::PROVIDER_SESSION_MARKER)));
+    let launch_bytes = std::fs::read(journal.with_extension("json")).unwrap();
+    let input_path = bounds_input(&fixture, &session, &id);
+    let original_input = bounds_read(&input_path);
+
+    let (mut second, resumed) = bounds_resume(&fixture, &session);
+    assert_identity_uncertain(&resumed);
+    assert_dies(actor.leader);
+    assert_dies(actor.descendant);
+    let duplicate = second.prompt(&session, "different bytes", Some("lost"));
+    let duplicate = second.response(duplicate);
+    assert_eq!(message_id(&duplicate), id);
+    assert_eq!(
+        duplicate["result"]["_meta"][resident::DUPLICATE_META],
+        json!(true)
+    );
+    let idle = second.idle_for(&id);
+    assert_eq!(
+        idle["stopReason"],
+        json!("_oulipoly_reconciliation_required")
+    );
+    assert_eq!(
+        idle["_meta"][resident::NATIVE_TURN_META]["custody"],
+        json!("reconciled")
+    );
+    let next = second.prompt(&session, "whoami", Some("next"));
+    assert_identity_uncertain(&second.response(next));
+    let record = bounds_read(&dir.join("session.json"));
+    assert!(record["native_session_id"].is_null());
+    assert_eq!(record["create_native_session_id"], json!(chosen));
+    assert!(record["native_session_uncertain"].is_string());
+    let recovered = bounds_read(&input_path);
+    for key in [
+        "prompt",
+        "prompt_sha256",
+        "request_id",
+        "message_id",
+        "native_session_id",
+        "create_native_session_id",
+    ] {
+        assert_eq!(recovered[key], original_input[key], "retained {key}");
+    }
+    assert_eq!(std::fs::read(&journal).unwrap(), journal_bytes);
+    assert_eq!(
+        std::fs::read(journal.with_extension("json")).unwrap(),
+        launch_bytes
+    );
+    assert_eq!(
+        fixture.runs(),
+        1,
+        "duplicate and new input start no native work"
+    );
+    assert_eq!(
+        second.call("session/close", json!({"sessionId":session}))["result"],
+        json!({})
+    );
+    assert!(second.end().success());
+
+    let (mut reopened, response) = bounds_resume(&fixture, &session);
+    assert_identity_uncertain(&response);
+    let next = reopened.prompt(&session, "reply must not create or resume", None);
+    assert_identity_uncertain(&reopened.response(next));
+    let duplicate = reopened.prompt(&session, "ignored", Some("lost"));
+    assert_eq!(message_id(&reopened.response(duplicate)), id);
+    reopened.idle_for(&id);
+    assert_eq!(fixture.runs(), 1);
+    assert!(reopened.end().success());
+    println!("unobserved identity candidate={chosen:?}: uncertainty visible, actors settled, runs=1, duplicate retained after reopen");
+}
+fn assert_identity_uncertain(response: &Value) {
+    assert_eq!(response["error"]["code"], json!(-32012), "{response}");
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("native session identity is uncertain"),
+        "{response}"
+    );
+    assert!(
+        !response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("journal evidence unreadable"),
+        "readable journal remains readable"
+    );
+}
+
+fn journal_only_native_identity_recovers_exactly() {
+    let fixture = Fixture::new();
+    let (session, id, actor) = bounds_lost(&fixture);
+    let path = bounds_dir(&fixture, &session).join("session.json");
+    let mut record = bounds_read(&path);
+    let native = record["native_session_id"].clone();
+    assert_eq!(native, json!(format!("native-{}", actor.leader)));
+    // Issued stale session snapshot: the untouched journal is sole identity evidence.
+    record["native_session_id"] = Value::Null;
+    bounds_write(&path, &record);
+    let (mut second, resumed) = bounds_resume(&fixture, &session);
+    assert_eq!(resumed["result"], json!({}), "{resumed}");
+    assert_dies(actor.descendant);
+    assert_eq!(bounds_read(&path)["native_session_id"], native);
+    assert!(bounds_read(&path)["native_session_uncertain"].is_null());
+    let duplicate = second.prompt(&session, "ignored", Some("bounds-lost"));
+    assert_eq!(message_id(&second.response(duplicate)), id);
+    second.idle_for(&id);
+    assert_eq!(fixture.runs(), 1);
+    let next = second.prompt(&session, "whoami", None);
+    let next = message_id(&second.response(next));
+    let text = second.update("exact journal identity", |u| {
+        u["sessionUpdate"] == json!("agent_message")
+    });
+    assert_eq!(
+        text["update"]["content"][0]["text"],
+        json!(format!("native={}", native.as_str().unwrap()))
+    );
+    second.idle_for(&next);
+    assert_eq!(fixture.runs(), 2);
+    assert!(second.end().success());
+}
+
+fn prepared_spawn_failure_allows_fresh_start() {
+    let fixture = Fixture::new();
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    let attempt = first.prompt(&session, "spawnfail", Some("no-start"));
+    let refused = first.response(attempt);
+    assert_eq!(refused["error"]["code"], json!(-32011));
+    assert_eq!(
+        first.call("session/close", json!({"sessionId":session}))["result"],
+        json!({})
+    );
+    assert!(first.end().success());
+    assert_eq!(fixture.runs(), 0, "native never started");
+    let (mut reopened, resumed) = bounds_resume(&fixture, &session);
+    assert_eq!(resumed["result"], json!({}), "{resumed}");
+    let duplicate = reopened.prompt(&session, "ignored", Some("no-start"));
+    assert_eq!(reopened.response(duplicate)["error"]["code"], json!(-32010));
+    let next = reopened.prompt(&session, "reply fresh", None);
+    let next = message_id(&reopened.response(next));
+    reopened.idle_for(&next);
+    assert_eq!(fixture.runs(), 1);
+    assert!(reopened.end().success());
+}
+
+fn refused_preparation_allows_fresh_start_after_reopen() {
+    let fixture = Fixture::new();
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    let attempt = first.prompt(&session, "refuse", Some("no-start"));
+    assert_eq!(first.response(attempt)["error"]["code"], json!(-32010));
+    assert!(first.end().success());
+    assert_eq!(fixture.runs(), 0);
+    let (mut reopened, resumed) = bounds_resume(&fixture, &session);
+    assert_eq!(resumed["result"], json!({}));
+    let next = reopened.prompt(&session, "reply fresh", None);
+    let next = message_id(&reopened.response(next));
+    reopened.idle_for(&next);
+    assert_eq!(fixture.runs(), 1);
+    assert!(reopened.end().success());
+}
+
+fn completed_journal_without_identity_blocks_recovery() {
+    let fixture = Fixture::new();
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    // This fake ran and consumed the input, but supplied no SESSION marker.
+    let request = first.prompt(&session, "fail", Some("complete"));
+    let id = message_id(&first.response(request));
+    assert_eq!(
+        first.idle_for(&id)["stopReason"],
+        json!("_oulipoly_native_failed")
+    );
+    let input_path = bounds_input(&fixture, &session, &id);
+    let mut input = bounds_read(&input_path);
+    let journal = bounds_journal(&fixture, &session, &id);
+    let journal_bytes = std::fs::read(&journal).unwrap();
+    let launch_bytes = std::fs::read(journal.with_extension("json")).unwrap();
+    assert_eq!(
+        bounds_read(&journal.with_extension("json"))["phase"],
+        json!("complete")
+    );
+    first.child.kill().unwrap();
+    first.child.wait().unwrap();
+    // Issued durable snapshot lag: launch completion survived, input end did
+    // not. This selects exact completed replay, not actor reconciliation.
+    input["phase"] = json!("inserted");
+    input["native_turn"] = Value::Null;
+    input.as_object_mut().unwrap().remove("ended_unix_ms");
+    bounds_write(&input_path, &input);
+    let (mut second, resumed) = bounds_resume(&fixture, &session);
+    assert_identity_uncertain(&resumed);
+    let duplicate = second.prompt(&session, "ignored", Some("complete"));
+    assert_eq!(message_id(&second.response(duplicate)), id);
+    let idle = second.idle_for(&id);
+    assert_eq!(idle["stopReason"], json!("_oulipoly_native_failed"));
+    assert_eq!(
+        idle["_meta"][resident::NATIVE_TURN_META]["custody"],
+        json!("complete")
+    );
+    let next = second.prompt(&session, "whoami", None);
+    assert_identity_uncertain(&second.response(next));
+    assert_eq!(std::fs::read(&journal).unwrap(), journal_bytes);
+    assert_eq!(
+        std::fs::read(journal.with_extension("json")).unwrap(),
+        launch_bytes
+    );
+    assert_eq!(
+        fixture.runs(),
+        1,
+        "completed replay is receipt-only; later input blocked"
+    );
+    assert!(second.end().success());
 }

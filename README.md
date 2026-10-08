@@ -560,7 +560,13 @@ does not change the pinned v1 snapshot.
   one has its recorded process group discharged before any current-template
   digest comparison,
   and the interrupted journal's markers recover native session identity and
-  consumption. Native create/resume selection is bound and persisted at
+  consumption. If readable interrupted evidence has no observed native
+  identity and cannot exclude native work, resume reports `-32012` and new
+  prompts are blocked, including after close/reopen. A preselected create UUID
+  remains a candidate; neither insertion ACK nor actor discharge promotes it
+  to known identity or authorizes a probing create/resume. Known session-record
+  and journal identities still recover exactly, and duplicate insertion ACKs
+  remain available without native replay. Native create/resume selection is bound and persisted at
   dispatch from the preceding settled session state, so queued turns continue
   it. Native-session publication errors surface as failures; incomplete custody
   stays unsettled, without an ended record or idle completion. Immediate
@@ -587,7 +593,11 @@ does not change the pinned v1 snapshot.
   eligible for settlement after restoration. Non-start requires a recorded
   undispatched input with no consumption evidence and neither launch nor journal
   evidence under its request lock, or a fresh locally refused attempt under
-  that same absence check. Dispatch is durably recorded before adapter entry;
+  that same absence check. Validated `prepared` launch custody also proves
+  the native effect gate was never released: an absent journal is expected in
+  that case, and no consumption evidence allows a fresh turn after settlement.
+  Existing journal markers are still recovered; unreadable journal evidence
+  retains uncertainty. Dispatch is durably recorded before adapter entry;
   refusal/cancellation uncertainty alone does not erase the undispatched premise.
   After temporary custody unavailability ends, duplicate lookup or settlement
   can refine `-32011` to `-32010` only with that positive non-start evidence.

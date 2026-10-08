@@ -62,6 +62,13 @@ contract, session-scoped cancel, settlement on close/connection end, and
 resume-time reconciliation of interrupted turns. Native session selection is
 bound at dispatch, after prior turns settle. Interrupted actor discharge is
 independent of current template equality and never readmits the old input.
+Readable interrupted evidence without an observed native session identity
+reports `-32012` and blocks new input when native work cannot be excluded.
+A chosen create id remains a candidate, not observed identity or permission to
+probe create/resume. Known session-record or journal identity still recovers,
+and known duplicate insertion ACKs remain available. A justified pre-start
+refusal or validated prepared custody without consumption permits fresh work;
+actor discharge and insertion ACK alone do not prove no native effects.
 Unsettled custody cannot produce an ended record or successful close; close
 releases its session lock and worker. Consumption evidence with a failed
 insertion store is unknown (`-32011`), without a consumption ACK. Duplicate ACKs
