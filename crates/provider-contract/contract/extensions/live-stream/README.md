@@ -1,25 +1,29 @@
-# Live stream v2
+# Live stream v3
 
-`oulipoly.live_stream/v2` is the provider-neutral record vocabulary of the
+`oulipoly.live_stream/v3` is the provider-neutral record vocabulary of the
 optional live-output plane. A publisher, a broker and subscribers use it to
 exchange the following about live output:
 
 - stream identity;
 - publisher incarnation and sequence;
-- channels;
+- channels, including output whose stdout and stderr were combined before
+  capture;
 - exact gaps and restarts;
 - the opaque durable reference a stream finalizes to;
 - caller-owned cursors;
 - advertised visibility claims.
 
-[v2.schema.json](v2.schema.json) defines structural validation. That schema
-**plus the normative semantic rules below** defines v2 conformance in every
+[v3.schema.json](v3.schema.json) defines structural validation. That schema
+**plus the normative semantic rules below** defines v3 conformance in every
 language. Raw JSON Schema validation alone is insufficient. `live_stream`
 implements both layers and their context-dependent agreement/follow/replay
 operations. Raw Serde deserialization supplies representation only.
 
 Status: defined and unadopted. No publisher, broker, host or provider uses this
-contract yet. [Attachment](#publisher-broker-and-subscriber) defines what the
+contract yet. Agent Runner's interim root Bash view
+(`oulipoly.root_bash_live/v1`) carries combined output on its own wire because
+v2 could not name it; converging that view onto this family is Runner's
+separate work (see [Consumer convergence](#consumer-convergence)). [Attachment](#publisher-broker-and-subscriber) defines what the
 three roles say to each other and which side owns each check. Capture, rings,
 the broker itself, endpoints, sockets, subscription surfaces and retention
 belong to later work. That later work is what establishes runtime behaviour.
@@ -55,30 +59,40 @@ is a bounded JSON object (at most 32 entries and 16 KiB) mapping a protocol
 identifier to that protocol's offer:
 
 ```json
-{"oulipoly.live_stream/v2": {"channels": ["stdout", "stderr", "control"],
+{"oulipoly.live_stream/v3": {"channels": ["combined", "control"],
                               "audiences": ["owner", "same_user"],
                               "max_data_bytes": 65536},
- "oulipoly.live_stream/v3": {"anything": "a newer peer adds"}}
+ "oulipoly.live_stream/v2": {"channels": ["stdout", "stderr", "control"],
+                              "audiences": ["owner"], "max_data_bytes": 4096},
+ "oulipoly.live_stream/v4": {"anything": "a newer peer adds"}}
 ```
 
 `live_stream::select` handles each kind of entry as follows:
 
-- **Unknown entries** (other families and newer versions) are kept in the
-  advertisement and ignored.
-- **The v2 entry** must be a strict `Offer`. A malformed v2 entry is refused
+- **Unknown entries** (other families, and older or newer versions of this
+  one) are kept in the advertisement and ignored, whatever their shape.
+- **The v3 entry** must be a strict `Offer`. A malformed v3 entry is refused
   (`invalid_advertisement`), not skipped.
 - **The selection** is the common channels, the common audiences and the lower
   `max_data_bytes`. If no channel or no audience is common, the result is
   `no_common_capability`.
 
-The attachment messages and `not_authorized` diagnostic belong to
-`oulipoly.live_stream/v2`, schema identity `urn:oulipoly:live-stream:v2`.
-This SDK selects only v2 (`SUPPORTED_VERSIONS = [2]`). A peer advertising only
-baseline `oulipoly.live_stream/v1` gets `no_common_version`, disabling optional
-live viewing. The retained [v1 schema](v1.schema.json) describes the baseline
-record vocabulary without attachment messages or `not_authorized`; it is not
-a runtime fallback. There is no source or binary compatibility guarantee.
-Required `oulipoly.provider/v1` and session-control v3 negotiation are unrelated.
+A peer that cannot carry combined output simply does not offer `combined`;
+selection then leaves it out, and a combined stream cannot be followed under
+that selection (see [Combined origin](#combined-origin)).
+
+The `combined` channel, the attachment messages and the `not_authorized`
+diagnostic belong to `oulipoly.live_stream/v3`, schema identity
+`urn:oulipoly:live-stream:v3`. This SDK selects only v3
+(`SUPPORTED_VERSIONS = [3]`). A peer advertising only baseline
+`oulipoly.live_stream/v1` or `oulipoly.live_stream/v2` gets
+`no_common_version`, disabling optional live viewing. The retained
+[v1 schema](v1.schema.json) and [v2 schema](v2.schema.json) describe earlier
+vocabularies (v1 without attachment messages or `not_authorized`, v2 without
+`combined`); they are not runtime fallbacks. There is no source, package or
+binary compatibility guarantee or requirement: schema/capability agreement is
+the compatibility relation. Required `oulipoly.provider/v1` and session-control
+v3 negotiation are unrelated, and no live-stream outcome changes them.
 
 ## Identity and sequence
 
@@ -109,9 +123,14 @@ such identifiers; the SDK does not select or interpret that host encoding.
 
 ## Channels
 
-- **`stdout`, `stderr`, `pty`.** These carry 1–65536 bytes of base64 data per
-  frame, or fewer under the selected `max_data_bytes`. Separate channels
-  preserve host observation order only.
+- **`stdout`, `stderr`, `combined`, `pty`.** These carry 1–65536 bytes of
+  base64 data per frame, or fewer under the selected `max_data_bytes`. Bytes of
+  one channel keep their capture order. Separate channels preserve host
+  observation order only.
+  - `stdout` and `stderr` carry bytes captured from a descriptor that carried
+    only that origin.
+  - `combined` carries one byte stream into which the producer's stdout and
+    stderr were joined before capture. See [Combined origin](#combined-origin).
   - `pty` is a kind a publisher may declare.
   - No publisher is required to produce `pty`, and this contract revives no
     PTY capture.
@@ -125,6 +144,28 @@ such identifiers; the SDK does not select or interpret that host encoding.
   A control fact never commands, authorizes or acknowledges anything, and its
   receipt is not a semantic acknowledgement. Pause, resume and incident
   dispositions are not part of this contract.
+
+### Combined origin
+
+When a producer's stdout and stderr share one descriptor before capture (for
+example, both duplicated onto one pipe), the capture cannot tell which origin
+wrote each byte. Such output is carried on the `combined` data channel:
+
+- Its bytes are in the order read from that one descriptor. Interleaving
+  reflects the producer's writes as the descriptor delivered them; it says
+  nothing about which origin wrote any byte.
+- A descriptor that declares `combined` never also declares `stdout` or
+  `stderr`. One incarnation either knows each byte's origin or carries it
+  combined; it never claims both. The schema refuses such a descriptor, and
+  no follow context may be set up with both.
+- `channel_closed` may name `combined`. It reports that the shared
+  descriptor closed, not that either origin did.
+- The SDK never splits, infers or relabels combined bytes, and a subscriber
+  that did not select `combined` gets a live-only diagnostic rather than the
+  bytes under another channel name.
+- Selecting `combined` asserts a capability shape only. Whether a publisher
+  labelled its capture truthfully is a host obligation (below), not something
+  validation can establish.
 
 ## Gaps, restarts, cursors and the end
 
@@ -149,6 +190,7 @@ such identifiers; the SDK does not select or interpret that host encoding.
   against selected channel/byte limits after structural and semantic admission.
 - **`finalized`.** This ends an incarnation. It is published only after the
   host's normal durable publication and carries the durable reference.
+  [What a terminal claims](#what-a-terminal-claims) bounds its meaning.
   - Brokers must retain the terminal frame while they know the stream, so a
     cursor behind eviction reaches it after an exact gap. `RetainedWindow`
     carries the complete terminal frame once the incarnation ends. Its window
@@ -156,6 +198,27 @@ such identifiers; the SDK does not select or interpret that host encoding.
     publication remain runtime obligations.
 - **`ended`.** This ends an incarnation that claims no durable reference and
   carries the same resumable terminal knowledge without inventing a reference.
+
+### What a terminal claims
+
+A terminal frame claims only what its kind states:
+
+- `finalized` claims that the host durably published the record its
+  `durable_reference` names, before sending the frame. It does not claim a
+  known or successful command exit, complete or readable retained bytes, or
+  delivery or acknowledgement of any report to anyone. The durable record
+  carries those classifications. A record that classifies its own command
+  wait as unknown, or its retention as partial or unsealed, keeps that
+  classification; finalization does not upgrade it.
+- `ended` claims only that this incarnation published its last frame. It
+  names no durable record and implies no failure: the work may still be
+  settled later through the host's durable storage, outside this stream.
+- `exit_observed` reports an exit the publisher observed. Its absence means
+  no exit was observed, never a successful one. An unknown command wait is
+  expressed by sending no `exit_observed`, not by inventing a code.
+- A cursor's retained terminal is knowledge of the terminal frame, not of
+  the durable record's content. Receiving any record is not an
+  acknowledgement.
 
 An ended/finalized follow context is terminal. It cannot silently move to a
 later publisher run, even via discontinuity. Following a later observation
@@ -239,11 +302,30 @@ and claim-shape validation does not discharge them.
   retained result after normal durable publication. Pipe or descriptor
   closure, a ready sentinel, an observed exit, or broker or process exit is
   never finalization. A publisher without access to that result registers
-  `never`.
+  `never`. The host must itself warrant that the publication happened and
+  that the named record is this incarnation's: a committed transaction that
+  may not have written the matching record, or a report only queued locally,
+  does not warrant it. When the host cannot name a durably published record,
+  the incarnation ends with `ended`.
+- **Origin.** A publisher uses `stdout` or `stderr` only for bytes captured
+  from a descriptor that carried only that origin. Output joined before
+  capture is `combined`. Relabelling combined bytes as one origin, or
+  splitting them by guess, misstates the capture.
 - **Drop, never block.** Publishing must not add I/O or backpressure to the
   required output drain, terminal publication or close. When a publisher cannot
   hand frames off, it drops them and later sends an exact `capture_overflow`
   gap. Enabling live publication is optional and consumer-driven.
+- **Optional, live-only refusal.** A host that carries live-stream offers or
+  requests inside a required request (launch, recovery, control) must admit
+  that part separately, so a malformed, unknown or unsupported live part
+  becomes a `live_unavailable` diagnostic and leaves the required request
+  unaffected. `select` takes the peer's advertisement as an unvalidated JSON
+  value for this reason. Embedding these DTOs as strict fields whose
+  deserialization fails the whole required request does not meet this
+  contract.
+- **Authentication and custody.** Peer authentication, endpoint custody and
+  authority to grant are host and runtime facts. Constructing or validating a
+  DTO, a fixture or a `HostDecision` never attests them.
 
 ## Normative semantic rules
 
@@ -253,11 +335,11 @@ schema. Diagnostic reasons describe optional observation failure only.
 | Operation | Required semantic checks / result |
 | --- | --- |
 | Record admission | Standard padded canonical base64 decodes to 1–65536 bytes. `gap.first <= gap.last`. A discontinuity changes incarnation; known `previous_last_seq >= after_seq`. Record lines are at most 90112 UTF-8 bytes before parsing. |
-| Descriptor admission | `visibility.channels` is a subset of declared `channels`. This checks the claim, not enforcement. |
+| Descriptor admission | `visibility.channels` is a subset of declared `channels`. `combined` is never declared with `stdout` or `stderr` (structural). This checks the claim, not enforcement or origin truth. |
 | Cursor admission | Any terminal frame matches the cursor's stream/incarnation and has `seq == after_seq`. Persist all terminal metadata. |
-| Selection | The serialized advertisement is at most 16384 UTF-8 bytes. Validate the local offer and the advertised v2 entry; ignore unknown/newer entries. Intersect channels and audiences (both nonempty); choose the smaller byte limit. |
-| Joined agreement | Selected protocol is v2 and its offer fields are structurally valid. Descriptor channels are a subset of selected channels, descriptor byte limit is no greater than selected limit, and its audience is supported by the selection. The cursor names the descriptor stream. A terminal cursor cannot start following another incarnation. |
-| Typed follower/replay entry | Validate public typed inputs even if constructed directly or through raw Serde. Malformations return bounded diagnostics before state mutation or generated output. |
+| Selection | The serialized advertisement is at most 16384 UTF-8 bytes. Validate the local offer and the advertised v3 entry; ignore unknown, older and newer entries. Intersect channels and audiences (both nonempty); choose the smaller byte limit. An offer may name both `combined` and separated channels; it states capability, not one incarnation's origin. |
+| Joined agreement | Selected protocol is v3 and its offer fields are structurally valid. Descriptor channels are a subset of selected channels, descriptor byte limit is no greater than selected limit, and its audience is supported by the selection. The cursor names the descriptor stream. A terminal cursor cannot start following another incarnation. |
+| Typed follower/replay entry | Validate public typed inputs even if constructed directly or through raw Serde. A follow channel set never contains `combined` with `stdout` or `stderr`. Malformations return bounded diagnostics before state mutation or generated output. |
 | Follow | Stream/incarnation must match; incarnation changes only through a matching discontinuity. Forward sequence is exactly `after_seq + 1`; fresh gaps start there and advance through their last sequence. Old sequenced positions / fully covered gaps are positional duplicates. Fresh data/control uses declared channels; fresh data respects the context byte limit; closure facts name declared data channels. Learn terminal knowledge at its position, retain it in the cursor, and refuse conflicting terminal knowledge or forward frames/gaps/discontinuities after it. |
 | Discontinuity | It answers the cursor's incarnation and position. Known old last equal to the cursor means nothing lost; a greater value yields the exact remaining range; absent means unknown. Reset only an open follow context to the new incarnation and position zero. |
 | Retained window | `1 <= first_retained <= last_published + 1`; `last_published` fits the sequence ceiling. Previous incarnation differs from current and known previous last fits the ceiling. Terminal metadata, required once ended, matches window identity and last published sequence; the terminal position is retained (`first_retained <= last_published`). |
@@ -297,19 +379,25 @@ ceiling requires a newly selected schema family if later benchmarks warrant it.
 
 ## Limits
 
-The golden vectors in `tests/fixtures/live_stream/v2.json` and their tests
-establish the following:
+The golden vectors in `tests/fixtures/live_stream/v3.json` and
+`attachment-v3.json` and their tests establish the following:
 
 - classified structural acceptance versus normative semantic admission and DTO
   projections (including vectors deliberately accepted by raw schema);
 - the bounds above;
 - the gap, cursor, incarnation and finalization outcomes;
-- version selection;
+- version selection, including refusal of baseline v1/v2-only peers as
+  `no_common_version`;
+- combined-origin carriage: declaration, selection, follow and attachment,
+  and refusal of mixed declarations and of combined bytes under another
+  channel name;
 - separation from provider launch outcomes.
 
 They do not establish any of the following:
 
 - that a real publisher or broker reports gaps truthfully;
+- that a publisher labels origin truthfully, or that its `finalized` follows a
+  warranted durable publication;
 - that capture never backpressures drainage, terminalization or completion;
 - that a broker's absence or slowness leaves a launch unaffected at runtime;
 - that a visibility claim or host decision is enforced or correct;
@@ -349,3 +437,38 @@ stdout. Widening selection permits those declared channels; visibility filtering
 is not implemented, and the host must restrict delivery. `HostDecision` and
 `custody_owner` remain publicly constructible claims and host duties, not
 SDK authentication or proof of authority/custody.
+
+## Consumer convergence
+
+Defining v3 does not adopt it. A host that replaces a private live wire with
+this family still has to:
+
+- offer and select `oulipoly.live_stream/v3` by advertisement, and carry
+  combined capture on `combined`, never as `stdout` or `stderr`;
+- assign publisher sequence numbers per read chunk, and report dropped chunks
+  and evicted ranges as exact sequence gaps (`capture_overflow`, `evicted`);
+  byte offsets, if the host keeps them, stay host-local;
+- start a fresh random incarnation for each capture start, including takeover
+  by a successor owner, and let `plan_replay` answer old cursors with a
+  discontinuity whose lost tail is unknown unless the host truly knows it;
+- send `finalized` only under the finalization obligation above, otherwise
+  `ended`, and keep command-wait and retention classifications in its durable
+  record;
+- obtain a `HostDecision` from its own authority (for example kernel peer
+  credentials checked against an explicit grant), never from wire content;
+- admit the live part of any required request separately, so live refusal is
+  live-only;
+- meet the drop-never-block, bounded-resource and endpoint obligations at
+  runtime.
+
+Those are runtime properties the contract names and cannot establish.
+
+## Version history
+
+- **v1**: record vocabulary, selection, follow and replay.
+- **v2**: adds publisher/broker/subscriber attachment messages and the
+  `not_authorized` diagnostic.
+- **v3**: adds the `combined` data channel for stdout/stderr joined before
+  capture, refuses descriptors that claim both combined and separated origin,
+  and states what terminal frames claim. Record, cursor, gap, discontinuity,
+  replay and attachment semantics are otherwise unchanged from v2.

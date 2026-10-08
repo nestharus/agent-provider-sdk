@@ -1,4 +1,4 @@
-//! live_stream/v2 attachment: message admission, role pairing, host decisions
+//! live_stream/v3 attachment: message admission, role pairing, host decisions
 //! for registration and attachment, publisher ingest, and the subscriber's
 //! replay continuation, end to end in memory.
 //!
@@ -147,7 +147,7 @@ fn register(
 #[test]
 fn classified_messages_distinguish_raw_schema_from_semantic_admission() {
     let cases: Value =
-        serde_json::from_str(include_str!("fixtures/live_stream/attachment-v2.json")).unwrap();
+        serde_json::from_str(include_str!("fixtures/live_stream/attachment-v3.json")).unwrap();
     assert_eq!(cases["protocol"], PROTOCOL);
     for value in cases["valid"]["Message"].as_array().unwrap() {
         let message = Message::decode(value).unwrap_or_else(|e| panic!("{value}: {e}"));
@@ -736,33 +736,35 @@ fn at_final_attachment_requires_consistent_terminal_prefix_and_declaration() {
 }
 
 #[test]
-fn attachment_agreement_distinguishes_baseline_v1_from_declared_v2() {
+fn attachment_agreement_distinguishes_baseline_v1_and_v2_from_declared_v3() {
     use agent_provider_contract::live_stream::{
         advertisement, select, SCHEMA_JSON, SUPPORTED_VERSIONS,
     };
     let local = offer(Audience::Owner);
-    let baseline = serde_json::json!({"oulipoly.live_stream/v1": local});
-    let hello = Hello {
-        role: Role::Broker,
-        advertisement: baseline.clone(),
-    };
-    assert_eq!(
-        hello.select(Role::Subscriber, &local).unwrap_err().reason,
-        UnavailableReason::NoCommonVersion
-    );
-    assert_eq!(
-        select(&local, &baseline).unwrap_err().reason,
-        UnavailableReason::NoCommonVersion
-    );
+    for baseline in ["oulipoly.live_stream/v1", "oulipoly.live_stream/v2"] {
+        let baseline = serde_json::json!({ baseline: local });
+        let hello = Hello {
+            role: Role::Broker,
+            advertisement: baseline.clone(),
+        };
+        assert_eq!(
+            hello.select(Role::Subscriber, &local).unwrap_err().reason,
+            UnavailableReason::NoCommonVersion
+        );
+        assert_eq!(
+            select(&local, &baseline).unwrap_err().reason,
+            UnavailableReason::NoCommonVersion
+        );
+    }
     let current = Hello::new(Role::Broker, &local);
     assert_eq!(current.advertisement, advertisement(&local));
     assert_eq!(
         current.select(Role::Subscriber, &local).unwrap().protocol,
-        "oulipoly.live_stream/v2"
+        "oulipoly.live_stream/v3"
     );
-    assert_eq!(SUPPORTED_VERSIONS, &[2]);
+    assert_eq!(SUPPORTED_VERSIONS, &[3]);
     let schema: Value = serde_json::from_str(SCHEMA_JSON).unwrap();
-    assert_eq!(schema["$id"], "urn:oulipoly:live-stream:v2");
+    assert_eq!(schema["$id"], "urn:oulipoly:live-stream:v3");
     assert_eq!(schema["$defs"]["Protocol"]["const"], PROTOCOL);
     let old: Value = serde_json::from_str(include_str!(
         "../contract/extensions/live-stream/v1.schema.json"
@@ -783,8 +785,26 @@ fn attachment_agreement_distinguishes_baseline_v1_from_declared_v2() {
     )
     .unwrap();
     Message::decode(&serde_json::json!({"op":"unavailable","diagnostic":diagnostic})).unwrap();
-    // An unknown newer entry never overrides the selected v2 entry's shape.
-    let mixed = serde_json::json!({"oulipoly.live_stream/v1":{},PROTOCOL:local,"oulipoly.live_stream/v3":{}});
+    // The retained v2 schema has no channel for combined origin; v3 does.
+    let v2: Value = serde_json::from_str(include_str!(
+        "../contract/extensions/live-stream/v2.schema.json"
+    ))
+    .unwrap();
+    assert_eq!(v2["$id"], "urn:oulipoly:live-stream:v2");
+    let v2_data = jsonschema::validator_for(
+        &serde_json::json!({"$defs":v2["$defs"],"$ref":"#/$defs/DataChannel"}),
+    )
+    .unwrap();
+    assert!(!v2_data.is_valid(&serde_json::json!("combined")));
+    validate(
+        "Channels",
+        &serde_json::json!(["combined"]),
+        UnavailableReason::InvalidRecord,
+    )
+    .unwrap();
+    // Unknown older and newer entries never override the selected v3 entry's shape.
+    let mixed = serde_json::json!({"oulipoly.live_stream/v1":{},"oulipoly.live_stream/v2":{},
+        PROTOCOL:local,"oulipoly.live_stream/v4":{}});
     assert!(select(&local, &mixed).is_ok());
     assert_eq!(
         select(&local, &serde_json::json!({PROTOCOL:{}}))
@@ -792,4 +812,126 @@ fn attachment_agreement_distinguishes_baseline_v1_from_declared_v2() {
             .reason,
         UnavailableReason::InvalidAdvertisement
     );
+}
+
+/// Combined stdout/stderr output, as captured from one shared descriptor,
+/// travels publisher -> broker -> subscriber as the one `combined` channel. A
+/// subscriber that selected only separated channels gets a live-only
+/// diagnostic; nothing relabels or splits the bytes for it.
+#[test]
+fn combined_origin_attaches_only_to_subscribers_that_selected_it() {
+    let combined_offer = Offer {
+        channels: vec![Channel::Combined, Channel::Control],
+        audiences: vec![Audience::SameUser],
+        max_data_bytes: 4096,
+    };
+    let broker_offer = Offer {
+        channels: vec![
+            Channel::Stdout,
+            Channel::Stderr,
+            Channel::Combined,
+            Channel::Control,
+        ],
+        audiences: vec![Audience::SameUser],
+        max_data_bytes: 4096,
+    };
+    let separated_offer = Offer {
+        channels: vec![Channel::Stdout, Channel::Stderr, Channel::Control],
+        ..combined_offer.clone()
+    };
+    let publisher = Hello::new(Role::Publisher, &combined_offer)
+        .select(Role::Broker, &broker_offer)
+        .unwrap();
+    assert_eq!(
+        publisher.channels,
+        vec![Channel::Combined, Channel::Control]
+    );
+    let claim = Descriptor {
+        protocol: PROTOCOL.into(),
+        stream_id: STREAM.into(),
+        incarnation: FIRST.into(),
+        channels: vec![Channel::Combined, Channel::Control],
+        max_data_bytes: 4096,
+        visibility: VisibilityClaim {
+            audience: Audience::SameUser,
+            scope: None,
+            channels: vec![Channel::Combined, Channel::Control],
+        },
+        correlation: None,
+    };
+    let decision = granted("host:same-user");
+    // A descriptor claiming both combined and separated origin never registers.
+    let mut mixed = claim.clone();
+    mixed.channels.push(Channel::Stdout);
+    let refused = Message::decode(&serde_json::json!({"op":"register",
+        "descriptor": mixed, "finalization": "never"}))
+    .unwrap_err();
+    assert_eq!(refused.reason, UnavailableReason::InvalidRecord);
+    let mut ingest = register(&publisher, claim.clone(), Finalization::Never, &decision).unwrap();
+    let bytes = b"out\nerr\n";
+    let frame = |seq, channel| {
+        Record::Data(DataFrame {
+            stream_id: STREAM.into(),
+            incarnation: FIRST.into(),
+            seq,
+            observed_at_unix_ms: seq,
+            channel,
+            data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
+        })
+    };
+    // The publisher cannot relabel combined bytes as one origin on this stream.
+    let relabelled = ingest.accept(&frame(1, DataChannel::Stderr)).unwrap_err();
+    assert_eq!(relabelled.reason, UnavailableReason::ProtocolViolation);
+    assert_eq!(ingest.last_published(), 0);
+    let published = frame(1, DataChannel::Combined);
+    ingest.accept(&published).unwrap();
+    let end = Record::Ended(EndedFrame {
+        stream_id: STREAM.into(),
+        incarnation: FIRST.into(),
+        seq: 2,
+        observed_at_unix_ms: 2,
+    });
+    ingest.accept(&end).unwrap();
+    let window = ingest.window(1, None);
+    let request = Attach {
+        cursor: claim.start(),
+    };
+
+    let separated = Hello::new(Role::Subscriber, &separated_offer)
+        .select(Role::Broker, &broker_offer)
+        .unwrap();
+    let error = attach(&separated, &claim, &window, &request, &decision).unwrap_err();
+    assert_eq!(error.reason, UnavailableReason::ProtocolViolation);
+    let unavailable = wire(Message::Unavailable { diagnostic: error }, Role::Broker);
+    assert!(matches!(unavailable, Message::Unavailable { .. }));
+
+    let subscriber = Hello::new(Role::Subscriber, &combined_offer)
+        .select(Role::Broker, &broker_offer)
+        .unwrap();
+    let answer = attach(&subscriber, &claim, &window, &request, &decision).unwrap();
+    let Message::Attached(answer) = wire(Message::Attached(answer), Role::Broker) else {
+        panic!("attached");
+    };
+    let (mut follower, prefix) = follow_attached(&subscriber, &request, &answer).unwrap();
+    assert!(prefix.is_empty());
+    let Message::Record { record } = wire(
+        Message::Record {
+            record: published.clone(),
+        },
+        Role::Broker,
+    ) else {
+        panic!("record");
+    };
+    assert_eq!(
+        follower.accept(&record).unwrap(),
+        Accepted::Frame { seq: 1 }
+    );
+    let Record::Data(delivered) = record else {
+        panic!("data");
+    };
+    assert_eq!(delivered.channel, DataChannel::Combined);
+    assert_eq!(delivered.bytes().unwrap(), bytes);
+    assert_eq!(follower.accept(&end).unwrap(), Accepted::Ended { seq: 2 });
+    // The ended stream claims no durable reference.
+    assert!(follower.ended());
 }

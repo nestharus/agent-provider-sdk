@@ -178,17 +178,22 @@ The [`exploration/v1` extension](crates/provider-contract/contract/extensions/ex
   Route labels carry no provider, model or account
   meaning here, and a child is never offered exploration.
 
-The [`live-stream/v2` contract](crates/provider-contract/contract/extensions/live-stream/README.md)
+The [`live-stream/v3` contract](crates/provider-contract/contract/extensions/live-stream/README.md)
 (`live_stream` module) is the record vocabulary of the optional live-output
 plane. It is defined but not adopted yet.
 - **What it covers.** Stream identity, publisher incarnation and sequence;
-  `stdout`, `stderr`, `pty` and typed `control` channels; exact gaps and
+  `stdout`, `stderr`, `combined`, `pty` and typed `control` channels; exact gaps and
   restarts; the opaque durable reference a stream finalizes to; caller-owned
   cursors with terminal knowledge; and visibility claims. Structural schema plus
   documented normative semantics define conformance in every language.
+- **Combined origin.** `combined` carries stdout and stderr joined before
+  capture, such as both written to one pipe. Each byte's origin stays unknown:
+  a descriptor never declares `combined` with `stdout` or `stderr`, and the
+  SDK never splits or relabels it. A subscriber that did not select
+  `combined` gets a live-only diagnostic.
 - **Selection.** Peers select it by a bounded advertisement, not provider
-  `describe`. Unknown or newer entries are ignored, and the selected v2 entry
-  and records are strict.
+  `describe`. Unknown, older or newer entries are ignored, and the selected v3
+  entry and records are strict.
 - **Admission.** Descriptor/follow setup joins selected channel, byte and
   advertised audience support. Resuming at a final cursor retains the durable
   reference and terminal state. Audience agreement does not authorize access.
@@ -199,11 +204,15 @@ plane. It is defined but not adopted yet.
 - **What it does not replace.** Launch events and request custody, resident
   records, transcript page tokens and retained Bash output stay as they are,
   and the contract stores nothing.
-- **Version agreement.** Attachment and `not_authorized` use the distinct optional
-  `oulipoly.live_stream/v2` schema. Only v2 is selected; a baseline v1-only peer
-  gets `no_common_version` for live viewing. Provider/v1 and session-control v3
-  remain independent. The retained v1 schema is baseline evidence, with no
-  runtime fallback or source/binary compatibility promise.
+- **Terminal claims.** `finalized` names a durably published record and
+  claims no known or successful exit, complete bytes or report delivery; the
+  durable record keeps those classifications. `ended` names none.
+- **Version agreement.** `combined`, attachment and `not_authorized` use the
+  optional `oulipoly.live_stream/v3` schema. Only v3 is selected; a baseline
+  v1- or v2-only peer gets `no_common_version` for live viewing. Provider/v1 and
+  session-control v3 remain independent. The retained v1 and v2 schemas are
+  baseline evidence, with no runtime fallback or source/binary compatibility
+  promise.
 - **Attachment.** `live_stream::attachment` gives the publisher, broker and
   subscriber messages: hello, register, list/directory, attach/attached,
   record and unavailable. Registration and attachment need an explicit host
@@ -211,7 +220,9 @@ plane. It is defined but not adopted yet.
   scope, identity, finalization and drop-not-block duties without performing
   them.
 - **Not established.** Capture, the broker, endpoints and sockets, enforcement
-  of visibility and runtime non-blocking behaviour remain later work. Control
+  of visibility, truthful origin labelling and runtime non-blocking behaviour
+  remain later work. Agent Runner's interim root Bash view still uses its own
+  wire; its convergence onto v3 is separate consumer work. Control
   claims live in `session-control/v3`; incident DTOs are not yet defined.
 
 The [`session-control/v3` contract](crates/provider-contract/contract/extensions/session-control/README.md)
