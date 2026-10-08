@@ -13,6 +13,8 @@ fn main() {
         std::process::exit(run_effect_gate(&args, GATE_ENV));
     }
     if let Some(mode) = args.get(1) {
+        assert!(matches!(mode.as_str(), "ordinary" | "mismatch" | "private"));
+        println!("proc-view control {mode}: product assertions starting");
         let pid = std::process::id();
         let proc_self = std::fs::read_link("/proc/self").unwrap();
         let status = std::fs::read_to_string("/proc/self/status").unwrap();
@@ -49,6 +51,7 @@ fn main() {
                 !marker.exists(),
                 "native effect escaped rejected actor capture"
             );
+            println!("capture refusal and gated no-effect assertions passed");
         } else {
             let actor = captured.expect("matching proc view captures actor");
             assert_eq!(actor.process_group_id, child.id());
@@ -56,9 +59,12 @@ fn main() {
             release.release().unwrap();
             assert!(child.wait().unwrap().success());
             assert_eq!(std::fs::read_to_string(&marker).unwrap(), "ran");
+            println!("actor capture, gate release and native marker assertions passed");
         }
+        println!("proc-view control {mode}: product assertions passed");
         return;
     }
+    let mut failed = 0;
     for (name, flags) in [
         ("ordinary", vec![]),
         ("mismatch", vec!["-Urpf", "--kill-child"]),
@@ -72,14 +78,43 @@ fn main() {
             c.args(flags).arg(&exe);
             c
         };
-        let output = command.arg(name).output().unwrap();
+        let output = match command.arg(name).output() {
+            Ok(output) => output,
+            Err(error) => {
+                eprintln!(
+                    "proc-view control {name}: subprocess setup unavailable: {error}; \
+                     product assertions NOT EXECUTED"
+                );
+                failed += 1;
+                continue;
+            }
+        };
+        let stdout = String::from_utf8_lossy(&output.stdout);
         print!(
             "{name}: {}\n{}{}",
             output.status,
-            String::from_utf8_lossy(&output.stdout),
+            stdout,
             String::from_utf8_lossy(&output.stderr)
         );
-        assert!(output.status.success(), "proc view {name} control failed");
+        let started = format!("proc-view control {name}: product assertions starting");
+        let passed = format!("proc-view control {name}: product assertions passed");
+        if !stdout.lines().any(|line| line == started) {
+            eprintln!(
+                "proc-view control {name}: subprocess/namespace setup unavailable; \
+                 product assertions NOT EXECUTED"
+            );
+            failed += 1;
+        } else if !output.status.success() || !stdout.lines().any(|line| line == passed) {
+            eprintln!(
+                "proc-view control {name}: product/control failure after entry; \
+                 assertion completion NOT ESTABLISHED"
+            );
+            failed += 1;
+        }
     }
+    assert_eq!(
+        failed, 0,
+        "{failed} proc-view controls failed; see each control's output"
+    );
     println!("test matching_and_mismatching_proc_views ... ok");
 }

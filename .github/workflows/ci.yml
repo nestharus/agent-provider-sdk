@@ -14,10 +14,33 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Install Rust components
+        id: components
         run: rustup component add rustfmt clippy
+      - name: Report Linux namespace preconditions
+        run: |
+          uname -sr
+          cat /etc/os-release
+          id
+          unshare --version
+          for path in \
+            /proc/sys/user/max_user_namespaces \
+            /proc/sys/kernel/unprivileged_userns_clone \
+            /proc/sys/kernel/apparmor_restrict_unprivileged_userns \
+            /sys/module/apparmor/parameters/enabled \
+            /proc/self/attr/current; do
+            printf '%s: ' "$path"
+            if [[ -r "$path" ]]; then
+              cat "$path" || printf 'unavailable\n'
+            else
+              printf 'unavailable\n'
+            fi
+          done
       - name: Check formatting
+        if: ${{ !cancelled() && steps.components.outcome == 'success' }}
         run: cargo fmt --all -- --check
       - name: Run tests
-        run: cargo test --workspace --locked
+        if: ${{ !cancelled() && steps.components.outcome == 'success' }}
+        run: cargo test --workspace --locked --no-fail-fast
       - name: Run Clippy
+        if: ${{ !cancelled() && steps.components.outcome == 'success' }}
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
