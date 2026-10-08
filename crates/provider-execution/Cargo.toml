@@ -7,7 +7,7 @@ license = "MIT"
 description = "Provider-neutral native execution, custody, delivery, and durable-state helpers for provider adapters"
 
 [dependencies]
-agent-provider-contract = { path = "../provider-contract", version = "0.2.0" }
+agent-provider-contract = { path = "../provider-contract", version = "0.3.0" }
 fs2.workspace = true
 libc.workspace = true
 serde.workspace = true

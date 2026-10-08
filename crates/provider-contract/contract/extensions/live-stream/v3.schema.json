@@ -282,7 +282,7 @@
           "additionalProperties": false
         },
         {
-          "description": "The captured process was observed to exit. Not completion: completion is the host's durable outcome.",
+          "description": "Reports a process exit the publisher observed, not completion. Absence of a delivered fact means only no exit fact delivered on this live plane: control may be unselected or a gap may hide it even when the publisher observed an exit. Unknown command wait emits no such fact and invents no code or signal; known or unknown wait remains a classification in the matching durable record.",
           "type": "object",
           "properties": {
             "type": {

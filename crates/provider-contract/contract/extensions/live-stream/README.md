@@ -213,9 +213,15 @@ A terminal frame claims only what its kind states:
 - `ended` claims only that this incarnation published its last frame. It
   names no durable record and implies no failure: the work may still be
   settled later through the host's durable storage, outside this stream.
-- `exit_observed` reports an exit the publisher observed. Its absence means
-  no exit was observed, never a successful one. An unknown command wait is
-  expressed by sending no `exit_observed`, not by inventing a code.
+- A delivered `exit_observed` reports an exit the publisher observed; it does
+  not establish successful completion. Its absence means only that no exit
+  fact was delivered on this live plane. Control may be unselected, or a gap
+  may hide the fact even when the publisher observed an exit. The subscriber
+  cannot infer the publisher's wait knowledge from silence or a terminal
+  frame. When the command wait is unknown, the publisher sends no
+  `exit_observed` and invents no code or signal. Known or unknown command wait
+  remains a classification in the matching durable record; `finalized` does
+  not convey that record's content or grant access to it.
 - A cursor's retained terminal is knowledge of the terminal frame, not of
   the durable record's content. Receiving any record is not an
   acknowledgement.
