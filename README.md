@@ -62,6 +62,16 @@ compatible with provider/v1. Before `1.0.0`, a minor package-version change may
 break the Rust API. Consumers that copy only the schema snapshot receive the wire
 contract, not a Rust source-compatibility promise.
 
+The workspace package version is **0.3.0**, signalling the source-breaking
+live-stream v3 API: exhaustive matches on `live_stream::Channel` and
+`DataChannel` must handle `Combined`, and users of the `contract-test-fixtures`
+feature must use `LIVE_STREAM_ATTACHMENT_V3_JSON` and `attachment-v3.json` in
+place of the removed v2 attachment fixture constant and path. The existing
+live-stream API names now select and admit v3 only. Consumers must adapt their
+source when rebuilding; no compatibility alias or v2 live fallback is supplied.
+All workspace crates inherit this release version. This package signal is
+separate from wire-schema selection and is never a runtime compatibility gate.
+
 Provider responses can carry typed host-state proposals required by the pinned
 wire snapshot. Those values are untrusted proposals, not executable commands:
 Agent Runner validates authority and state preconditions, then translates an
@@ -115,9 +125,9 @@ exact provenance. The DTO projection follows: `DescribeCapabilities` gains four
 optional capability fields and an `additional` map of unknown advertisements, `LaunchParams` gains `prompt_acceptance` and
 `output_delivery`, `TerminalSignalKind` gains two variants, and
 `session.read_turns` uses the bounded page DTOs. These are Rust source-API
-changes (struct literals and exhaustive matches must adjust), so the workspace
-package version is 0.2.0. This is semantic v1 snapshot realignment to the host
-snapshot under fresh migration, not compatible evolution of the former SDK
+changes (struct literals and exhaustive matches must adjust), so that alignment
+introduced workspace package version 0.2.0. This is semantic v1 snapshot
+realignment to the host snapshot under fresh migration, not compatible evolution of the former SDK
 `session.read_turns` fixtures. The Rust version does not version wire semantics;
 other hosts remain unqualified.
 
@@ -207,6 +217,10 @@ plane. It is defined but not adopted yet.
 - **Terminal claims.** `finalized` names a durably published record and
   claims no known or successful exit, complete bytes or report delivery; the
   durable record keeps those classifications. `ended` names none.
+  A delivered `exit_observed` reports a publisher-observed exit. Without that
+  delivered fact, the subscriber cannot infer whether an exit was observed:
+  control may be unselected or the fact lost. Known or unknown command wait
+  remains a classification in the durable record.
 - **Version agreement.** `combined`, attachment and `not_authorized` use the
   optional `oulipoly.live_stream/v3` schema. Only v3 is selected; a baseline
   v1- or v2-only peer gets `no_common_version` for live viewing. Provider/v1 and

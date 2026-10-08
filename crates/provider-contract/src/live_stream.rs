@@ -180,7 +180,11 @@ pub enum ControlFact {
     ChannelClosed {
         channel: DataChannel,
     },
-    /// Observed process exit, not completion.
+    /// Reports a process exit the publisher observed, not completion.
+    /// No delivered fact means only no exit fact delivered on this live plane:
+    /// control may be unselected or a gap may hide it. It does not establish
+    /// whether the publisher observed an exit. Unknown command wait emits no
+    /// such fact; wait knowledge remains in the matching durable record.
     ExitObserved {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         code: Option<i32>,
