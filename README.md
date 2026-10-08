@@ -562,7 +562,11 @@ does not change the pinned v1 snapshot.
   and the interrupted journal's markers recover native session identity and
   consumption. If readable interrupted evidence has no observed native
   identity and cannot exclude native work, resume reports `-32012` and new
-  prompts are blocked, including after close/reopen. A preselected create UUID
+  prompts are blocked, including after close/reopen. Valid complete launch
+  custody is treated the same way whether its receipt replays or its replay
+  errors (current-policy refusal, changed request digest, lost or mismatched
+  journal): completion proves neither identity nor absence of native effects,
+  and the replay error stays the original input's own failure. A preselected create UUID
   remains a candidate; neither insertion ACK nor actor discharge promotes it
   to known identity or authorizes a probing create/resume. Known session-record
   and journal identities still recover exactly, and duplicate insertion ACKs

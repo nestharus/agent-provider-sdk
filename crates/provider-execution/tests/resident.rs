@@ -75,10 +75,22 @@ fn main() {
         Some("--resident") => std::process::exit(serve(&args[2])),
         _ => {}
     }
-    let tests: [(&str, fn()); 42] = [
+    let tests: [(&str, fn()); 45] = [
         (
             "completed_journal_without_identity_blocks_recovery",
             completed_journal_without_identity_blocks_recovery,
+        ),
+        (
+            "complete_replay_policy_refusal_without_identity_blocks_recovery",
+            complete_replay_policy_refusal_without_identity_blocks_recovery,
+        ),
+        (
+            "complete_replay_missing_journal_without_identity_blocks_recovery",
+            complete_replay_missing_journal_without_identity_blocks_recovery,
+        ),
+        (
+            "complete_replay_error_with_known_identity_continues",
+            complete_replay_error_with_known_identity_continues,
         ),
         (
             "unobserved_native_identity_blocks_recovery",
@@ -2576,4 +2588,158 @@ fn completed_journal_without_identity_blocks_recovery() {
         "completed replay is receipt-only; later input blocked"
     );
     assert!(second.end().success());
+}
+
+// D3 / O3: valid complete custody whose recovery replay itself fails before it
+// can supply identity or an exit. The completed fake native turn consumed its
+// input and supplied no SESSION; an issued lagging input snapshot selects exact
+// completed replay, then a current-policy refusal or a lost journal makes that
+// replay error. Neither is a native failure or evidence of no native effect.
+fn complete_replay_policy_refusal_without_identity_blocks_recovery() {
+    let fixture = Fixture::new();
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    let id = complete_without_identity(&fixture, &mut first, &session);
+    let journal = bounds_journal(&fixture, &session, &id);
+    let journal_bytes = std::fs::read(&journal).unwrap();
+    let launch_bytes = std::fs::read(journal.with_extension("json")).unwrap();
+    let policy = fixture.state().join("refuse-current-policy");
+    std::fs::write(&policy, "changed").unwrap();
+    let (mut second, resumed) = bounds_resume(&fixture, &session);
+    assert_identity_uncertain(&resumed);
+    let idle = duplicate_idle(&mut second, &session, &id);
+    assert_eq!(
+        idle["_meta"][resident::NATIVE_TURN_META]["failure"]["code"],
+        json!("current_policy_refused")
+    );
+    // Without the refusal a missing block would start a fresh native turn.
+    std::fs::remove_file(&policy).unwrap();
+    let next = second.prompt(&session, "whoami", None);
+    assert_identity_uncertain(&second.response(next));
+    assert!(
+        bounds_read(&bounds_dir(&fixture, &session).join("session.json"))
+            ["native_session_uncertain"]
+            .is_string()
+    );
+    assert_eq!(std::fs::read(&journal).unwrap(), journal_bytes);
+    assert_eq!(
+        std::fs::read(journal.with_extension("json")).unwrap(),
+        launch_bytes
+    );
+    assert_eq!(fixture.runs(), 1, "replay error starts no native work");
+    assert!(second.end().success());
+    let (mut reopened, response) = bounds_resume(&fixture, &session);
+    assert_identity_uncertain(&response);
+    let next = reopened.prompt(&session, "whoami", None);
+    assert_identity_uncertain(&reopened.response(next));
+    assert_eq!(fixture.runs(), 1);
+    assert!(reopened.end().success());
+}
+
+fn complete_replay_missing_journal_without_identity_blocks_recovery() {
+    let fixture = Fixture::new();
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    let id = complete_without_identity(&fixture, &mut first, &session);
+    let journal = bounds_journal(&fixture, &session, &id);
+    let launch_bytes = std::fs::read(journal.with_extension("json")).unwrap();
+    std::fs::remove_file(&journal).unwrap();
+    let (mut second, resumed) = bounds_resume(&fixture, &session);
+    assert_identity_uncertain(&resumed);
+    let idle = duplicate_idle(&mut second, &session, &id);
+    let failure = &idle["_meta"][resident::NATIVE_TURN_META]["failure"];
+    assert!(failure["code"].is_string(), "{idle}");
+    assert_ne!(failure["code"], json!("journal_evidence_unreadable"));
+    let next = second.prompt(&session, "whoami", None);
+    assert_identity_uncertain(&second.response(next));
+    assert_eq!(
+        std::fs::read(journal.with_extension("json")).unwrap(),
+        launch_bytes
+    );
+    assert!(!journal.exists(), "recovery does not recreate the journal");
+    assert_eq!(fixture.runs(), 1, "replay error starts no native work");
+    assert!(second.end().success());
+    let (reopened, response) = bounds_resume(&fixture, &session);
+    assert_identity_uncertain(&response);
+    assert_eq!(fixture.runs(), 1);
+    assert!(reopened.end().success());
+}
+
+// The same replay error is not an identity loss when identity was observed.
+fn complete_replay_error_with_known_identity_continues() {
+    let fixture = Fixture::new();
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    let seed = first.prompt(&session, "reply seed", Some("seed"));
+    let seed = message_id(&first.response(seed));
+    assert_eq!(first.idle_for(&seed)["stopReason"], json!("end_turn"));
+    let dir = bounds_dir(&fixture, &session);
+    let native = bounds_read(&dir.join("session.json"))["native_session_id"].clone();
+    assert!(native.is_string());
+    let id = complete_without_identity(&fixture, &mut first, &session);
+    std::fs::write(fixture.state().join("refuse-current-policy"), "changed").unwrap();
+    let (mut second, resumed) = bounds_resume(&fixture, &session);
+    assert_eq!(resumed["result"], json!({}), "{resumed}");
+    let idle = duplicate_idle(&mut second, &session, &id);
+    assert_eq!(
+        idle["_meta"][resident::NATIVE_TURN_META]["failure"]["code"],
+        json!("current_policy_refused")
+    );
+    let record = bounds_read(&dir.join("session.json"));
+    assert!(record["native_session_uncertain"].is_null());
+    assert_eq!(record["native_session_id"], native);
+    std::fs::remove_file(fixture.state().join("refuse-current-policy")).unwrap();
+    let next = second.prompt(&session, "whoami", None);
+    let next = message_id(&second.response(next));
+    let text = second.update("known identity continues", |u| {
+        u["sessionUpdate"] == json!("agent_message")
+    });
+    assert_eq!(
+        text["update"]["content"][0]["text"],
+        json!(format!("native={}", native.as_str().unwrap()))
+    );
+    second.idle_for(&next);
+    assert_eq!(fixture.runs(), 3, "seed, completed fail and later turn");
+    assert!(second.end().success());
+}
+
+// Runs a completed native failure that supplied no SESSION, ends the provider
+// and issues the lagging input snapshot (launch complete, input end lost).
+fn complete_without_identity(fixture: &Fixture, first: &mut Client, session: &str) -> String {
+    let request = first.prompt(session, "fail", Some("complete"));
+    let id = message_id(&first.response(request));
+    assert_eq!(
+        first.idle_for(&id)["stopReason"],
+        json!("_oulipoly_native_failed")
+    );
+    let journal = bounds_journal(fixture, session, &id);
+    assert_eq!(
+        bounds_read(&journal.with_extension("json"))["phase"],
+        json!("complete")
+    );
+    first.child.kill().unwrap();
+    first.child.wait().unwrap();
+    let input_path = bounds_input(fixture, session, &id);
+    let mut input = bounds_read(&input_path);
+    input["phase"] = json!("inserted");
+    input["native_turn"] = Value::Null;
+    input.as_object_mut().unwrap().remove("ended_unix_ms");
+    bounds_write(&input_path, &input);
+    id
+}
+
+// The original duplicate still receives its receipt and a truthful replay
+// error: a settled launch without exit, not a native failure or corruption.
+fn duplicate_idle(client: &mut Client, session: &str, id: &str) -> Value {
+    let duplicate = client.prompt(session, "ignored", Some("complete"));
+    assert_eq!(message_id(&client.response(duplicate)), id);
+    let idle = client.idle_for(id);
+    assert_eq!(idle["stopReason"], json!("_oulipoly_turn_failed"));
+    let native_turn = &idle["_meta"][resident::NATIVE_TURN_META];
+    assert_eq!(native_turn["custody"], json!("complete_without_exit"));
+    assert_ne!(
+        native_turn["failure"]["code"],
+        json!("journal_evidence_unreadable")
+    );
+    idle
 }

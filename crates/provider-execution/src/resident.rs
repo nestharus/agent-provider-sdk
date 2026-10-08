@@ -1414,6 +1414,7 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
     };
     // Recovery settles the recorded actor before calling any adapter admission
     // logic. Adapters may validate current policy before entering the lifecycle.
+    let mut complete_custody = false;
     let mut result = if wire.is_none() {
         match crate::lifecycle::reconcile_recorded_launch(
             &request.state_root,
@@ -1425,7 +1426,10 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
                 message: "the recorded incomplete native actor was discharged; input is not rerun"
                     .into(),
             }),
-            Ok(false) => turns.run_turn(&request, &shared.stop, &mut sink),
+            Ok(false) => {
+                complete_custody = true;
+                turns.run_turn(&request, &shared.stop, &mut sink)
+            }
             Err(error) => {
                 shared
                     .inputs
@@ -1444,7 +1448,9 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
     let mut no_native_start = false;
     let reconciled =
         matches!(&result, Err(failure) if failure.kind == TurnFailureKind::ReconciliationRequired);
-    let recovered_complete = wire.is_none() && result.is_ok() && sink.exit.is_some();
+    // Valid complete custody is the same crash window whether its replay
+    // succeeds or errors: a replay error says nothing about native effects.
+    let recovered_complete = complete_custody;
     let mut uncertainty = None;
     if reconciled {
         // The lifecycle publishes running actor custody before releasing the
@@ -1488,8 +1494,9 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
         };
     }
     // Complete launch custody proves completion/replay, not the identity of
-    // native work. Recovery may replay its receipt but must not start a later
-    // turn with an unobserved identity. No binary or permanent journal gate.
+    // native work. Recovery may replay its receipt, or report its replay error,
+    // but must not start a later turn with an unobserved identity. No binary
+    // or permanent journal gate.
     if (reconciled || recovered_complete)
         && uncertainty.is_none()
         && !no_native_start
