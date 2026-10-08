@@ -3,7 +3,10 @@
 `oulipoly.resident_session/v1` is a host-selected provider/v1 extension. It is
 not a second host/provider protocol: selection and preparation use provider/v1
 envelopes, and the resident endpoint speaks the ACP v2 draft subset that Agent
-Runner's root supervisor already consumes (`schema-v2.0.0-alpha.7`).
+Runner's root supervisor already consumes (`schema-v2.0.0-alpha.7`). That
+subset's vocabulary and a host client live in the contract crate's `acp`
+module; `acp::resident` starts sessions and sends turns over a prepared
+endpoint.
 
 ## Selection
 
@@ -35,6 +38,19 @@ served `operations`. Providers record the configuration durably and
 content-addressed; an endpoint refuses a record whose content no longer
 matches its digest.
 
+The host helper `resident_session::template_from_policy` accepts only an
+accepted evaluation with argv and representable prompt semantics. Non-null
+stdin/prompt values must exactly echo the preparation input
+(`model.inputs.prompt`, or `launch.prompt` if absent); resident turns replace
+that prompt. Differing values or values without a preparation input are
+refused. Environment and opaque model/settings values pass through.
+
+`acp::resident::PreparedEndpoint` validates the fixed supported schema and
+required declared operations. Its peer check requires a valid resident
+schema declaration and dedup capability, not endpoint-process identity or
+proof of operation implementation. The host associates the prepared argv
+with its transport and keeps its admission and durable-record ordering.
+
 ## Endpoint
 
 The host starts the endpoint as an ACP v2 harness on stdio (for Agent Runner's
@@ -65,6 +81,26 @@ retry as durable recovery. No whole-lineage recovery machinery, receipt for
 host-created administrative links or hardware-crash qualification is supplied.
 This scopes documentation of the existing publication behavior; it changes no
 resident wire payload, selector, ACK ordering or runtime operation.
+
+## Host outcome evidence
+
+The client retains rejected prompt error data and complete unrecognized update
+payloads. `DeliveryOutcome::native_turn()` and `NativeTurn::from_report()`
+validate only the supported native report schema. Raw `native_turn_report` on
+idles/turn ends preserves absent versus null, invalid and unknown shapes without
+turning them into custody claims. Turn-end reports belong to the covering
+idle's tag; a later tag is not the earlier input's own custody.
+
+Native launch completion and endpoint input publication are separate. A tagged
+idle may be followed by `session_info_update` with
+`_meta["oulipoly.ai/nativeTurn"].record_error` and `message_id`. On a rejected
+prompt, failed final input publication is carried separately in error
+`data.recordError` with those same fields, alongside `data.nativeTurn`.
+These diagnostics remain endpoint reports, not host canonical-completion facts.
+`AcpClient::receive_event` reads one subsequent record without sending a
+request or consuming existing history; transport deadlines and the decision to
+continue reading remain host-owned. No wait for tagged idle guarantees that
+later contrary information has arrived or certifies durable completion.
 
 Logical session identity, ancestry, admission, scheduling and delivery policy
 remain the host's. A resident session id names a provider-native resident

@@ -17,6 +17,7 @@
 //! Logical session identity, ancestry, admission and scheduling remain the
 //! host's: the endpoint's session ids name provider-native resident sessions.
 
+use crate::generated::PolicyEvaluateResult;
 use crate::negotiation::{NoCommonVersion, VersionFamily};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -29,9 +30,9 @@ pub const PREPARE_SUBCOMMAND: &str = "resident.prepare";
 pub const SCHEMA_JSON: &str =
     include_str!("../contract/extensions/resident-session/v1.schema.json");
 /// ACP protocol version served by a resident endpoint.
-pub const ACP_PROTOCOL_VERSION: u64 = 2;
+pub const ACP_PROTOCOL_VERSION: u64 = crate::acp::PROTOCOL_VERSION as u64;
 /// ACP v2 draft schema tag whose subset is served.
-pub const ACP_SCHEMA_TAG: &str = "schema-v2.0.0-alpha.7";
+pub const ACP_SCHEMA_TAG: &str = crate::acp::pin::SCHEMA_TAG;
 /// Resident-session versions this SDK release defines.
 pub const SUPPORTED_VERSIONS: &[u32] = &[1];
 /// Version family: selector `OULIPOLY_HOST_RESIDENT_SESSION_V<n>`, capability
@@ -166,6 +167,70 @@ pub fn validate(definition: &'static str, value: &Value) -> Result<(), Admission
     } else {
         Err(AdmissionError::Invalid { definition, errors })
     }
+}
+
+/// Why a policy evaluation cannot become a resident launch template.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum TemplateRefusal {
+    /// The provider refused the settings; its diagnostics' messages.
+    #[error("provider policy refused the settings: {}", .0.join("; "))]
+    NotAccepted(Vec<String>),
+    #[error("provider policy named no argv")]
+    MissingArgv,
+    /// The evaluation asks for a transform a resident template cannot carry:
+    /// every turn supplies its own prompt, so a policy stdin or prompt
+    /// transform would otherwise be silently dropped.
+    #[error("resident template cannot honour the policy's {0} transform")]
+    Unhonourable(&'static str),
+    #[error(transparent)]
+    Invalid(#[from] AdmissionError),
+}
+
+/// The `resident.prepare` params for an accepted policy evaluation of
+/// `settings`, the opaque provider/v1 `policy.evaluate` params the host sent:
+/// their `settings_id`, `mode` and `model` with the evaluated `argv` and
+/// `env`. Settings, model and argv stay provider-owned values; this neither
+/// interprets nor resolves them. An exact echo of the preparation prompt
+/// (`model.inputs.prompt`, or `launch.prompt` when absent) is accepted:
+/// resident turns supply their own prompt. A differing stdin/prompt value,
+/// a value without a preparation prompt, a refused policy or missing argv
+/// is refused, never silently dropped.
+pub fn template_from_policy(
+    settings: &Value,
+    policy: &PolicyEvaluateResult,
+) -> Result<ResidentPrepareParams, TemplateRefusal> {
+    if !policy.accepted {
+        return Err(TemplateRefusal::NotAccepted(
+            policy
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.clone())
+                .collect(),
+        ));
+    }
+    // Evaluation may echo the preparation prompt. Resident turns replace it;
+    // a different value is a transform this template cannot represent.
+    let prompt = settings
+        .pointer("/model/inputs/prompt")
+        .and_then(Value::as_str)
+        .or_else(|| settings.pointer("/launch/prompt").and_then(Value::as_str));
+    for (field, value) in [("stdin", &policy.stdin), ("prompt", &policy.prompt)] {
+        if value.as_deref().is_some_and(|value| Some(value) != prompt) {
+            return Err(TemplateRefusal::Unhonourable(field));
+        }
+    }
+    let argv = policy.argv.as_ref().ok_or(TemplateRefusal::MissingArgv)?;
+    let params = serde_json::json!({
+        "protocol": PROTOCOL,
+        "launch": {
+            "settings_id": settings.get("settings_id"),
+            "mode": settings.get("mode"),
+            "model": settings.get("model"),
+            "argv": argv,
+            "env": policy.env.clone().unwrap_or_default(),
+        },
+    });
+    Ok(decode_prepare_params(&params)?)
 }
 
 /// Admits `resident.prepare` params.

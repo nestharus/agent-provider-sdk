@@ -156,6 +156,50 @@ the same registered provider executable to start a resident ACP v2 endpoint on
 stdio, the ACP subset served, and the operations offered. The endpoint is
 `agent_provider_execution::resident` (below).
 
+The `acp` module is the SDK's one home of the agreed ACP v2 draft subset
+(`schema-v2.0.0-alpha.7`): method names, the namespaced `_meta` contracts
+(message-key dedup, parent/turn-input tags, live reattachment, resident session
+and native turn reports) and the resident endpoint error codes, which the
+resident endpoint now takes from it. It also carries the host side:
+`acp::AcpClient`, the ACP v2 client core moved unchanged in meaning from Agent
+Runner's `oulipoly-acp` crate (Runner `2f6ec679`; its deterministic tests moved
+with it), plus `acp::resident` to start sessions and send turns over a prepared
+resident endpoint. `resident_session::template_from_policy` turns an accepted
+`policy.evaluate` result into `resident.prepare` params and refuses a refused
+policy, a missing argv, or a stdin/prompt transform a resident template cannot
+carry. Exact echoes of the preparation prompt (`model.inputs.prompt`, falling
+back to `launch.prompt`) are accepted because resident turns supply their own
+prompt; differing values or values without that input basis are refused.
+`acp::resident::PreparedEndpoint::agree` validates the declared fixed supported
+schema and contracts (ACP version 2, `schema-v2.0.0-alpha.7`, the dedup contract,
+the operations a start or turn needs). `check_peer` requires a valid resident
+schema declaration and dedup capability at `initialize`; it proves neither
+endpoint-process identity nor implementation of declared operations. An
+undeclared resume is refused before it is sent; declared operations can fail
+when requested.
+Native resident session ids and message ids come back attributed to the
+endpoint. Rejected prompt attempts retain untrusted error `data`, including
+`nativeTurn`; `DeliveryOutcome::native_turn` validates a supplied report without
+changing insertion/retry labels. Idles and `TurnEnd` retain raw
+`native_turn_report` alongside the validated `native_turn`, distinguishing
+absent, null and unsupported reports. Other updates retain their full payload,
+including `session_info_update` record-write failures and the affected message
+id. `AcpClient::receive_event` lets a host read one subsequent record without
+sending a request or moving idle cursors; the host chooses event ordering and
+transport deadlines. An idle can precede a final input-record write failure:
+no await result certifies endpoint input durability, host canonical publication
+or another input's custody. Later events can qualify an earlier report.
+A host's canonical durable reference exists only when the host binds
+one (`Binding::Unbound` otherwise). Turn ends are the agent's tags, not effect
+completion, drain or pause; no pause, drain or input hold is offered. Admission,
+scheduling, ancestry, endpoint process custody and durable delivery records stay
+with the host. Exercised only against scripted peers, source-derived adapter evaluation
+shapes and the SDK endpoint over stand-in native turns; actual adapter
+policy/prepare execution and host adoption remain unfinished. Added outcome
+fields require exhaustive Rust patterns/literals to adapt when rebuilding;
+wire schemas and package version remain unchanged in this unreleased 0.3.0
+source contribution.
+
 The [`tool-mediation/v1` extension](crates/provider-contract/contract/extensions/tool-mediation/README.md)
 (`tool_mediation` module) is selected by
 `host.env.OULIPOLY_HOST_TOOL_MEDIATION_V1=1` and advertised as
