@@ -19,14 +19,19 @@ language. Raw JSON Schema validation alone is insufficient. `live_stream`
 implements both layers and their context-dependent agreement/follow/replay
 operations. Raw Serde deserialization supplies representation only.
 
-Status: defined and unadopted. No publisher, broker, host or provider uses this
-contract yet. Agent Runner's interim root Bash view
-(`oulipoly.root_bash_live/v1`) carries combined output on its own wire because
-v2 could not name it; converging that view onto this family is Runner's
-separate work (see [Consumer convergence](#consumer-convergence)). [Attachment](#publisher-broker-and-subscriber) defines what the
-three roles say to each other and which side owns each check. Capture, rings,
-the broker itself, endpoints, sockets, subscription surfaces and retention
-belong to later work. That later work is what establishes runtime behaviour.
+Status: defined, with one scoped source consumer. Agent Runner's opt-in root
+Bash view now uses this family: root-owned Bash output only, one combined pipe,
+served from an endpoint and bounded capture ring embedded in each root owner.
+That is not provider output, provider-session output or the canonical
+transcript, and it is not the account-local broker. Account-level broker, provider and PTY
+capture coverage are not part of that consumer and remain future host work; no
+provider adapter is required to consume this contract. This SDK has not
+qualified the consumer's behaviour, native operation or stress (see
+[Consumer convergence](#consumer-convergence)).
+[Attachment](#publisher-broker-and-subscriber) defines what the three roles say
+to each other and which side owns each check. Capture, rings, brokers,
+endpoints, sockets, subscription surfaces and retention belong to the host and
+its later work. That work, not this contract, establishes runtime behaviour.
 
 ## What it is not
 
@@ -96,14 +101,26 @@ v3 negotiation are unrelated, and no live-stream outcome changes them.
 
 ## Identity and sequence
 
-`stream_id` and `incarnation` are each 128 random bits, written as 32 lowercase
-hex digits.
+`stream_id` and `incarnation` are each 128 bits, written as 32 lowercase hex
+digits. The SDK checks that form only; it cannot check how a value was minted.
 
-- **Stream.** A stream is one ephemeral live-output source. It is not a logical
-  agent, session, turn, process or Agent Bash handle.
+- **Stream.** A stream is one live-output source. It is not a logical agent,
+  session, turn, process or Agent Bash handle. Its `stream_id` is minted by the
+  host and is stable across the publisher incarnations of that one logical
+  stream: restart and takeover are `discontinuity` within one stream, and a
+  cursor survives them only if the successor keeps the `stream_id`. A host that
+  mints a new `stream_id` gives subscribers a different stream, and
+  `plan_replay` refuses a cursor that names another stream. The SDK keeps no
+  registry, so uniqueness among a host's streams is the host's to keep.
 - **Incarnation.** A publisher chooses a new incarnation each time it starts.
   A publisher incarnation is not a process actor incarnation (PID plus start
   ticks), an owner generation or an incident epoch.
+- **No authority, no qualified secrecy.** Neither identifier grants access to a
+  stream, a record or a cursor position; access is the host's decision (see
+  [Host obligations](#host-obligations)). This contract does not establish that
+  a `stream_id` is unpredictable, that it is free of privacy or correlation
+  consequences (a host may derive it from its own identifiers, and the SDK does
+  not constrain how), or that any host has been qualified on these points.
 - **Sequence.** Publisher frames (`data`, `control`, `finalized`, `ended`) are
   numbered per `(stream_id, incarnation)` from 1, adding exactly 1 each time.
 
@@ -226,6 +243,25 @@ A terminal frame claims only what its kind states:
   the durable record's content. Receiving any record is not an
   acknowledgement.
 
+Three things that are easily read as one stay distinct. The wire carries only
+the first, as a permission; the contract defines no duration for any of them and
+no reader for the last:
+
+- **Permission to send `finalized`.** The publisher's registration
+  `finalization` (`custody_owner` or `never`). It decides only whether that
+  publisher may send the frame. It is not a retention period.
+- **Live retention.** How long a publisher's ring or a broker's window holds
+  frames, including the terminal frame while the broker knows the stream.
+  Each host chooses it, and the wire does not carry it. The end of this
+  retention says nothing about the record, and a cursor the caller persisted
+  keeps its terminal knowledge.
+- **The durable record and its reader.** How long the record a
+  `durable_reference` names exists, and who may read it and how, are host
+  storage decisions made outside this contract. The reference is a name, not
+  an access grant. Nothing here promises that it resolves, that a reader
+  exists, or that its lifetime relates to the live retention above, and a host
+  that discards or expires the record can leave the reference unresolvable.
+
 An ended/finalized follow context is terminal. It cannot silently move to a
 later publisher run, even via discontinuity. Following a later observation
 context requires explicit descriptor/follow setup with a fresh cursor; it does
@@ -301,7 +337,8 @@ and claim-shape validation does not discharge them.
   custodian to another user's subscriber or the reverse. A bridge across
   users needs its own explicit authority, which this contract does not define.
 - **Genuine identity.** A publisher chooses a fresh random incarnation on each
-  start. The broker cannot tell a plausible made-up cursor position from a
+  start, and the host keeps one `stream_id` for the logical stream across those
+  incarnations. The broker cannot tell a plausible made-up cursor position from a
   genuine one; stale, foreign or ahead cursors are refused only as far as
   `plan_replay` can see.
 - **Finalization.** `finalized` comes only from the custody owner's terminal
@@ -404,6 +441,9 @@ They do not establish any of the following:
 - that a real publisher or broker reports gaps truthfully;
 - that a publisher labels origin truthfully, or that its `finalized` follows a
   warranted durable publication;
+- that a `durable_reference` resolves, has a reader or has any particular
+  lifetime, or that a host's `stream_id` is unpredictable or free of
+  privacy or correlation consequences;
 - that capture never backpressures drainage, terminalization or completion;
 - that a broker's absence or slowness leaves a launch unaffected at runtime;
 - that a visibility claim or host decision is enforced or correct;
@@ -435,7 +475,8 @@ stream/incarnation, agree with any known cursor terminal and the prefix, and not
 lie behind the continuation. An at-final answer must carry its terminal prefix;
 omission is refused. Lagging followers learn terminal knowledge on actual
 terminal delivery. These checks cannot authenticate retention, a fabricated
-in-range cursor, truthful gaps, random identities or durable-reference existence.
+in-range cursor, truthful gaps, how identities were minted or durable-reference
+existence.
 
 Selection covers the descriptor's full channel set. A stdout-only selection can
 therefore fail for a stdout+control descriptor even when visibility claims only
@@ -446,8 +487,9 @@ SDK authentication or proof of authority/custody.
 
 ## Consumer convergence
 
-Defining v3 does not adopt it. A host that replaces a private live wire with
-this family still has to:
+Defining v3 does not adopt it, and one consumer's adoption of a scope (see
+Status) is not another's. A host that replaces a private live wire with this
+family still has to:
 
 - offer and select `oulipoly.live_stream/v3` by advertisement, and carry
   combined capture on `combined`, never as `stdout` or `stderr`;
@@ -455,8 +497,9 @@ this family still has to:
   and evicted ranges as exact sequence gaps (`capture_overflow`, `evicted`);
   byte offsets, if the host keeps them, stay host-local;
 - start a fresh random incarnation for each capture start, including takeover
-  by a successor owner, and let `plan_replay` answer old cursors with a
-  discontinuity whose lost tail is unknown unless the host truly knows it;
+  by a successor owner, keep the logical stream's `stream_id` across it, and
+  let `plan_replay` answer old cursors with a discontinuity whose lost tail is
+  unknown unless the host truly knows it;
 - send `finalized` only under the finalization obligation above, otherwise
   `ended`, and keep command-wait and retention classifications in its durable
   record;
