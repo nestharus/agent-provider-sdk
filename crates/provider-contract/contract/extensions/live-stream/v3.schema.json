@@ -8,16 +8,16 @@
       "const": "oulipoly.live_stream/v3"
     },
     "Id128": {
-      "description": "128 random bits as 32 lowercase hex digits.",
+      "description": "128 bits as 32 lowercase hex digits. Validation checks the form only, not how the value was minted.",
       "type": "string",
       "pattern": "^[0-9a-f]{32}$"
     },
     "StreamId": {
-      "description": "One ephemeral live-output source. Not a logical agent, session, turn, process or Agent Bash handle.",
+      "description": "One live-output source, named by a host-minted identifier that stays the same across the publisher incarnations of that logical stream. Grants no access; unpredictability and privacy are not established. Not a logical agent, session, turn, process or Agent Bash handle.",
       "$ref": "#/$defs/Id128"
     },
     "Incarnation": {
-      "description": "One run of the publisher of a stream, chosen afresh whenever the publisher (re)starts. Distinct from process actor incarnation (PID and start ticks), owner generation and incident epoch.",
+      "description": "One run of the publisher of a stream, chosen afresh at random whenever the publisher (re)starts. Distinct from process actor incarnation (PID and start ticks), owner generation and incident epoch.",
       "$ref": "#/$defs/Id128"
     },
     "Seq": {

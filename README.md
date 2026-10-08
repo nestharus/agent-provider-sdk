@@ -234,7 +234,9 @@ The [`exploration/v1` extension](crates/provider-contract/contract/extensions/ex
 
 The [`live-stream/v3` contract](crates/provider-contract/contract/extensions/live-stream/README.md)
 (`live_stream` module) is the record vocabulary of the optional live-output
-plane. It is defined but not adopted yet.
+plane. Agent Runner's opt-in root Bash view is its one scoped source consumer
+(root-owned Bash output, one combined pipe, a per-root endpoint); account-level
+broker, provider and PTY capture coverage remain future host work.
 - **What it covers.** Stream identity, publisher incarnation and sequence;
   `stdout`, `stderr`, `combined`, `pty` and typed `control` channels; exact gaps and
   restarts; the opaque durable reference a stream finalizes to; caller-owned
@@ -277,11 +279,17 @@ plane. It is defined but not adopted yet.
   decision, which the SDK never constructs. The contract states the host's
   scope, identity, finalization and drop-not-block duties without performing
   them.
+- **Identity and lifetimes.** The host mints a `stream_id` and keeps it
+  across the publisher incarnations of one logical stream. Neither identifier
+  grants access, and unpredictability and privacy are not established.
+  Permission to send `finalized`, live ring or window retention, and the
+  durable record's lifetime and reader are three separate things; the contract
+  carries only the first and defines no reader or duration.
 - **Not established.** Capture, the broker, endpoints and sockets, enforcement
   of visibility, truthful origin labelling and runtime non-blocking behaviour
-  remain later work. Agent Runner's interim root Bash view still uses its own
-  wire; its convergence onto v3 is separate consumer work. Control
-  claims live in `session-control/v3`; incident DTOs are not yet defined.
+  are host work this SDK has not qualified, including for Agent Runner's
+  consumer. Control claims live in `session-control/v3`; incident DTOs are not
+  yet defined.
 
 The [`session-control/v3` contract](crates/provider-contract/contract/extensions/session-control/README.md)
 (`session_control` module) is the one provider-neutral vocabulary of root

@@ -26,13 +26,15 @@ implements both layers and the context-dependent selection, agreement,
 repetition, trace, current-state relation and settlement-reading operations.
 Raw Serde deserialization supplies representation only.
 
-Status: source contract with unqualified Runner consumers. v3 replaces v2's
-incompatible terminal and conflict meanings; no v1/v2 representation is retained.
-The original R3 consumer at `c88e567e` used v2, including an emitted key-conflict
-refusal sharing a final original trace. It must adopt v3 through advertisement,
-agreement and these readers before claiming the corrected meaning. A v2-only
-peer selects nothing (`no_common_version`), disabling control only. This is no
-claim of current Runner uptake or native qualification.
+Status: source contract with one scoped, unqualified source consumer. v3
+replaces v2's incompatible terminal and conflict meanings; no v1/v2
+representation is retained. The original R3 consumer at `c88e567e` used v2,
+including an emitted key-conflict refusal sharing a final original trace.
+Agent Runner's root owner has since moved to v3 at root scope in source and
+refuses child-scoped requests. That is source uptake only: this SDK has not
+qualified it, native operation, an account-level control broker, or any
+provider adapter, and none of those is required to consume this contract. A
+v2-only peer selects nothing (`no_common_version`), disabling control only.
 
 ## What it is and is not
 

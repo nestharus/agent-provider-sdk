@@ -95,7 +95,8 @@ The broker is not launch custody, session truth, or a completion oracle. Its
 absence, crash, incompatibility, update, or memory pressure produces a
 `live_unavailable` diagnostic while execution continues.
 
-Each stream has a random 128-bit stream ID, publisher incarnation, monotonically
+Each stream has a 128-bit stream ID that the host mints and keeps across publisher
+incarnations of one logical stream, a random publisher incarnation, a monotonically
 increasing sequence, channel (`pty`, `stdout`, `stderr`, or typed control),
 optional logical correlations, and explicit `gap` and `finalized` events.
 Separate stdout/stderr pipes preserve host observation order only. Reconnect is
