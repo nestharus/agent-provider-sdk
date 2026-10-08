@@ -3,7 +3,10 @@
 `oulipoly.resident_session/v1` is a host-selected provider/v1 extension. It is
 not a second host/provider protocol: selection and preparation use provider/v1
 envelopes, and the resident endpoint speaks the ACP v2 draft subset that Agent
-Runner's root supervisor already consumes (`schema-v2.0.0-alpha.7`).
+Runner's root supervisor already consumes (`schema-v2.0.0-alpha.7`). That
+subset's vocabulary and a host client live in the contract crate's `acp`
+module; `acp::resident` starts sessions and sends turns over a prepared
+endpoint.
 
 ## Selection
 

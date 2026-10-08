@@ -6,6 +6,7 @@
 //! Raw Serde deserialization is a representation operation, not wire admission;
 //! use the operation-bound `decode_*` and `encode_*` APIs at wire boundaries.
 
+pub mod acp;
 pub mod exploration;
 pub mod generated;
 pub mod launch_stream;

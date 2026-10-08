@@ -156,6 +156,29 @@ the same registered provider executable to start a resident ACP v2 endpoint on
 stdio, the ACP subset served, and the operations offered. The endpoint is
 `agent_provider_execution::resident` (below).
 
+The `acp` module is the SDK's one home of the agreed ACP v2 draft subset
+(`schema-v2.0.0-alpha.7`): method names, the namespaced `_meta` contracts
+(message-key dedup, parent/turn-input tags, live reattachment, resident session
+and native turn reports) and the resident endpoint error codes, which the
+resident endpoint now takes from it. It also carries the host side:
+`acp::AcpClient`, the ACP v2 client core moved unchanged in meaning from Agent
+Runner's `oulipoly-acp` crate (Runner `2f6ec679`; its deterministic tests moved
+with it), plus `acp::resident` to start sessions and send turns over a prepared
+resident endpoint. `resident_session::template_from_policy` turns an accepted
+`policy.evaluate` result into `resident.prepare` params and refuses a refused
+policy, a missing argv, or a stdin/prompt transform a resident template cannot
+carry. `acp::resident::PreparedEndpoint::agree` agrees on declared schema and
+contracts (ACP version 2, a schema tag this SDK implements, the dedup contract,
+the operations a start or turn needs); the endpoint's `initialize` must repeat
+the prepared declaration, and an undeclared resume is refused before it is sent.
+Native resident session ids and message ids come back attributed to the
+endpoint; a host's canonical durable reference exists only when the host binds
+one (`Binding::Unbound` otherwise). Turn ends are the agent's tags, not effect
+completion, drain or pause; no pause, drain or input hold is offered. Admission,
+scheduling, ancestry, endpoint process custody and durable delivery records stay
+with the host. Exercised only against scripted peers and the SDK endpoint over
+stand-in native turns; no host has adopted it yet.
+
 The [`tool-mediation/v1` extension](crates/provider-contract/contract/extensions/tool-mediation/README.md)
 (`tool_mediation` module) is selected by
 `host.env.OULIPOLY_HOST_TOOL_MEDIATION_V1=1` and advertised as

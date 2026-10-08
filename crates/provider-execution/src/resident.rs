@@ -88,6 +88,7 @@ use crate::cancellation;
 use crate::custody;
 use crate::durable_fs::{create_private_directories, sync_directory};
 use crate::encoding::{decode_base64, now_unix_ms, sha256_hex};
+use agent_provider_contract::{acp, resident_session};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -100,25 +101,25 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 /// The only ACP protocol version served.
-pub const ACP_PROTOCOL_VERSION: u64 = 2;
+pub const ACP_PROTOCOL_VERSION: u64 = resident_session::ACP_PROTOCOL_VERSION;
 /// Release tag of the ACP v2 draft schema whose subset is served.
-pub const ACP_SCHEMA_TAG: &str = "schema-v2.0.0-alpha.7";
+pub const ACP_SCHEMA_TAG: &str = acp::pin::SCHEMA_TAG;
 /// Resident session contract named in `initialize` `_meta`.
-pub const RESIDENT_SESSION_PROTOCOL: &str = "oulipoly.resident_session/v1";
+pub const RESIDENT_SESSION_PROTOCOL: &str = resident_session::PROTOCOL;
 /// `_meta` key carrying the sender's message key on a prompt and its echo.
-pub const MESSAGE_KEY_META: &str = "oulipoly.ai/messageKey";
+pub const MESSAGE_KEY_META: &str = acp::MESSAGE_KEY_META;
 /// `_meta` key advertising the message-key dedup contract in `initialize`.
-pub const DEDUP_CONTRACT_META: &str = "oulipoly.ai/messageKeyDedup";
+pub const DEDUP_CONTRACT_META: &str = acp::DEDUP_CONTRACT_META;
 /// `_meta` key on a prompt response returning an earlier insertion.
-pub const DUPLICATE_META: &str = "oulipoly.ai/duplicate";
+pub const DUPLICATE_META: &str = acp::DUPLICATE_META;
 /// `_meta` key on an `agent_message`: the input it answers.
-pub const PARENT_MESSAGE_META: &str = "oulipoly.ai/parentMessageId";
+pub const PARENT_MESSAGE_META: &str = acp::PARENT_MESSAGE_META;
 /// `_meta` key on an idle `state_update`: the input whose turn ended.
-pub const TURN_INPUT_META: &str = "oulipoly.ai/lastUserMessageId";
+pub const TURN_INPUT_META: &str = acp::TURN_INPUT_META;
 /// `_meta` key on `initialize`: the resident session contract served.
-pub const RESIDENT_SESSION_META: &str = "oulipoly.ai/residentSession";
+pub const RESIDENT_SESSION_META: &str = acp::RESIDENT_SESSION_META;
 /// `_meta` key on an idle `state_update`: the native turn's outcome.
-pub const NATIVE_TURN_META: &str = "oulipoly.ai/nativeTurn";
+pub const NATIVE_TURN_META: &str = acp::NATIVE_TURN_META;
 /// Launch marker naming the native session a turn ran in.
 pub const PROVIDER_SESSION_MARKER: &str = "oulipoly.provider_session";
 /// Launch marker reporting that the native turn consumed its input.
@@ -126,13 +127,10 @@ pub const SUBMITTED_USER_TURN_MARKER: &str = "oulipoly.submitted_user_turn";
 /// Launch marker carrying the launch-output accounting.
 pub const LAUNCH_OUTPUT_COMPLETE_MARKER: &str = "oulipoly.launch_output_complete/v1";
 
-const METHOD_NOT_FOUND: i64 = -32601;
-const INVALID_PARAMS: i64 = -32602;
-const PARSE_ERROR: i64 = -32700;
-const NOT_INITIALIZED: i64 = -32002;
-const INPUT_NOT_INSERTED: i64 = -32010;
-const INPUT_UNCERTAIN: i64 = -32011;
-const SESSION_UNAVAILABLE: i64 = -32012;
+use acp::code::{
+    INPUT_NOT_INSERTED, INPUT_UNCERTAIN, INVALID_PARAMS, METHOD_NOT_FOUND, NOT_INITIALIZED,
+    PARSE_ERROR, SESSION_UNAVAILABLE,
+};
 const MAX_SESSION_RECORD_BYTES: usize = 64 * 1024;
 const MAX_INPUT_RECORD_BYTES: usize = 16 * 1024 * 1024;
 // Leave room for dispatch, insertion and terminal metadata in the recovery record.

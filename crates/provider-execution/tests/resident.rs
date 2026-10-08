@@ -11,6 +11,13 @@
 //! provider loss and connection end are real.
 #![cfg(target_os = "linux")]
 
+use agent_provider_contract::acp::resident::{
+    self as host, Binding, PreparedEndpoint, SessionStart, StartRefusal,
+};
+use agent_provider_contract::acp::{
+    AcpClient, AtMostOnceBasis, ClientInfo, DeliveryOutcome, Incoming, MessageKey, NativeCustody,
+    OutboundMessage, PeerClosed, SessionEvent, Transport,
+};
 use agent_provider_contract::resident_session as extension;
 use agent_provider_execution::custody::RequestCustody;
 use agent_provider_execution::lifecycle::{
@@ -61,7 +68,7 @@ fn main() {
         Some("--resident") => std::process::exit(serve(&args[2])),
         _ => {}
     }
-    let tests: [(&str, fn()); 29] = [
+    let tests: [(&str, fn()); 33] = [
         (
             "queued_refusal_recovers_non_start_after_unlock",
             queued_refusal_recovers_non_start_after_unlock,
@@ -174,6 +181,22 @@ fn main() {
         (
             "bounds_missing_marker_differs_from_unreadable_journal",
             bounds_missing_marker_differs_from_unreadable_journal,
+        ),
+        (
+            "sdk_host_starts_from_prepared_argv_and_attributes_turns",
+            sdk_host_starts_from_prepared_argv_and_attributes_turns,
+        ),
+        (
+            "sdk_host_native_failure_is_reported_not_success",
+            sdk_host_native_failure_is_reported_not_success,
+        ),
+        (
+            "sdk_host_resume_after_loss_reports_reconciliation_and_never_reruns",
+            sdk_host_resume_after_loss_reports_reconciliation_and_never_reruns,
+        ),
+        (
+            "sdk_host_refuses_resume_the_endpoint_did_not_declare",
+            sdk_host_refuses_resume_the_endpoint_did_not_declare,
         ),
     ];
     let filter = args.get(1).map(String::as_str).unwrap_or("");
@@ -1784,4 +1807,281 @@ fn insertion_missing_launch_preserves_ack_and_restored_reconciliation() {
     assert_eq!(std::fs::read(&launch).unwrap(), launch_bytes);
     assert_eq!(std::fs::read(&journal).unwrap(), journal_bytes);
     assert_eq!(fixture.runs(), 1);
+}
+
+// ---- SDK host client against this endpoint ---------------------------------
+
+/// A host-supplied transport over the endpoint process's stdio whose reads
+/// time out, so a missing message fails the test instead of hanging it.
+struct EndpointTransport {
+    child: Child,
+    stdin: Option<ChildStdin>,
+    lines: mpsc::Receiver<String>,
+}
+
+impl EndpointTransport {
+    /// Starts the endpoint from the prepared argv, as a host would.
+    fn spawn(argv: &[String]) -> Self {
+        let mut child = Command::new(&argv[0])
+            .args(&argv[1..])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let (send, lines) = mpsc::channel();
+        std::thread::spawn(move || {
+            for line in BufReader::new(stdout).lines() {
+                let Ok(line) = line else { return };
+                if send.send(line).is_err() {
+                    return;
+                }
+            }
+        });
+        let stdin = child.stdin.take();
+        Self {
+            child,
+            stdin,
+            lines,
+        }
+    }
+
+    fn end(mut self) -> std::process::ExitStatus {
+        self.stdin.take();
+        self.child.wait().unwrap()
+    }
+}
+
+impl Transport for EndpointTransport {
+    fn send(&mut self, message: &Value) -> Result<(), PeerClosed> {
+        let stdin = self.stdin.as_mut().ok_or(PeerClosed)?;
+        writeln!(stdin, "{message}")
+            .and_then(|()| stdin.flush())
+            .map_err(|_| PeerClosed)
+    }
+
+    fn recv(&mut self) -> Incoming {
+        match self.lines.recv_timeout(TIMEOUT) {
+            Ok(line) => match serde_json::from_str(&line) {
+                Ok(value) => Incoming::Message(value),
+                Err(_) => Incoming::Malformed(line),
+            },
+            Err(mpsc::RecvTimeoutError::Disconnected) => Incoming::Closed,
+            Err(mpsc::RecvTimeoutError::Timeout) => panic!("endpoint silent for {TIMEOUT:?}"),
+        }
+    }
+}
+
+/// The stand-in provider's `resident.prepare` answer: this test binary is the
+/// registered executable, and these are the arguments it declares.
+fn prepared(fixture: &Fixture, operations: &[&str]) -> PreparedEndpoint {
+    let mut result = extension::ResidentPrepareResult::v1(
+        vec!["--resident".into(), fixture.state().display().to_string()],
+        "0".repeat(64),
+    );
+    result.operations = operations.iter().map(|op| (*op).to_owned()).collect();
+    PreparedEndpoint::agree(&result).unwrap()
+}
+
+fn sdk_client(endpoint: &PreparedEndpoint) -> AcpClient<EndpointTransport> {
+    let executable = std::env::current_exe().unwrap();
+    let argv = endpoint.argv(&executable.display().to_string());
+    AcpClient::new(
+        EndpointTransport::spawn(&argv),
+        ClientInfo {
+            name: "sdk-host-test".into(),
+            version: "0".into(),
+        },
+    )
+}
+
+fn agent_text(client: &AcpClient<EndpointTransport>, parent: &str) -> String {
+    client
+        .events()
+        .iter()
+        .filter_map(|event| match event {
+            SessionEvent::AgentMessage {
+                text,
+                parent_message_id: Some(id),
+                ..
+            } if id == parent => Some(text.as_str()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn sdk_host_starts_from_prepared_argv_and_attributes_turns() {
+    let fixture = Fixture::new();
+    let endpoint = prepared(&fixture, extension::OPERATIONS);
+    let mut client = sdk_client(&endpoint);
+    let mut session = host::start_session(
+        &mut client,
+        &endpoint,
+        SessionStart::New { cwd: fixture.cwd() },
+    )
+    .unwrap();
+    // The native session is attributed to the endpoint; nothing is bound.
+    assert_eq!(session.native.agent_name, "fixture-resident");
+    assert_eq!(session.native.protocol, extension::PROTOCOL);
+    assert_eq!(session.native.config_sha256, "0".repeat(64));
+    assert!(!session.resumed);
+    assert_eq!(session.binding(), &Binding::Unbound);
+
+    let mut first = OutboundMessage::fresh("reply hello").unwrap();
+    let delivery = host::send_turn(&mut client, &session, &mut first);
+    let DeliveryOutcome::Accepted(acceptance) = &delivery.outcome else {
+        panic!("not accepted: {:?}", delivery.outcome);
+    };
+    assert_eq!(acceptance.basis, Some(AtMostOnceBasis::SingleAttempt));
+    let turn = delivery.turn.unwrap();
+    assert_eq!(turn.session_id, session.native.session_id);
+    let end = host::await_turn_end(&mut client, &turn).unwrap();
+    assert!(end.is_own());
+    assert_eq!(end.stop_reason.as_deref(), Some("end_turn"));
+    let native = end.native_turn.unwrap();
+    assert_eq!(native.custody, NativeCustody::Complete);
+    assert!(!native.request_id.is_empty());
+    assert_eq!(agent_text(&client, &turn.message_id), "hello");
+
+    // The next turn continues the native session the first one created.
+    let mut second = OutboundMessage::fresh("whoami").unwrap();
+    let next = host::send_turn(&mut client, &session, &mut second)
+        .turn
+        .unwrap();
+    assert!(next.message_id > turn.message_id);
+    let end = host::await_turn_end(&mut client, &next).unwrap();
+    assert!(end.is_own());
+    assert!(agent_text(&client, &next.message_id).starts_with("native=native-"));
+    assert_ne!(
+        end.native_turn.unwrap().request_id,
+        native.request_id,
+        "each turn is its own launch"
+    );
+    // A later turn's end also covers the earlier input.
+    let covered = host::await_turn_end(&mut client, &turn).unwrap();
+    assert!(
+        covered.is_own(),
+        "the earlier input's own idle is found first"
+    );
+
+    // Only the host binds a canonical reference.
+    session.bind("host-chain-7/segment-1");
+    assert_eq!(
+        session.binding(),
+        &Binding::Bound("host-chain-7/segment-1".into())
+    );
+    assert_eq!(fixture.runs(), 2);
+    assert!(client.into_transport().end().success());
+}
+
+fn sdk_host_native_failure_is_reported_not_success() {
+    let fixture = Fixture::new();
+    let endpoint = prepared(&fixture, extension::OPERATIONS);
+    let mut client = sdk_client(&endpoint);
+    let session = host::start_session(
+        &mut client,
+        &endpoint,
+        SessionStart::New { cwd: fixture.cwd() },
+    )
+    .unwrap();
+    let mut message = OutboundMessage::fresh("fail").unwrap();
+    let turn = host::send_turn(&mut client, &session, &mut message)
+        .turn
+        .unwrap();
+    let end = host::await_turn_end(&mut client, &turn).unwrap();
+    assert_eq!(end.stop_reason.as_deref(), Some("_oulipoly_native_failed"));
+    let native = end.native_turn.unwrap();
+    assert_eq!(native.report["status"], json!({"kind":"exited","code":1}));
+    assert!(client.into_transport().end().success());
+}
+
+fn sdk_host_resume_after_loss_reports_reconciliation_and_never_reruns() {
+    let fixture = Fixture::new();
+    let endpoint = prepared(&fixture, extension::OPERATIONS);
+    let marks = fixture.dir.path().join("hang");
+    std::fs::create_dir(&marks).unwrap();
+    let mut client = sdk_client(&endpoint);
+    let session = host::start_session(
+        &mut client,
+        &endpoint,
+        SessionStart::New { cwd: fixture.cwd() },
+    )
+    .unwrap();
+    // The host records the fresh key in its own store before sending.
+    let mut recorded = None;
+    let mut message = OutboundMessage::fresh_recorded(format!("hang {}", marks.display()), |key| {
+        recorded = Some(key.as_str().to_owned());
+        Ok::<(), std::io::Error>(())
+    })
+    .unwrap();
+    let turn = host::send_turn(&mut client, &session, &mut message)
+        .turn
+        .unwrap();
+    let descendant = wait_for(&marks.join("descendant.pid"));
+    // Provider loss: no settlement by the lost process.
+    let mut lost = client.into_transport();
+    lost.child.kill().unwrap();
+    lost.child.wait().unwrap();
+
+    let mut client = sdk_client(&endpoint);
+    let resumed = host::start_session(
+        &mut client,
+        &endpoint,
+        SessionStart::Resume {
+            session_id: session.native.session_id.clone(),
+            cwd: fixture.cwd(),
+        },
+    )
+    .unwrap();
+    assert!(resumed.resumed);
+    assert_eq!(resumed.binding(), &Binding::Unbound, "never inherited");
+    assert_dies(descendant);
+    // The key rebuilt from the host's store has unknown history: the
+    // earlier insertion is recovered, never labelled at-most-once.
+    let key = MessageKey::new(recorded.unwrap()).unwrap();
+    let mut again = OutboundMessage::new(key, format!("hang {}", marks.display()));
+    let delivery = host::send_turn(&mut client, &resumed, &mut again);
+    let DeliveryOutcome::DuplicateUnknown(acceptance) = &delivery.outcome else {
+        panic!("not a recovered duplicate: {:?}", delivery.outcome);
+    };
+    assert!(acceptance.recovered);
+    assert_eq!(acceptance.message_id, turn.message_id);
+    let end = host::await_turn_end(&mut client, &delivery.turn.unwrap()).unwrap();
+    assert_eq!(
+        end.stop_reason.as_deref(),
+        Some("_oulipoly_reconciliation_required")
+    );
+    assert_eq!(end.native_turn.unwrap().custody, NativeCustody::Reconciled);
+    assert_eq!(fixture.runs(), 1, "the interrupted input never ran again");
+    assert!(client.into_transport().end().success());
+}
+
+fn sdk_host_refuses_resume_the_endpoint_did_not_declare() {
+    let fixture = Fixture::new();
+    let endpoint = prepared(
+        &fixture,
+        &[
+            "initialize",
+            "session/new",
+            "session/prompt",
+            "session/close",
+        ],
+    );
+    let mut client = sdk_client(&endpoint);
+    let refused = host::start_session(
+        &mut client,
+        &endpoint,
+        SessionStart::Resume {
+            session_id: "any".into(),
+            cwd: fixture.cwd(),
+        },
+    );
+    assert_eq!(
+        refused,
+        Err(StartRefusal::OperationNotServed("session/resume"))
+    );
+    assert!(client.peer().is_none(), "refused before initialize");
+    assert!(client.into_transport().end().success());
+    assert_eq!(fixture.runs(), 0);
 }
