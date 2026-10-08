@@ -5,7 +5,9 @@
 //! turns run through `run_launch_until` over a `/bin/sh` fake native program.
 //! The fake reads its prompt on stdin and follows it: `reply <text>`,
 //! `whoami`, `hang <dir>` (consumes, starts a descendant in its group, then
-//! waits), `noconsume` and `fail`. Every native start appends to
+//! waits), `noconsume`, `wrapperfail` (its inner `exec` fails) and `fail`.
+//! `execfail` and `execsettled` configure a missing native program, so the
+//! effect gate's own `exec` fails. Every native start appends to
 //! `runs.log`, so a test can prove that no input ran twice. Tests speak ACP
 //! v2 to the provider as a separate process, so process-group custody,
 //! provider loss and connection end are real.
@@ -22,7 +24,8 @@ use agent_provider_contract::resident_session as extension;
 use agent_provider_execution::custody::RequestCustody;
 use agent_provider_execution::lifecycle::{
     run_launch_until, Channel, EventSink, LaunchAdapter, LaunchSpec, LifecycleError,
-    LifecycleTiming, NativeCommand, NativeOutcome, OutputFraming, Preparation, StopCause, Terminal,
+    LifecycleTiming, NativeCommand, NativeOutcome, OutputFraming, Preparation, StartFailure,
+    StopCause, Terminal,
 };
 use agent_provider_execution::process::{run_effect_gate, EffectGate, GatedCommand};
 use agent_provider_execution::resident::{
@@ -63,6 +66,7 @@ case "$1" in
         sleep 300 & echo $! > "$2/descendant.pid"; echo $$ > "$2/leader.pid"
         echo "TEXT waiting"; wait ;;
   noconsume) echo "warming up" >&2; exit 3 ;;
+  wrapperfail) exec "$RUNS.missing-inner-native" ;;
   fail) echo CONSUMED; echo "TEXT partial"; exit 1 ;;
   *) echo CONSUMED; echo "TEXT unknown"; exit 0 ;;
 esac
@@ -75,7 +79,63 @@ fn main() {
         Some("--resident") => std::process::exit(serve(&args[2])),
         _ => {}
     }
-    let tests: [(&str, fn()); 45] = [
+    let tests: [(&str, fn()); 59] = [
+        (
+            "live_exec_failure_allows_fresh_start",
+            live_exec_failure_allows_fresh_start,
+        ),
+        (
+            "live_unhandled_exec_failure_allows_fresh_start",
+            live_unhandled_exec_failure_allows_fresh_start,
+        ),
+        (
+            "live_wrapper_exec_failure_blocks_later_work",
+            live_wrapper_exec_failure_blocks_later_work,
+        ),
+        (
+            "recovered_exec_failure_allows_fresh_start",
+            recovered_exec_failure_allows_fresh_start,
+        ),
+        (
+            "recovered_legacy_exec_failure_blocks_recovery",
+            recovered_legacy_exec_failure_blocks_recovery,
+        ),
+        (
+            "live_uncertainty_publication_failure_survives_reopen",
+            live_uncertainty_publication_failure_survives_reopen,
+        ),
+        (
+            "recovered_uncertainty_publication_failure_survives_reopen",
+            recovered_uncertainty_publication_failure_survives_reopen,
+        ),
+        (
+            "live_completed_turn_without_identity_blocks_later_work",
+            live_completed_turn_without_identity_blocks_later_work,
+        ),
+        (
+            "live_chosen_native_id_is_not_observed_identity",
+            live_chosen_native_id_is_not_observed_identity,
+        ),
+        (
+            "live_unconsumed_native_exit_without_identity_blocks_later_work",
+            live_unconsumed_native_exit_without_identity_blocks_later_work,
+        ),
+        (
+            "live_known_identity_continues_without_a_fresh_marker",
+            live_known_identity_continues_without_a_fresh_marker,
+        ),
+        (
+            "live_settled_preparation_allows_fresh_start",
+            live_settled_preparation_allows_fresh_start,
+        ),
+        (
+            "live_settled_spawn_failure_allows_fresh_start",
+            live_settled_spawn_failure_allows_fresh_start,
+        ),
+        (
+            "live_refused_preparation_allows_fresh_start",
+            live_refused_preparation_allows_fresh_start,
+        ),
         (
             "completed_journal_without_identity_blocks_recovery",
             completed_journal_without_identity_blocks_recovery,
@@ -367,6 +427,13 @@ impl LaunchAdapter for FixtureTurn {
     }
 
     fn prepare(&mut self, _custody: &RequestCustody) -> Result<Preparation, Failure> {
+        if self.turn.prompt == "settled" {
+            // Adapter-settled outcome: the native program is never started.
+            return Ok(Preparation::Settled {
+                events: Vec::new(),
+                terminal: settled_terminal("settled"),
+            });
+        }
         if self.turn.prompt.starts_with("refuse") {
             return Err(Failure(TurnFailure {
                 kind: TurnFailureKind::Failed,
@@ -375,13 +442,20 @@ impl LaunchAdapter for FixtureTurn {
             }));
         }
         let executable = std::env::current_exe().unwrap();
+        // A missing configured program: the gate is released, then its `exec`
+        // fails, so the native program never runs.
+        let program = if matches!(self.turn.prompt.as_str(), "execfail" | "execsettled") {
+            self.runs.with_extension("missing-native")
+        } else {
+            PathBuf::from("/bin/sh")
+        };
         let mut command = GatedCommand::new(
             &EffectGate {
                 executable: &executable,
                 argument: GATE_ARG,
                 descriptor_env: GATE_ENV,
             },
-            "/bin/sh",
+            program,
             ["-c", NATIVE],
         )
         .unwrap();
@@ -397,7 +471,7 @@ impl LaunchAdapter for FixtureTurn {
             "CREATE_SESSION",
             self.turn.create_native_session_id.as_deref().unwrap_or(""),
         );
-        if self.turn.prompt == "spawnfail" {
+        if self.turn.prompt == "spawnfail" || self.turn.prompt == "spawnsettled" {
             // The effect-gate process cannot spawn with this nonexistent cwd.
             command
                 .command_mut()
@@ -408,6 +482,25 @@ impl LaunchAdapter for FixtureTurn {
             stdin: Some(self.turn.prompt.clone().into_bytes()),
             framing: OutputFraming::Lines { max_bytes: 4096 },
         }))
+    }
+
+    fn start_failed<W: Write>(
+        &mut self,
+        failure: &StartFailure,
+        _events: &mut EventSink<'_, W>,
+    ) -> Result<Option<Terminal>, Failure> {
+        // Only "spawnsettled" and "execsettled" have their observed start
+        // failure settled; "spawnfail" keeps the incomplete prepared-without-actor
+        // evidence and "execfail" runs on as the gate's exit 126.
+        Ok(match failure {
+            StartFailure::Spawn(_) if self.turn.prompt == "spawnsettled" => {
+                Some(settled_terminal("start_failed"))
+            }
+            StartFailure::Exec(_) if self.turn.prompt == "execsettled" => {
+                Some(settled_terminal("start_failed"))
+            }
+            _ => None,
+        })
     }
 
     fn output<W: Write>(
@@ -453,6 +546,15 @@ impl LaunchAdapter for FixtureTurn {
             session: None,
             exit_code: 0,
         })
+    }
+}
+
+fn settled_terminal(kind: &str) -> Terminal {
+    Terminal {
+        status: json!({"kind":kind}),
+        terminal_signal: json!({"kind":"fixture"}),
+        session: None,
+        exit_code: 0,
     }
 }
 
@@ -2445,6 +2547,369 @@ fn unobserved_native_identity(chosen: Option<&str>) {
     assert!(reopened.end().success());
     println!("unobserved identity candidate={chosen:?}: uncertainty visible, actors settled, runs=1, duplicate retained after reopen");
 }
+// LI1: a live resident turn that may have run native work and leaves no
+// observed provider-session marker must not authorize later work. The current
+// turn keeps its truthful result; only later dispatch is withheld.
+fn live_completed_turn_without_identity_blocks_later_work() {
+    live_without_identity(None, "unknown", "end_turn");
+}
+fn live_chosen_native_id_is_not_observed_identity() {
+    live_without_identity(
+        Some("12345678-1234-1234-1234-123456789abc"),
+        "fail",
+        "_oulipoly_native_failed",
+    );
+}
+fn live_without_identity(chosen: Option<&str>, prompt: &str, stop_reason: &str) {
+    let fixture = Fixture::new();
+    if let Some(chosen) = chosen {
+        std::fs::create_dir_all(fixture.state()).unwrap();
+        std::fs::write(fixture.state().join("create-id"), chosen).unwrap();
+    }
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    let request = first.prompt(&session, prompt, Some("live"));
+    let id = message_id(&first.response(request));
+    let idle = first.idle_for(&id);
+    assert_eq!(idle["stopReason"], json!(stop_reason));
+    assert_eq!(
+        idle["_meta"][resident::NATIVE_TURN_META]["custody"],
+        json!("complete")
+    );
+    let dir = bounds_dir(&fixture, &session);
+    let record = bounds_read(&dir.join("session.json"));
+    assert!(record["native_session_id"].is_null());
+    assert_eq!(record["create_native_session_id"], json!(chosen));
+    assert!(record["native_session_uncertain"].is_string(), "{record}");
+    let input_path = bounds_input(&fixture, &session, &id);
+    let ended = bounds_read(&input_path);
+    // Without the block this dispatches the null or candidate identity.
+    let next = first.prompt(&session, "whoami", None);
+    assert_identity_uncertain(&first.response(next));
+    let duplicate = first.prompt(&session, "ignored", Some("live"));
+    assert_eq!(message_id(&first.response(duplicate)), id);
+    assert_eq!(first.idle_for(&id)["stopReason"], json!(stop_reason));
+    assert_eq!(
+        bounds_read(&input_path),
+        ended,
+        "original receipt unchanged"
+    );
+    assert_eq!(fixture.runs(), 1, "later input starts no native work");
+    assert_eq!(
+        first.call("session/close", json!({"sessionId":session}))["result"],
+        json!({})
+    );
+    assert!(first.end().success());
+
+    let (mut reopened, response) = bounds_resume(&fixture, &session);
+    assert_identity_uncertain(&response);
+    let next = reopened.prompt(&session, "reply must not create or resume", None);
+    assert_identity_uncertain(&reopened.response(next));
+    assert_eq!(fixture.runs(), 1);
+    assert!(reopened.end().success());
+}
+
+// Missing consumption does not prove that native work did not happen.
+fn live_unconsumed_native_exit_without_identity_blocks_later_work() {
+    let fixture = Fixture::new();
+    let mut client = fixture.start();
+    let session = client.open(&fixture.cwd());
+    let request = client.prompt(&session, "noconsume", Some("live"));
+    let refused = client.response(request);
+    assert_eq!(refused["error"]["code"], json!(-32010), "{refused}");
+    assert_eq!(fixture.runs(), 1, "the native program started");
+    let next = client.prompt(&session, "whoami", None);
+    assert_identity_uncertain(&client.response(next));
+    assert_eq!(fixture.runs(), 1);
+    assert!(client.end().success());
+}
+
+// Identity already known is not a per-turn marker requirement.
+fn live_known_identity_continues_without_a_fresh_marker() {
+    let fixture = Fixture::new();
+    let mut client = fixture.start();
+    let session = client.open(&fixture.cwd());
+    let seed = client.prompt(&session, "reply seed", None);
+    let seed = message_id(&client.response(seed));
+    client.idle_for(&seed);
+    let native = bounds_read(&bounds_dir(&fixture, &session).join("session.json"))
+        ["native_session_id"]
+        .clone();
+    assert!(native.is_string());
+    // This turn ran natively and reported no marker; the identity is known.
+    let silent = client.prompt(&session, "unknown", None);
+    let silent = message_id(&client.response(silent));
+    assert_eq!(client.idle_for(&silent)["stopReason"], json!("end_turn"));
+    let next = client.prompt(&session, "whoami", None);
+    let next = message_id(&client.response(next));
+    let text = client.update("known identity continues", |u| {
+        u["sessionUpdate"] == json!("agent_message")
+            && u["content"][0]["text"]
+                .as_str()
+                .is_some_and(|t| t.starts_with("native="))
+    });
+    assert_eq!(
+        text["update"]["content"][0]["text"],
+        json!(format!("native={}", native.as_str().unwrap()))
+    );
+    client.idle_for(&next);
+    assert!(
+        bounds_read(&bounds_dir(&fixture, &session).join("session.json"))
+            ["native_session_uncertain"]
+            .is_null()
+    );
+    assert_eq!(fixture.runs(), 3);
+    assert!(client.end().success());
+}
+
+// Positive evidence that no native program started permits fresh work, live.
+fn live_settled_preparation_allows_fresh_start() {
+    live_no_native_allows_fresh_start("settled", |native| {
+        assert_eq!(native["custody"], json!("complete"));
+        assert_eq!(native["status"]["kind"], json!("settled"));
+    });
+}
+fn live_settled_spawn_failure_allows_fresh_start() {
+    live_no_native_allows_fresh_start("spawnsettled", |native| {
+        assert_eq!(native["custody"], json!("complete"));
+        assert_eq!(native["status"]["kind"], json!("start_failed"));
+    });
+}
+fn live_refused_preparation_allows_fresh_start() {
+    live_no_native_allows_fresh_start("refuse", |native| {
+        assert_eq!(native["custody"], json!("not_admitted"));
+    });
+}
+fn live_no_native_allows_fresh_start(prompt: &str, native_turn: impl Fn(&Value)) {
+    let fixture = Fixture::new();
+    let mut client = fixture.start();
+    let session = client.open(&fixture.cwd());
+    let request = client.prompt(&session, prompt, Some("no-native"));
+    let refused = client.response(request);
+    assert_eq!(refused["error"]["code"], json!(-32010), "{refused}");
+    native_turn(&refused["error"]["data"]["nativeTurn"]);
+    assert_eq!(fixture.runs(), 0, "native never started");
+    let next = client.prompt(&session, "reply fresh", None);
+    let next = message_id(&client.response(next));
+    assert_eq!(client.idle_for(&next)["stopReason"], json!("end_turn"));
+    let record = bounds_read(&bounds_dir(&fixture, &session).join("session.json"));
+    assert!(record["native_session_uncertain"].is_null(), "{record}");
+    assert!(record["native_session_id"].is_string());
+    assert_eq!(fixture.runs(), 1);
+    assert!(client.end().success());
+}
+
+// B1-B: an observed failure of the configured program's own `exec` is positive
+// proof that no native program ran, whether the adapter settles it or lets the
+// gate's exit 126 stand.
+fn live_exec_failure_allows_fresh_start() {
+    live_no_native_allows_fresh_start("execsettled", |native| {
+        assert_eq!(native["custody"], json!("complete"));
+        assert_eq!(native["status"]["kind"], json!("start_failed"));
+    });
+}
+fn live_unhandled_exec_failure_allows_fresh_start() {
+    live_no_native_allows_fresh_start("execfail", |native| {
+        assert_eq!(native["custody"], json!("complete"));
+        assert_eq!(native["status"], json!({"kind":"exited","code":126}));
+    });
+}
+
+// A wrapper that started and whose inner `exec` failed is not that proof.
+fn live_wrapper_exec_failure_blocks_later_work() {
+    let fixture = Fixture::new();
+    let mut client = fixture.start();
+    let session = client.open(&fixture.cwd());
+    let request = client.prompt(&session, "wrapperfail", Some("wrapper"));
+    let refused = client.response(request);
+    assert_eq!(refused["error"]["code"], json!(-32010), "{refused}");
+    assert_eq!(
+        refused["error"]["data"]["nativeTurn"]["status"],
+        json!({"kind":"exited","code":127})
+    );
+    assert_eq!(fixture.runs(), 1, "the configured program started");
+    let next = client.prompt(&session, "reply fresh", None);
+    assert_identity_uncertain(&client.response(next));
+    assert_eq!(fixture.runs(), 1);
+    assert!(client.end().success());
+}
+
+// Recovery honors the same proof only from the complete launch record that
+// carries it; a record without it (as an older build wrote) stays uncertain.
+fn recovered_exec_failure_allows_fresh_start() {
+    recovered_exec_failure(false);
+}
+fn recovered_legacy_exec_failure_blocks_recovery() {
+    recovered_exec_failure(true);
+}
+fn recovered_exec_failure(legacy: bool) {
+    let fixture = Fixture::new();
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    let dir = bounds_dir(&fixture, &session);
+    let session_before = bounds_read(&dir.join("session.json"));
+    let request = first.prompt(&session, "execsettled", Some("exec"));
+    assert_eq!(first.response(request)["error"]["code"], json!(-32010));
+    first.child.kill().unwrap();
+    first.child.wait().unwrap();
+    let id = bounds_read(
+        &dir.join("inputs")
+            .read_dir()
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path(),
+    )["message_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    // Issued lagging snapshot: the launch completed, but neither the input's
+    // end nor any later session-record update survived. Only recovery
+    // classifies this launch.
+    let input_path = bounds_input(&fixture, &session, &id);
+    let mut input = bounds_read(&input_path);
+    input["phase"] = json!("accepted");
+    input["native_turn"] = Value::Null;
+    for key in ["ended_unix_ms", "stop_reason", "consumption_seen"] {
+        input.as_object_mut().unwrap().remove(key);
+    }
+    bounds_write(&input_path, &input);
+    bounds_write(&dir.join("session.json"), &session_before);
+    let state_path = bounds_journal(&fixture, &session, &id).with_extension("json");
+    let mut state = bounds_read(&state_path);
+    assert_eq!(state["phase"], json!("complete"));
+    if legacy {
+        let fields = [
+            "digest",
+            "phase",
+            "actor_id",
+            "incarnation",
+            "exit_code",
+            "journal_sha256",
+            "journal_len",
+        ];
+        state
+            .as_object_mut()
+            .unwrap()
+            .retain(|key, _| fields.contains(&key.as_str()));
+        bounds_write(&state_path, &state);
+    }
+    let (mut second, resumed) = bounds_resume(&fixture, &session);
+    let duplicate = second.prompt(&session, "ignored", Some("exec"));
+    assert_eq!(
+        second.response(duplicate)["error"]["code"],
+        json!(-32010),
+        "the original non-insertion receipt"
+    );
+    let next = second.prompt(&session, "reply fresh", None);
+    if legacy {
+        assert_identity_uncertain(&resumed);
+        assert_identity_uncertain(&second.response(next));
+        assert_eq!(fixture.runs(), 0);
+    } else {
+        assert_eq!(resumed["result"], json!({}), "{resumed}");
+        let next = message_id(&second.response(next));
+        assert_eq!(second.idle_for(&next)["stopReason"], json!("end_turn"));
+        assert_eq!(fixture.runs(), 1, "only the fresh turn ran");
+    }
+    assert!(second.end().success());
+}
+
+// LI1-D: a decided identity block survives close/reopen even when its session
+// record write failed while the input's own settlement succeeded. The current
+// turn reports the SDK's record failure without discarding its native outcome.
+fn live_uncertainty_publication_failure_survives_reopen() {
+    let fixture = Fixture::new();
+    let mut client = fixture.start();
+    let session = client.open(&fixture.cwd());
+    let dir = bounds_dir(&fixture, &session);
+    std::fs::rename(dir.join("session.json"), dir.join("session-held.json")).unwrap();
+    std::fs::create_dir(dir.join("session.json")).unwrap();
+    let request = client.prompt(&session, "unknown", Some("publish"));
+    let id = message_id(&client.response(request));
+    let idle = client.idle_for(&id);
+    assert_eq!(idle["stopReason"], json!("_oulipoly_turn_failed"));
+    let native = &idle["_meta"][resident::NATIVE_TURN_META];
+    assert_eq!(
+        native["failure"]["code"],
+        json!("native_session_record_failed")
+    );
+    assert_eq!(native["custody"], json!("complete"), "{native}");
+    assert_eq!(native["status"], json!({"kind":"exited","code":0}));
+    assert!(native["launch_output"].is_object(), "{native}");
+    let next = client.prompt(&session, "whoami", None);
+    assert_identity_uncertain(&client.response(next));
+    assert_eq!(
+        client.call("session/close", json!({"sessionId":session}))["result"],
+        json!({})
+    );
+    assert!(client.end().success());
+    std::fs::remove_dir(dir.join("session.json")).unwrap();
+    std::fs::rename(dir.join("session-held.json"), dir.join("session.json")).unwrap();
+
+    let (mut reopened, resumed) = bounds_resume(&fixture, &session);
+    assert_identity_uncertain(&resumed);
+    let next = reopened.prompt(&session, "reply must not create or resume", None);
+    assert_identity_uncertain(&reopened.response(next));
+    let duplicate = reopened.prompt(&session, "ignored", Some("publish"));
+    assert_eq!(message_id(&reopened.response(duplicate)), id);
+    assert_eq!(
+        reopened.idle_for(&id)["stopReason"],
+        json!("_oulipoly_turn_failed")
+    );
+    assert_eq!(fixture.runs(), 1, "the original input never runs again");
+    assert!(reopened.end().success());
+}
+
+struct WritableOnDrop(PathBuf);
+impl Drop for WritableOnDrop {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o700));
+    }
+}
+
+// The same holds when recovery decides the block: the session directory
+// refuses the record write while the input directory still accepts settlement.
+fn recovered_uncertainty_publication_failure_survives_reopen() {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture = Fixture::new();
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    let dir = bounds_dir(&fixture, &session);
+    let session_before = bounds_read(&dir.join("session.json"));
+    let id = complete_without_identity(&fixture, &mut first, &session);
+    // The lagging snapshot also predates any block the live turn recorded,
+    // so only recovery decides it here.
+    bounds_write(&dir.join("session.json"), &session_before);
+    let writable = WritableOnDrop(dir.clone());
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o500)).unwrap();
+    let (mut second, resumed) = bounds_resume(&fixture, &session);
+    assert_identity_uncertain(&resumed);
+    let duplicate = second.prompt(&session, "ignored", Some("complete"));
+    assert_eq!(message_id(&second.response(duplicate)), id);
+    let idle = second.idle_for(&id);
+    assert_eq!(idle["stopReason"], json!("_oulipoly_turn_failed"));
+    let native = &idle["_meta"][resident::NATIVE_TURN_META];
+    assert_eq!(
+        native["failure"]["code"],
+        json!("native_session_record_failed")
+    );
+    assert_eq!(native["custody"], json!("complete"), "{native}");
+    assert_eq!(native["status"], json!({"kind":"exited","code":1}));
+    assert!(second.end().success());
+    drop(writable);
+    assert!(bounds_read(&dir.join("session.json"))["native_session_uncertain"].is_null());
+
+    let (mut reopened, resumed) = bounds_resume(&fixture, &session);
+    assert_identity_uncertain(&resumed);
+    let next = reopened.prompt(&session, "reply must not create or resume", None);
+    assert_identity_uncertain(&reopened.response(next));
+    assert_eq!(fixture.runs(), 1, "the original input never runs again");
+    assert!(reopened.end().success());
+}
+
 fn assert_identity_uncertain(response: &Value) {
     assert_eq!(response["error"]["code"], json!(-32012), "{response}");
     assert!(
