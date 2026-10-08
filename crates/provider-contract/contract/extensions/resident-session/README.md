@@ -64,8 +64,10 @@ bound at dispatch, after prior turns settle. Interrupted actor discharge is
 independent of current template equality and never readmits the old input.
 Readable interrupted evidence without an observed native session identity
 reports `-32012` and blocks new input when native work cannot be excluded.
-A chosen create id remains a candidate, not observed identity or permission to
-probe create/resume. Known session-record or journal identity still recovers,
+Valid complete launch custody without observed identity is blocked the same way
+whether its receipt replays or the replay errors; the error remains the original
+input's failure. A chosen create id remains a candidate, not observed identity or
+permission to probe create/resume. Known session-record or journal identity still recovers,
 and known duplicate insertion ACKs remain available. A justified pre-start
 refusal or validated prepared custody without consumption permits fresh work;
 actor discharge and insertion ACK alone do not prove no native effects.
