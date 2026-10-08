@@ -51,9 +51,12 @@ pub mod fixtures {
     pub const LIVE_STREAM_V1_JSON: &str = include_str!("../tests/fixtures/live_stream/v1.json");
     /// Golden live_stream/v2 payloads, selection, follow and replay vectors.
     pub const LIVE_STREAM_V2_JSON: &str = include_str!("../tests/fixtures/live_stream/v2.json");
-    /// live_stream/v2 attachment message payloads (publisher, broker, subscriber).
-    pub const LIVE_STREAM_ATTACHMENT_V2_JSON: &str =
-        include_str!("../tests/fixtures/live_stream/attachment-v2.json");
+    /// Golden live_stream/v3 payloads, selection, follow and replay vectors,
+    /// including combined stdout/stderr origin.
+    pub const LIVE_STREAM_V3_JSON: &str = include_str!("../tests/fixtures/live_stream/v3.json");
+    /// live_stream/v3 attachment message payloads (publisher, broker, subscriber).
+    pub const LIVE_STREAM_ATTACHMENT_V3_JSON: &str =
+        include_str!("../tests/fixtures/live_stream/attachment-v3.json");
     /// Golden session_control/v3 payloads, selection, agreement, repetition,
     /// trace, current-state relation and settlement-reading vectors.
     pub const SESSION_CONTROL_V2_JSON: &str =

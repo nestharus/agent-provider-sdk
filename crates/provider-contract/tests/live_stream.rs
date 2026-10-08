@@ -1,4 +1,4 @@
-//! live_stream/v2: structural schema versus semantic admission; frame and field
+//! live_stream/v3: structural schema versus semantic admission; frame and field
 //! bounds; exact gap, cursor, incarnation and finalization semantics; peer
 //! version selection; and separation from provider launch outcomes.
 //!
@@ -23,7 +23,7 @@ use support::contract_matrix::{
 };
 
 fn fixtures() -> Value {
-    serde_json::from_str(include_str!("fixtures/live_stream/v2.json")).unwrap()
+    serde_json::from_str(include_str!("fixtures/live_stream/v3.json")).unwrap()
 }
 
 fn reason(value: &Value) -> UnavailableReason {
@@ -188,7 +188,7 @@ fn selection_vectors() {
         select(&offer, &advertisement(&offer)).unwrap().channels,
         offer.channels
     );
-    assert_eq!(live_stream::SUPPORTED_VERSIONS, &[2]);
+    assert_eq!(live_stream::SUPPORTED_VERSIONS, &[3]);
 }
 
 fn run_follow(case: &Value) -> (Follower, Vec<Result<Accepted, LiveUnavailable>>) {
@@ -442,7 +442,7 @@ fn selected_descriptor_and_follow_setup_share_capability_agreement() {
     invalid_selected.channels.push(live_stream::Channel::Stdout);
     assert!(agreed.agree(&invalid_selected).is_err());
     invalid_selected = selected;
-    invalid_selected.protocol = "oulipoly.live_stream/v3".into();
+    invalid_selected.protocol = "oulipoly.live_stream/v4".into();
     assert!(agreed.agree(&invalid_selected).is_err());
     // A supported scoped claim is agreement about shape, never an access grant.
     let scoped = Offer {
@@ -600,4 +600,35 @@ fn raw_schema_acceptance_is_insufficient_for_decoded_byte_admission() {
     // Constructor detail is caller responsibility, with a character bound only.
     let caller = LiveUnavailable::new(UnavailableReason::InvalidRecord, "SYNTHETIC_CALLER_DETAIL");
     assert!(caller.detail.unwrap().contains("SYNTHETIC_CALLER_DETAIL"));
+}
+
+#[test]
+fn no_follow_context_claims_both_combined_and_separated_origin() {
+    use live_stream::Channel::{Combined, Control, Stderr, Stdout};
+    let descriptor = Descriptor::decode(&fixtures()["valid"]["Descriptor"][4]).unwrap();
+    assert_eq!(descriptor.channels, vec![Combined, Control]);
+    for channels in [
+        &[Combined, Stdout][..],
+        &[Stderr, Combined, Control],
+        &[Stdout, Stderr, Combined],
+    ] {
+        let error = Follower::new(descriptor.start(), channels, 4).unwrap_err();
+        assert_eq!(
+            error.reason,
+            UnavailableReason::InvalidRecord,
+            "{channels:?}"
+        );
+    }
+    Follower::new(descriptor.start(), &[Combined, Control], 4).unwrap();
+    Follower::new(descriptor.start(), &[Stdout, Stderr, Control], 4).unwrap();
+    // An offer states capability, not one incarnation's origin: it may name both.
+    let offer: Offer = serde_json::from_value(fixtures()["valid"]["Offer"][2].clone()).unwrap();
+    assert!(offer.channels.contains(&Combined) && offer.channels.contains(&Stdout));
+    assert_eq!(
+        select(&offer, &advertisement(&offer))
+            .unwrap()
+            .channels
+            .len(),
+        5
+    );
 }

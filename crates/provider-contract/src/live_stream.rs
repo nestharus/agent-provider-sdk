@@ -1,8 +1,9 @@
-//! Optional `oulipoly.live_stream/v2` live-output observation contract.
+//! Optional `oulipoly.live_stream/v3` live-output observation contract.
 //!
 //! Records a publisher (capture at a host seam), a broker and subscribers
 //! exchange about live output: one stream's identity, its publisher
-//! incarnation and monotonic sequence, its channels, exact gaps, restarts,
+//! incarnation and monotonic sequence, its channels (including output whose
+//! stdout/stderr origin was combined before capture), exact gaps, restarts,
 //! the opaque durable reference it finalizes to, caller-owned cursors and
 //! advertised visibility claims. Peers select the version by advertisement
 //! ([`select`]), not by provider describe or any CLI, binary, package or
@@ -40,10 +41,11 @@ use std::sync::OnceLock;
 
 pub mod attachment;
 
-pub const PROTOCOL: &str = "oulipoly.live_stream/v2";
-pub const SCHEMA_JSON: &str = include_str!("../contract/extensions/live-stream/v2.schema.json");
-/// Live-stream versions this SDK release defines.
-pub const SUPPORTED_VERSIONS: &[u32] = &[2];
+pub const PROTOCOL: &str = "oulipoly.live_stream/v3";
+pub const SCHEMA_JSON: &str = include_str!("../contract/extensions/live-stream/v3.schema.json");
+/// Live-stream versions this SDK release selects. The retained v1 and v2
+/// schemas are baseline material, not runtime fallbacks.
+pub const SUPPORTED_VERSIONS: &[u32] = &[3];
 /// Upper bound of captured bytes in one data frame; a selection may lower it.
 pub const MAX_DATA_BYTES: u32 = 65_536;
 /// Upper bound of one serialized record line, checked before parsing.
@@ -76,17 +78,26 @@ const DEFINITIONS: &[&str] = &[
 pub enum Channel {
     Stdout,
     Stderr,
+    Combined,
     Pty,
     Control,
 }
 
 /// A channel that carries captured bytes. A `pty` channel is a kind a
 /// publisher may declare; nothing here requires any publisher to produce it.
+///
+/// `Stdout` and `Stderr` carry bytes captured from a descriptor that carried
+/// only that origin. `Combined` carries one byte stream into which the
+/// producer's stdout and stderr were joined before capture, for example both
+/// written to one pipe: each byte's origin is unknown, and nothing here
+/// splits, infers or relabels it. A descriptor never declares `combined`
+/// together with `stdout` or `stderr`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DataChannel {
     Stdout,
     Stderr,
+    Combined,
     Pty,
 }
 
@@ -95,6 +106,7 @@ impl From<DataChannel> for Channel {
         match channel {
             DataChannel::Stdout => Channel::Stdout,
             DataChannel::Stderr => Channel::Stderr,
+            DataChannel::Combined => Channel::Combined,
             DataChannel::Pty => Channel::Pty,
         }
     }
@@ -188,6 +200,9 @@ pub struct ControlFrame {
 }
 
 /// Last frame of an incarnation, after the host's normal durable publication.
+/// It names that durable record and claims nothing more: not a known or
+/// successful command exit, not complete or readable retained bytes, and not
+/// delivery or acknowledgement of any report.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FinalizedFrame {
@@ -282,7 +297,7 @@ pub struct Cursor {
     pub terminal: Option<Terminal>,
 }
 
-/// One peer's `oulipoly.live_stream/v2` advertisement entry.
+/// One peer's `oulipoly.live_stream/v3` advertisement entry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Offer {
@@ -434,6 +449,13 @@ fn admit<T: serde::de::DeserializeOwned>(
         .map_err(|_| LiveUnavailable::new(reason, format!("{definition}: representation")))
 }
 
+/// Whether a channel set claims both combined and separated stdout/stderr
+/// origin for one incarnation, which no follow context may declare.
+fn mixes_combined_origin(channels: &[Channel]) -> bool {
+    channels.contains(&Channel::Combined)
+        && (channels.contains(&Channel::Stdout) || channels.contains(&Channel::Stderr))
+}
+
 impl DataFrame {
     /// The captured bytes.
     pub fn bytes(&self) -> Result<Vec<u8>, LiveUnavailable> {
@@ -521,8 +543,9 @@ impl Record {
 }
 
 impl Descriptor {
-    /// Schema-strict, and the visibility claim may expose only declared
-    /// channels.
+    /// Schema-strict (including that `combined` is never declared with
+    /// `stdout` or `stderr`), and the visibility claim may expose only
+    /// declared channels.
     pub fn decode(value: &Value) -> Result<Self, LiveUnavailable> {
         let descriptor: Self = admit("Descriptor", value, UnavailableReason::InvalidRecord)?;
         if !descriptor
@@ -605,8 +628,8 @@ pub fn advertisement(offer: &Offer) -> Value {
 }
 
 /// Selects what `local` and a peer's advertisement can both use. Entries for
-/// unknown or newer protocols are ignored; the `oulipoly.live_stream/v2`
-/// entry must be strict. Every refusal is a [`LiveUnavailable`].
+/// unknown, older or newer protocols are ignored; the
+/// `oulipoly.live_stream/v3` entry must be strict. Every refusal is a [`LiveUnavailable`].
 pub fn select(local: &Offer, remote: &Value) -> Result<Selected, LiveUnavailable> {
     let local_value = serde_json::to_value(local).expect("offer serializes");
     validate(
@@ -736,6 +759,9 @@ impl Follower {
             &serde_json::json!(max_data_bytes),
             UnavailableReason::InvalidRecord,
         )?;
+        if mixes_combined_origin(channels) {
+            return Err(invalid_record("combined is declared with stdout or stderr"));
+        }
         Ok(Self {
             cursor,
             channels: channels.to_vec(),

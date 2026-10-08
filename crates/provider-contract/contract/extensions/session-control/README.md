@@ -60,7 +60,7 @@ a logical root, scope or authority.
 | --- | --- |
 | provider/v1 process status and `TerminalSignal` | Provider/process outcome facts |
 | `terminal_unavailable/v1` | Provider-side native-service unavailability |
-| `live_stream/v1` `ControlFact` | Report-only live-output observation; never a command or acknowledgment |
+| `live_stream/v3` `ControlFact` | Report-only live-output observation; never a command or acknowledgment |
 | `resident_session/v1` ACP insertion acknowledgment | The endpoint's own insertion evidence, which a host may report here as an `insertion` observation |
 
 Contract refusals are `control_unavailable` diagnostics: no common version, a
