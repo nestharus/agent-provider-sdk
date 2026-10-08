@@ -163,6 +163,24 @@ fn launch_ndjson_rejects_malformed_correlation_payload_and_finality_neighbors() 
         Err(LaunchStreamError::InvalidSequence { .. })
     ));
 
+    // A gap after valid lines names the line and the sequence it expected.
+    let mut gap_marker = launch_event_fixture(&fixtures, "marker").clone();
+    gap_marker["seq"] = json!(4);
+    let gap = [
+        json_line(launch_event_fixture(&fixtures, "stdout")),
+        json_line(launch_event_fixture(&fixtures, "stderr")),
+        json_line(&gap_marker),
+    ]
+    .concat();
+    assert!(matches!(
+        validate_launch_ndjson(gap.as_bytes(), REQUEST_ID),
+        Err(LaunchStreamError::InvalidSequence {
+            line: 3,
+            expected: 3,
+            actual: 4
+        })
+    ));
+
     let stdout_only = json_line(launch_event_fixture(&fixtures, "stdout"));
     assert!(matches!(
         validate_launch_ndjson(stdout_only.as_bytes(), REQUEST_ID),

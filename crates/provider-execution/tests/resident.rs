@@ -971,12 +971,21 @@ fn lost_provider_is_reconciled_on_resume_and_never_rerun() {
     std::fs::create_dir(&marks).unwrap();
     let running = first.prompt(&session, &format!("hang {}", marks.display()), Some("lost"));
     let id = message_id(&first.response(running));
-    let descendant = wait_for(&marks.join("descendant.pid"));
+    // Same-session continuation requires that the provider observed the native
+    // session before its loss. The fake emits CONSUMED before SESSION, so the
+    // ACK and marker files do not prove that; the later output line does.
+    first.update("waiting after session marker", |u| {
+        u["sessionUpdate"] == json!("agent_message")
+    });
+    let actor = LostActor {
+        leader: wait_for(&marks.join("leader.pid")),
+        descendant: wait_for(&marks.join("descendant.pid")),
+    };
     // Provider loss: no settlement by the lost process.
     first.child.kill().unwrap();
     first.child.wait().unwrap();
     assert!(
-        alive(descendant),
+        alive(actor.descendant),
         "the descendant outlives the lost provider"
     );
 
@@ -992,7 +1001,7 @@ fn lost_provider_is_reconciled_on_resume_and_never_rerun() {
         json!({"sessionId":session,"cwd":fixture.cwd()}),
     );
     assert_eq!(resumed["result"], json!({}), "{resumed}");
-    assert_dies(descendant);
+    assert_dies(actor.descendant);
     // A third process cannot hold the same session.
     let mut third = fixture.start();
     third.call(
@@ -1032,7 +1041,7 @@ fn lost_provider_is_reconciled_on_resume_and_never_rerun() {
         .as_str()
         .unwrap()
         .to_owned();
-    assert!(said.starts_with("native=native-"), "{said}");
+    assert_eq!(said, format!("native=native-{}", actor.leader));
     second.idle_for(&next);
 }
 

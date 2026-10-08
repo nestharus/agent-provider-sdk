@@ -82,10 +82,10 @@ pub fn validate_launch_ndjson(
         .map_err(|error| LaunchStreamError::InvalidUtf8(error.to_string()))?;
     let registry = SchemaRegistry::new();
     let mut events = Vec::new();
-    let mut expected_seq = 1;
     let mut exit_seq = None;
 
-    for (index, line) in input.split_terminator('\n').enumerate() {
+    // Sequence numbers are contiguous from 1, one per line.
+    for (expected_seq, (index, line)) in (1_u64..).zip(input.split_terminator('\n').enumerate()) {
         let line_number = index + 1;
         if line.trim().is_empty() {
             return Err(LaunchStreamError::BlankLine { line: line_number });
@@ -164,7 +164,6 @@ pub fn validate_launch_ndjson(
             message: error.to_string(),
         })?;
         events.push(typed);
-        expected_seq += 1;
     }
 
     let exit_seq = exit_seq.ok_or(LaunchStreamError::MissingFinalExit)?;
