@@ -16,6 +16,11 @@ jobs:
       - name: Install Rust components
         id: components
         run: rustup component add rustfmt clippy
+      - name: Report Rust toolchain
+        run: |
+          rustc -Vv
+          cargo -V
+          cargo clippy -V
       - name: Report Linux namespace preconditions
         run: |
           uname -sr
@@ -35,6 +40,40 @@ jobs:
               printf 'unavailable\n'
             fi
           done
+      # Ubuntu's AppArmor user-namespace restriction lets an unconfined process
+      # create a user namespace but denies capabilities inside it. These probes
+      # observe that label and the uid_map write as the ordinary runner user.
+      - name: Probe user-namespace restriction
+        id: userns
+        run: |
+          label=$(unshare -U cat /proc/self/attr/current 2>&1) || true
+          printf 'label inside new user namespace: %s\n' "$label"
+          unshare -Urpf --mount-proc true && echo "mapped namespace: available" \
+            || echo "mapped namespace: unavailable (exit $?)"
+          grep -ls unshare /etc/apparmor.d/* || echo "no AppArmor profile mentions unshare"
+          sudo dmesg | grep -E 'apparmor=.*(userns|capable)' | tail -n 20 || true
+          if [[ "$label" == unprivileged_userns* ]]; then
+            echo "restricted=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Ephemeral runner only: give the unshare launcher the user-namespace
+      # permission the Ubuntu documentation describes for an application
+      # profile. The controls still run as the ordinary runner user.
+      - name: Allow unshare user namespaces on this runner
+        id: provision
+        if: ${{ steps.userns.outputs.restricted == 'true' }}
+        run: |
+          unshare_path=$(readlink -f "$(command -v unshare)")
+          profile="$RUNNER_TEMP/ci-unshare-userns"
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            "profile ci-unshare-userns $unshare_path flags=(unconfined) {" \
+            '  userns,' '}' > "$profile"
+          cat "$profile"
+          sudo apparmor_parser -r "$profile"
+          echo "profile=$profile" >> "$GITHUB_OUTPUT"
+          printf 'label inside new user namespace: %s\n' \
+            "$(unshare -U cat /proc/self/attr/current 2>&1)"
+          unshare -Urpf --mount-proc true
+          echo "mapped namespace: available"
       - name: Check formatting
         if: ${{ !cancelled() && steps.components.outcome == 'success' }}
         run: cargo fmt --all -- --check
@@ -44,3 +83,6 @@ jobs:
       - name: Run Clippy
         if: ${{ !cancelled() && steps.components.outcome == 'success' }}
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Remove unshare user-namespace allowance
+        if: ${{ always() && steps.provision.outputs.profile != '' }}
+        run: sudo apparmor_parser -R "${{ steps.provision.outputs.profile }}"

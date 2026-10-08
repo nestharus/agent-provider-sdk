@@ -704,8 +704,18 @@ were not executed; it is not a successful product refusal or no-effect check.
 After entry, each control reports completion only after its capture, effect-gate
 and marker assertions pass. Namespace controls require permission to create a
 user/PID namespace and, for the private control, mount proc. CI records read-only
-runner settings to help investigate unavailable setup; those settings alone do
-not establish the cause or a product pass. CI does not change namespace policy.
+runner settings and the Rust toolchain identity; those settings alone do not
+establish a cause or a product pass.
+
+Ubuntu's AppArmor restriction lets an unconfined unprivileged process create a
+user namespace but denies capabilities inside it, so `unshare` cannot write its
+UID map. CI first probes that restriction as the ordinary runner user. Only when
+the probe observes the restricted `unprivileged_userns` label does the ephemeral
+runner load an application profile granting `userns` to its `unshare`
+executable, re-probe, and remove the profile after the checks. The controls
+themselves still run unprivileged, and the mismatch control remains a real
+negative control. Without that observation CI changes no policy and unavailable
+setup stays red. Local hosts are never reconfigured by the tests.
 
 ## Related repositories
 
