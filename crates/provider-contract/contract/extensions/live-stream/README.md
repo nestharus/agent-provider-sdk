@@ -24,8 +24,9 @@ Bash view now uses this family: root-owned Bash output only, one combined pipe,
 served from an endpoint and bounded capture ring embedded in each root owner.
 That is not provider output, provider-session output or the canonical
 transcript, and it is not the account-local broker. Account-level broker, provider and PTY
-capture coverage are not part of that consumer and remain future host work; no
-provider adapter is required to consume this contract. This SDK has not
+capture coverage are not part of that consumer and remain future host work; a
+peer can read this contract without a provider adapter existing, which waives no
+adoption or qualification. This SDK has not
 qualified the consumer's behaviour, native operation or stress (see
 [Consumer convergence](#consumer-convergence)).
 [Attachment](#publisher-broker-and-subscriber) defines what the three roles say

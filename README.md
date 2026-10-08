@@ -229,6 +229,16 @@ The [`exploration/v1` extension](crates/provider-contract/contract/extensions/ex
   each child, and the bridge renders its outcome with the launch, end, stop
   and lifecycle qualifiers. An absent process-creation fact stays unknown;
   the final turn-end reason is shown independently of bounded stage stderr.
+  A relayed input rejection or start failure keeps its own source-qualified
+  account: the endpoint's code and declaration, insertion, retry, hold and
+  exit, physical non-insertion, native-turn report, record-error flag and
+  durability/publication as the owner reported them, with input index and
+  attempt scope when carried and unknown otherwise. Transport death at start
+  and an endpoint's coded refusal read differently, an ACK is consumption only,
+  and no label grants retry or release. Unlisted values and stage free text are
+  not echoed, and the number of accounts and lifecycle entries is bounded. This
+  renders what the requester relayed; it does not add information the owner
+  did not send.
   Route labels carry no provider, model or account
   meaning here, and a child is never offered exploration.
 
@@ -499,9 +509,10 @@ does not change the pinned v1 snapshot.
     carries an `exploration/v1` offer, the same server adds `explore`. It
     runs only `requester ROUTE QUESTION` for an offered route.
   - **Rendering.** It renders the root-child v1 requester's owner `result` or
-    `refused` (`explore_tool::render_child`). `lost`, mismatched, unknown or
-    inconsistent replies are unresolved: a child may have been admitted and
-    run, and is never asked for again automatically.
+    `refused` (`explore_tool::render_child`), with the lifecycle stages and
+    rejection or start-failure accounts the requester relayed. `lost`,
+    mismatched, unknown or inconsistent replies are unresolved: a child may
+    have been admitted and run, and is never asked for again automatically.
   - **No offer.** The bridge is `bash` alone, as before. `serve` keeps its
     signature. The server and requesters stay in the native
   process group, so turn cancellation ends them; `notifications/cancelled`

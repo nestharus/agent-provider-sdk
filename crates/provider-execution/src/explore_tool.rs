@@ -17,6 +17,12 @@
 //! correctness, its end or the parent's consumption. Owner stage lines the
 //! requester relays on stderr are shown as the lifecycle and only confirm an
 //! admission when no result arrived; they never replace the final result.
+//! An input rejection or a start failure the owner relays is kept as its own
+//! source-qualified account: only the owner's
+//! reported fields, in their own scopes, so an endpoint's declaration, a
+//! missing field or a stage name is never turned into a stronger fact and no
+//! retry or release follows from a label. Values outside the known
+//! vocabulary and the stage's free text are not echoed.
 //! Unknown additional fields are ignored; an unknown outcome is unresolved.
 
 use agent_provider_contract::exploration::{Exploration, Limits};
@@ -137,6 +143,185 @@ fn relayed(stderr: &str) -> Vec<Value> {
         .collect()
 }
 
+/// Stages that carry a rejection or start-failure account, shown in full
+/// after the lifecycle line.
+const ACCOUNTED: &[&str] = &[
+    "rejected",
+    "session-failed",
+    "session-peer-gone",
+    "resident-start-refused",
+];
+/// Accounts and lifecycle entries shown; the rest are counted.
+const ACCOUNTS_SHOWN: usize = 8;
+const STAGES_SHOWN: usize = 64;
+
+/// A short token of plain label characters; free text is not one.
+fn token(value: &Value) -> Option<&str> {
+    value.as_str().filter(|text| {
+        !text.is_empty()
+            && text.len() <= 64
+            && text
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"-_.:".contains(&byte))
+    })
+}
+
+/// A reported value of a closed vocabulary with its meaning. An absent value
+/// stays unknown and an unlisted one is not echoed.
+fn vocab(value: &Value, known: &[(&str, &str)]) -> String {
+    if value.is_null() {
+        return "not reported".into();
+    }
+    match value
+        .as_str()
+        .and_then(|text| known.iter().find(|(label, _)| *label == text))
+    {
+        Some((label, "")) => (*label).to_owned(),
+        Some((label, meaning)) => format!("{label} ({meaning})"),
+        None => "unrecognized value (not shown)".into(),
+    }
+}
+
+fn code_text(code: &Value) -> String {
+    use agent_provider_contract::acp::code::{
+        INPUT_NOT_INSERTED, INPUT_UNCERTAIN, SESSION_UNAVAILABLE,
+    };
+    match code.as_i64() {
+        Some(INPUT_NOT_INSERTED) => format!("{INPUT_NOT_INSERTED} (INPUT_NOT_INSERTED)"),
+        Some(INPUT_UNCERTAIN) => format!("{INPUT_UNCERTAIN} (INPUT_UNCERTAIN)"),
+        Some(SESSION_UNAVAILABLE) => format!("{SESSION_UNAVAILABLE} (SESSION_UNAVAILABLE)"),
+        Some(other) => other.to_string(),
+        None => "not reported".into(),
+    }
+}
+
+fn native_report_text(report: &Value) -> String {
+    if !report.is_object() {
+        return "not reported".into();
+    }
+    let mut text = vocab(
+        &report["state"],
+        &[
+            ("absent", "no report came with the rejection"),
+            ("null", "the endpoint sent a null report"),
+            ("valid", ""),
+            ("invalid-or-unsupported", "not usable"),
+        ],
+    );
+    if !report["custody"].is_null() {
+        text += &format!(
+            ", custody {}",
+            vocab(
+                &report["custody"],
+                &[
+                    ("complete", ""),
+                    ("not-admitted", ""),
+                    ("reconciled", ""),
+                    ("complete-without-exit", ""),
+                    ("incomplete", ""),
+                ],
+            )
+        );
+    }
+    if let Some(status) = report["status_code"].as_i64() {
+        text += &format!(", status code {status}");
+    }
+    format!(
+        "{text}; an endpoint report, physical custody {}",
+        vocab(
+            &report["physical_custody"],
+            &[("not-certified-by-report", "the report does not certify it")],
+        )
+    )
+}
+
+/// What one relayed input rejection reported, in the owner's own scopes.
+fn rejection_account(stage: &Value) -> String {
+    let scope = match (stage["index"].as_u64(), stage["scope"].as_str()) {
+        (Some(index), Some("rpc-attempt")) => format!("input {index}, this RPC attempt"),
+        (Some(index), _) => format!("input {index}, attempt scope not reported"),
+        (None, Some("rpc-attempt")) => "input index not reported, this RPC attempt".into(),
+        (None, _) => "input index and attempt scope not reported".into(),
+    };
+    let unresolved = stage["unresolved_attempts"]
+        .as_u64()
+        .map(|count| format!(" Unresolved attempts of this input: {count}."))
+        .unwrap_or_default();
+    let record_error = match stage["endpoint_record_error"].as_bool() {
+        Some(true) => "reported with this rejection (details withheld)",
+        Some(false) => "none reported with this rejection",
+        None => "not reported",
+    };
+    let not_established = [("not-established", "")];
+    format!(
+        "\nInput rejection relayed by the requester (owner stage `rejected`; {scope}). It is the owner's report of a rejected prompt attempt, not an ACK, a turn end or a result.{unresolved}\n  endpoint code: {}.\n  insertion: {}.\n  endpoint declaration: {}, attributed to {}; physical non-insertion: {}.\n  retry: {}; hold: {}; exit: {}.\n  endpoint native-turn report: {}.\n  endpoint record error: {record_error}.\n  endpoint durability: {}; canonical publication: {}.\n  This rejection grants no retry or release and is not proof that the input was or was not consumed; do not resend it automatically.",
+        code_text(&stage["code"]),
+        vocab(&stage["insertion"], &[("unresolved", "whether the input reached the session is not established")]),
+        vocab(
+            &stage["endpoint_declaration"],
+            &[
+                ("not-inserted", "the endpoint's own claim"),
+                ("no-non-insertion-declaration", "the endpoint did not declare non-insertion"),
+            ],
+        ),
+        vocab(&stage["declaration_attribution"], &[("endpoint-rpc-code", "its error code")]),
+        vocab(&stage["physical_non_insertion"], &not_established),
+        vocab(&stage["retry"], &[("not-authorized", "")]),
+        vocab(&stage["hold"], &[("unresolved-input", "further input and close stay held")]),
+        vocab(&stage["exit"], &[("cancel-or-peer-exit", "the hold ends only by cancel or the peer's exit")]),
+        native_report_text(&stage["native_report"]),
+        vocab(&stage["endpoint_durability"], &not_established),
+        vocab(&stage["canonical_publication"], &not_established),
+    )
+}
+
+/// What a relayed start failure reported: a transport death and an
+/// endpoint's coded refusal are different facts.
+fn start_failure_account(stage: &Value) -> String {
+    let event = stage["event"].as_str().unwrap_or_default();
+    let label = token(&stage["detail"]);
+    let said = match (event, label) {
+        ("session-peer-gone", _) => "the endpoint connection ended while the session was being established; no refusal was received. This is transport death, not an endpoint refusal, and what the endpoint did before it ended is not established".to_owned(),
+        ("resident-start-refused", _) => "the resident start was refused before a session was established; the stage carries no cause".to_owned(),
+        (_, Some(label)) => match label
+            .strip_prefix("session-rejected-")
+            .and_then(|code| code.parse::<i64>().ok())
+        {
+            Some(code) => format!(
+                "the endpoint answered session establishment with error code {}; this is its refusal, not transport death",
+                code_text(&json!(code))
+            ),
+            None => format!("label {label}; no further meaning is defined here"),
+        },
+        (_, None) => "no label carried".to_owned(),
+    };
+    format!("\nStart failure relayed by the requester (owner stage `{event}`): {said}. The stage alone does not establish a launch, an input or an end beyond the final result's facts; it grants no retry.")
+}
+
+/// Full accounts of the rejection and start-failure stages the requester
+/// relayed, bounded in number and never echoing free text.
+fn stage_accounts(stages: &[Value]) -> String {
+    let mut accounts = stages
+        .iter()
+        .filter(|stage| ACCOUNTED.contains(&stage["event"].as_str().unwrap_or_default()))
+        .collect::<Vec<_>>();
+    let omitted = accounts.len().saturating_sub(ACCOUNTS_SHOWN);
+    accounts.truncate(ACCOUNTS_SHOWN);
+    let mut text: String = accounts
+        .into_iter()
+        .map(|stage| match stage["event"].as_str() {
+            Some("rejected") => rejection_account(stage),
+            _ => start_failure_account(stage),
+        })
+        .collect();
+    if omitted > 0 {
+        text += &format!(
+            "\n{omitted} further rejection or start-failure stages were relayed and are not shown."
+        );
+    }
+    text
+}
+
 fn stage_text(stage: &Value) -> Option<String> {
     let text = |key: &str| {
         stage[key]
@@ -164,6 +349,7 @@ fn stage_text(stage: &Value) -> Option<String> {
             text("reason"),
             stage["not_started"]
         ),
+        "ack" => "ack(consumption, not processing or end)".into(),
         "turn-end" => format!("turn-end({})", text("stop_reason")),
         "stopping" => format!("stopping({})", text("reason")),
         "end" => format!(
@@ -176,21 +362,35 @@ fn stage_text(stage: &Value) -> Option<String> {
             }
         ),
         "end-unknown" => format!("end-unknown({})", text("reason")),
-        "agent-message" | "notice" | "ack" | "result" | "refused" => return None,
-        other => other.to_owned(),
+        "rejected" => format!("rejected(code {})", code_text(&stage["code"])),
+        "agent-message" | "notice" | "result" | "refused" => return None,
+        other => match token(&stage["detail"]) {
+            Some(detail) if ACCOUNTED.contains(&other) || other.ends_with("-failed") => {
+                format!("{other}({detail})")
+            }
+            _ => token(&stage["event"])
+                .unwrap_or("unrecognized-stage")
+                .to_owned(),
+        },
     })
 }
 
 fn lifecycle(stages: &[Value]) -> String {
-    let shown: Vec<String> = stages.iter().filter_map(stage_text).collect();
-    if shown.is_empty() {
+    let mut shown: Vec<String> = stages.iter().filter_map(stage_text).collect();
+    if shown.len() > STAGES_SHOWN {
+        let omitted = shown.len() - STAGES_SHOWN;
+        shown.drain(STAGES_SHOWN / 2..STAGES_SHOWN / 2 + omitted);
+        shown.insert(STAGES_SHOWN / 2, format!("[{omitted} stages not shown]"));
+    }
+    let chain = if shown.is_empty() {
         String::new()
     } else {
         format!(
             "\nLifecycle relayed by the requester: {}",
             shown.join(" -> ")
         )
-    }
+    };
+    chain + &stage_accounts(stages)
 }
 
 fn stderr_note(stderr: &str) -> String {

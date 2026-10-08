@@ -33,8 +33,12 @@ including an emitted key-conflict refusal sharing a final original trace.
 Agent Runner's root owner has since moved to v3 at root scope in source and
 refuses child-scoped requests. That is source uptake only: this SDK has not
 qualified it, native operation, an account-level control broker, or any
-provider adapter, and none of those is required to consume this contract. A
-v2-only peer selects nothing (`no_common_version`), disabling control only.
+provider adapter. A peer can read and validate this vocabulary without any of
+them existing, but that waives no adoption or qualification: relying on this
+contract for native operation, child enablement or stress still needs the
+lifecycle, crash, ownership, cancellation and isolation evidence in this
+repository's `AGENTS.md`. A v2-only peer selects nothing (`no_common_version`),
+disabling control only.
 
 ## What it is and is not
 

@@ -35,7 +35,8 @@ The following identifiers correlate but are not interchangeable:
 | Provider session and turn IDs | Native provider continuity | Provider adapter/session storage |
 | Agent Bash handle | One detached generic workload | Agent Bash |
 | PID, start ticks, boot ID, pidfd/cgroup | Exact live OS execution evidence | Process custodian |
-| Stream ID and publisher incarnation | One ephemeral live-output source | Live stream protocol |
+| Stream ID | One logical live-output stream, minted by the host and stable across publisher incarnations; it grants no access | Host that mints it; live stream protocol checks its form only |
+| Publisher incarnation | One start of a publisher of that stream, chosen afresh and ephemeral | Live stream protocol |
 
 Late or unresolved provider identity is an explicit state. A PID, process handle,
 or stream ID must never be substituted for a logical agent or provider session.

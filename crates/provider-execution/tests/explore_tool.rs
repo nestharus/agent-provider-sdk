@@ -598,3 +598,248 @@ fn long_answers_are_cut_on_a_character_boundary_and_say_so() {
         &answer.text[answer.text.len() - 600..]
     );
 }
+
+/// A cancelled child after a held rejection: no turn end, the owner's stop.
+fn ended_after_rejection() -> Value {
+    json!({"event":"result","child":"child-3","route":"luna","outcome":"stopped",
+        "answer":null,"turn_end":null,"stopped":"cancelled","launch":null,
+        "end":{"event":"end","status":"signal:15","observer":"work-pid1-wait","namespace":{"drained":true}},
+        "lifecycle":null})
+}
+
+/// The `rejected` stage as the delivered owner projects it to the requester:
+/// no input index, attempt scope or arbitrary endpoint `message`.
+fn rejected() -> Value {
+    json!({"event":"rejected","detail":"insertion unresolved; cancel or peer exit",
+        "code":-32010,"insertion":"unresolved","retry":"not-authorized",
+        "endpoint_declaration":"not-inserted",
+        "declaration_attribution":"endpoint-rpc-code",
+        "physical_non_insertion":"not-established",
+        "hold":"unresolved-input","exit":"cancel-or-peer-exit",
+        "native_report":{"state":"absent"},"endpoint_record_error":false,
+        "endpoint_durability":"not-established",
+        "canonical_publication":"not-established"})
+}
+
+#[test]
+fn a_relayed_rejection_keeps_its_scoped_facts_whether_a_result_or_nothing_follows() {
+    let stages = [accepted(), rejected()];
+    let after_cancel = render(Some(0), &ended_after_rejection(), &stages);
+    let lost = render(
+        Some(75),
+        &json!({"event":"lost","meaning":"no result received; the child may have run"}),
+        &stages,
+    );
+    for answer in [&after_cancel, &lost] {
+        assert!(answer.error);
+        for part in [
+            "rejected(code -32010 (INPUT_NOT_INSERTED))",
+            "input index and attempt scope not reported",
+            "insertion: unresolved (whether the input reached the session is not established)",
+            "endpoint declaration: not-inserted (the endpoint's own claim), attributed to endpoint-rpc-code (its error code); physical non-insertion: not-established",
+            "retry: not-authorized; hold: unresolved-input (further input and close stay held); exit: cancel-or-peer-exit",
+            "endpoint native-turn report: absent (no report came with the rejection)",
+            "endpoint record error: none reported with this rejection",
+            "endpoint durability: not-established; canonical publication: not-established",
+            "grants no retry or release",
+            "do not resend it automatically",
+        ] {
+            assert!(answer.text.contains(part), "{part}: {}", answer.text);
+        }
+    }
+    // The stage is not a result: each answer keeps its own ending facts.
+    assert!(after_cancel
+        .text
+        .contains("stopped by the root (cancelled)"));
+    assert!(after_cancel.text.contains("End: signal:15"));
+    assert!(lost.text.starts_with("Explorer outcome unresolved"));
+    assert!(lost.text.contains("durably admitted child-3"));
+}
+
+#[test]
+fn a_rejection_is_neither_stronger_nor_weaker_than_the_owner_reported() {
+    let render_one = |stage: Value| render(Some(0), &ended_after_rejection(), &[stage]).text;
+    // The endpoint declared nothing: the not-inserted claim is not implied.
+    let mut uncertain = rejected();
+    uncertain["code"] = json!(-32011);
+    uncertain["endpoint_declaration"] = json!("no-non-insertion-declaration");
+    let text = render_one(uncertain);
+    assert!(text.contains("-32011 (INPUT_UNCERTAIN)"), "{text}");
+    assert!(
+        text.contains("the endpoint did not declare non-insertion"),
+        "{text}"
+    );
+    assert!(
+        !text.contains("endpoint declaration: not-inserted"),
+        "{text}"
+    );
+    // Missing fields stay unknown, not defaulted to a hold, retry or scope.
+    let text = render_one(json!({"event":"rejected"}));
+    for part in [
+        "endpoint code: not reported",
+        "insertion: not reported",
+        "endpoint declaration: not reported, attributed to not reported; physical non-insertion: not reported",
+        "retry: not reported; hold: not reported; exit: not reported",
+        "endpoint native-turn report: not reported",
+        "endpoint record error: not reported",
+        "endpoint durability: not reported; canonical publication: not reported",
+        "grants no retry or release",
+    ] {
+        assert!(text.contains(part), "{part}: {text}");
+    }
+    assert!(!text.contains("not-inserted"), "{text}");
+    assert!(!text.contains("not-established"), "{text}");
+    // Index, attempt scope, unresolved count, the endpoint's native report
+    // and its record-error flag appear in their own scopes when carried.
+    let mut scoped = rejected();
+    scoped["index"] = json!(2);
+    scoped["scope"] = json!("rpc-attempt");
+    scoped["unresolved_attempts"] = json!(3);
+    scoped["endpoint_record_error"] = json!(true);
+    scoped["native_report"] = json!({"state":"valid","custody":"not-admitted","status_code":3,
+        "source":"endpoint-report","physical_custody":"not-certified-by-report"});
+    let text = render_one(scoped);
+    for part in [
+        "input 2, this RPC attempt",
+        "Unresolved attempts of this input: 3.",
+        "endpoint native-turn report: valid, custody not-admitted, status code 3; an endpoint report, physical custody not-certified-by-report (the report does not certify it)",
+        "endpoint record error: reported with this rejection (details withheld)",
+        "physical non-insertion: not-established",
+    ] {
+        assert!(text.contains(part), "{part}: {text}");
+    }
+}
+
+#[test]
+fn rejection_free_text_and_unrecognized_values_are_not_echoed() {
+    let mut stage = rejected();
+    stage["detail"] = json!("PRIVATE-PAYLOAD token=abc");
+    stage["message"] = json!("PRIVATE-PAYLOAD");
+    stage["insertion"] = json!("inserted-PRIVATE-PAYLOAD");
+    stage["retry"] = json!("safe-to-retry");
+    stage["hold"] = json!({"PRIVATE-PAYLOAD": true});
+    stage["native_report"] = json!({"state":"valid-PRIVATE-PAYLOAD","custody":"PRIVATE-PAYLOAD",
+        "physical_custody":"PRIVATE-PAYLOAD"});
+    let text = render(Some(0), &ended_after_rejection(), &[stage]).text;
+    assert!(!text.contains("PRIVATE-PAYLOAD"), "{text}");
+    assert!(!text.contains("safe-to-retry"), "{text}");
+    assert!(
+        text.contains("insertion: unrecognized value (not shown)"),
+        "{text}"
+    );
+    assert!(
+        text.contains("retry: unrecognized value (not shown)"),
+        "{text}"
+    );
+    assert!(text.contains("grants no retry or release"), "{text}");
+    // Start-failure labels outside plain label characters are dropped too.
+    let text = render(
+        Some(0),
+        &ended_after_rejection(),
+        &[json!({"event":"session-failed","detail":"PRIVATE-PAYLOAD with spaces"})],
+    )
+    .text;
+    assert!(!text.contains("PRIVATE-PAYLOAD"), "{text}");
+    assert!(text.contains("no label carried"), "{text}");
+}
+
+#[test]
+fn start_death_and_endpoint_refusal_stay_different_facts() {
+    let death = render(
+        Some(75),
+        &json!({"event":"lost"}),
+        &[
+            accepted(),
+            json!({"event":"session-peer-gone","detail":null}),
+        ],
+    )
+    .text;
+    assert!(
+        death.contains("transport death, not an endpoint refusal"),
+        "{death}"
+    );
+    assert!(death.contains("session-peer-gone"), "{death}");
+    assert!(!death.contains("error code"), "{death}");
+    let refused = render(
+        Some(0),
+        &ended_after_rejection(),
+        &[json!({"event":"session-failed","detail":"session-rejected--32012"})],
+    )
+    .text;
+    assert!(
+        refused.contains("session-failed(session-rejected--32012)"),
+        "{refused}"
+    );
+    assert!(
+        refused.contains(
+            "error code -32012 (SESSION_UNAVAILABLE); this is its refusal, not transport death"
+        ),
+        "{refused}"
+    );
+    assert!(!refused.contains("connection ended"), "{refused}");
+    // Other labels are shown as labels, without an invented meaning.
+    let other = render(
+        Some(0),
+        &ended_after_rejection(),
+        &[
+            json!({"event":"session-failed","detail":"session-protocol-violation"}),
+            json!({"event":"resident-start-refused","detail":"resident-start-refused"}),
+        ],
+    )
+    .text;
+    assert!(
+        other.contains("label session-protocol-violation; no further meaning is defined here"),
+        "{other}"
+    );
+    assert!(
+        other.contains("refused before a session was established; the stage carries no cause"),
+        "{other}"
+    );
+    for text in [&death, &refused, &other] {
+        assert!(text.contains("it grants no retry"), "{text}");
+    }
+}
+
+#[test]
+fn an_ack_stage_is_consumption_only_and_never_an_end() {
+    let text = render(
+        Some(75),
+        &json!({"event":"lost"}),
+        &[accepted(), json!({"event":"ack","message_id":"PRIVATE-ID","meaning":"consumption, not processing"})],
+    )
+    .text;
+    assert!(
+        text.contains("ack(consumption, not processing or end)"),
+        "{text}"
+    );
+    assert!(!text.contains("end("), "{text}");
+    assert!(!text.contains("PRIVATE-ID"), "{text}");
+}
+
+#[test]
+fn many_relayed_stages_are_counted_and_the_last_ones_stay_visible() {
+    let mut stages = vec![accepted()];
+    stages.extend((0..30).map(|_| rejected()));
+    stages.extend((0..100).map(|_| json!({"event":"ack"})));
+    stages.push(json!({"event":"end","status":"signal:15","namespace":{"drained":true}}));
+    let text = render(Some(0), &ended_after_rejection(), &stages).text;
+    assert_eq!(
+        text.matches("Input rejection relayed by the requester")
+            .count(),
+        8,
+        "{text}"
+    );
+    assert!(
+        text.contains(
+            "22 further rejection or start-failure stages were relayed and are not shown."
+        ),
+        "{text}"
+    );
+    assert!(text.contains("stages not shown]"), "{text}");
+    assert!(
+        text.contains("-> end(signal:15, namespace drained)"),
+        "{text}"
+    );
+    assert!(text.starts_with("Explorer child-3"), "{text}");
+    assert!(text.len() < 32 * 1024, "{}", text.len());
+}
