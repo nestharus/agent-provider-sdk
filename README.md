@@ -690,6 +690,23 @@ provider bridge. Descendant discovery follows parent relationships and therefore
 continues across child-created process groups, including native terminal, LSP,
 and MCP children.
 
+## Verification
+
+CI runs `cargo test --workspace --locked --no-fail-fast` so a failing test
+target does not mask the remaining targets. Formatting, tests and all-target
+Clippy each retain their failure status and run after earlier check failures
+when Rust setup succeeds and the job has not been cancelled.
+
+The Linux `proc_view` target independently attempts the ordinary matching view,
+an inherited proc mount in a new PID namespace, and a private matching proc
+mount. A setup failure remains red and explicitly reports that product assertions
+were not executed; it is not a successful product refusal or no-effect check.
+After entry, each control reports completion only after its capture, effect-gate
+and marker assertions pass. Namespace controls require permission to create a
+user/PID namespace and, for the private control, mount proc. CI records read-only
+runner settings to help investigate unavailable setup; those settings alone do
+not establish the cause or a product pass. CI does not change namespace policy.
+
 ## Related repositories
 
 - `agent-runner` — host, routing, lifecycle, and provider registry
