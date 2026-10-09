@@ -79,7 +79,7 @@ fn main() {
         Some("--resident") => std::process::exit(serve(&args[2])),
         _ => {}
     }
-    let tests: [(&str, fn()); 59] = [
+    let tests: [(&str, fn()); 60] = [
         (
             "live_exec_failure_allows_fresh_start",
             live_exec_failure_allows_fresh_start,
@@ -151,6 +151,10 @@ fn main() {
         (
             "complete_replay_error_with_known_identity_continues",
             complete_replay_error_with_known_identity_continues,
+        ),
+        (
+            "complete_replay_keeps_a_preexisting_live_identity_block",
+            complete_replay_keeps_a_preexisting_live_identity_block,
         ),
         (
             "unobserved_native_identity_blocks_recovery",
@@ -1471,6 +1475,13 @@ fn recovery_precedes_current_adapter_admission() {
     std::fs::create_dir(&marks).unwrap();
     let req = first.prompt(&session, &format!("hang {}", marks.display()), Some("lost"));
     let id = message_id(&first.response(req));
+    // Recovery may continue the session only if the provider observed its
+    // native identity before the loss; `descendant.pid` shows only that the
+    // native wrote SESSION into its pipe.
+    first.update("waiting after session marker", |u| {
+        u["sessionUpdate"] == json!("agent_message")
+    });
+    assert_session_journaled(&fixture, &session, &id);
     let descendant = wait_for(&marks.join("descendant.pid"));
     first.child.kill().unwrap();
     first.child.wait().unwrap();
@@ -1478,21 +1489,33 @@ fn recovery_precedes_current_adapter_admission() {
     std::fs::write(fixture.state().join("refuse-current-policy"), "changed").unwrap();
     let mut next = fixture.start();
     next.call("initialize", json!({"protocolVersion":2}));
-    assert_eq!(
-        next.call(
-            "session/resume",
-            json!({"sessionId":session,"cwd":fixture.cwd()})
-        )["result"],
-        json!({})
+    let resumed = next.call(
+        "session/resume",
+        json!({"sessionId":session,"cwd":fixture.cwd()}),
     );
+    assert_eq!(resumed["result"], json!({}), "{resumed}");
     assert_dies(descendant);
     let duplicate = next.prompt(&session, "changed bytes", Some("lost"));
     assert_eq!(message_id(&next.response(duplicate)), id);
+    let idle = next.idle_for(&id);
     assert_eq!(
-        next.idle_for(&id)["_meta"]["oulipoly.ai/nativeTurn"]["custody"],
-        json!("reconciled")
+        idle["_meta"]["oulipoly.ai/nativeTurn"]["custody"],
+        json!("reconciled"),
+        "{idle}"
     );
     assert_eq!(fixture.runs(), 1);
+}
+
+/// The provider has journaled the native SESSION marker for `id`. The fake
+/// emits CONSUMED, SESSION, then a TEXT line, and the lifecycle journals each
+/// output line before delivering it, so an agent message that follows SESSION
+/// is delivered only after the marker is in the journal that recovery reads.
+fn assert_session_journaled(fixture: &Fixture, session: &str, id: &str) {
+    let journal = std::fs::read_to_string(bounds_journal(fixture, session, id)).unwrap();
+    assert!(
+        journal.contains(resident::PROVIDER_SESSION_MARKER),
+        "SESSION marker not journaled before the provider was lost: {journal}"
+    );
 }
 
 // Each actor is task-owned; this guard also closes it if a red assertion fails.
@@ -2208,6 +2231,15 @@ fn sdk_host_resume_after_loss_reports_reconciliation_and_never_reruns() {
     let turn = host::send_turn(&mut client, &session, &mut message)
         .turn
         .unwrap();
+    // The loss must follow the provider's observation of the native session:
+    // `descendant.pid` shows only that the native wrote SESSION into its pipe,
+    // while the agent message after it is delivered once the marker is journaled.
+    while !agent_text(&client, &turn.message_id).contains("waiting") {
+        client
+            .receive_event()
+            .unwrap_or_else(|error| panic!("waiting after session marker: {error:?}"));
+    }
+    assert_session_journaled(&fixture, &session.native.session_id, &turn.message_id);
     let descendant = wait_for(&marks.join("descendant.pid"));
     // Provider loss: no settlement by the lost process.
     let mut lost = client.into_transport();
@@ -2223,7 +2255,7 @@ fn sdk_host_resume_after_loss_reports_reconciliation_and_never_reruns() {
             cwd: fixture.cwd(),
         },
     )
-    .unwrap();
+    .unwrap_or_else(|refusal| panic!("resume after loss refused: {refusal:?}"));
     assert!(resumed.resumed);
     assert_eq!(resumed.binding(), &Binding::Unbound, "never inherited");
     assert_dies(descendant);
@@ -2240,9 +2272,14 @@ fn sdk_host_resume_after_loss_reports_reconciliation_and_never_reruns() {
     let end = host::await_turn_end(&mut client, &delivery.turn.unwrap()).unwrap();
     assert_eq!(
         end.stop_reason.as_deref(),
-        Some("_oulipoly_reconciliation_required")
+        Some("_oulipoly_reconciliation_required"),
+        "{end:?}"
     );
-    assert_eq!(end.native_turn.unwrap().custody, NativeCustody::Reconciled);
+    assert_eq!(
+        end.native_turn.as_ref().map(|native| &native.custody),
+        Some(&NativeCustody::Reconciled),
+        "{end:?}"
+    );
     assert_eq!(fixture.runs(), 1, "the interrupted input never ran again");
     assert!(client.into_transport().end().success());
 }
@@ -3116,6 +3153,9 @@ fn complete_replay_missing_journal_without_identity_blocks_recovery() {
 }
 
 // The same replay error is not an identity loss when identity was observed.
+// This keeps every record the live pass wrote: a live pass that wrongly blocked
+// this known-identity failure would leave its flag and stamp for the resume
+// below to find, and the session would stay unavailable with no clearing policy.
 fn complete_replay_error_with_known_identity_continues() {
     let fixture = Fixture::new();
     let mut first = fixture.start();
@@ -3126,7 +3166,15 @@ fn complete_replay_error_with_known_identity_continues() {
     let dir = bounds_dir(&fixture, &session);
     let native = bounds_read(&dir.join("session.json"))["native_session_id"].clone();
     assert!(native.is_string());
-    let id = complete_without_identity(&fixture, &mut first, &session);
+    let id = lagging_fail_turn(&fixture, &mut first, &session);
+    assert!(
+        bounds_read(&dir.join("session.json"))["native_session_uncertain"].is_null(),
+        "the live pass blocked a failure whose identity is known"
+    );
+    assert!(
+        bounds_read(&bounds_input(&fixture, &session, &id))["native_session_uncertain"].is_null(),
+        "the live pass stamped a failure whose identity is known"
+    );
     std::fs::write(fixture.state().join("refuse-current-policy"), "changed").unwrap();
     let (mut second, resumed) = bounds_resume(&fixture, &session);
     assert_eq!(resumed["result"], json!({}), "{resumed}");
@@ -3151,6 +3199,92 @@ fn complete_replay_error_with_known_identity_continues() {
     second.idle_for(&next);
     assert_eq!(fixture.runs(), 3, "seed, completed fail and later turn");
     assert!(second.end().success());
+}
+
+// Recovery has no clearing policy: an identity block the live pass already
+// recorded in `session.json` and on its input must still hold after recovery
+// replays that input's completed launch, or the next prompt would start a
+// native turn on an identity nobody observed. This is the counterpart of the
+// controls above, which remove those live records so that recovery alone must
+// derive the block; here they are kept and recovery must not discard them.
+fn complete_replay_keeps_a_preexisting_live_identity_block() {
+    let fixture = Fixture::new();
+    let mut first = fixture.start();
+    let session = first.open(&fixture.cwd());
+    let dir = bounds_dir(&fixture, &session);
+    let id = lagging_fail_turn(&fixture, &mut first, &session);
+    let input_path = bounds_input(&fixture, &session, &id);
+    assert!(
+        bounds_read(&dir.join("session.json"))["native_session_uncertain"].is_string(),
+        "the live pass recorded the block in the session record"
+    );
+    assert!(
+        bounds_read(&input_path)["native_session_uncertain"].is_string(),
+        "the live pass stamped the block on its input"
+    );
+    let journal = bounds_journal(&fixture, &session, &id);
+    let journal_bytes = std::fs::read(&journal).unwrap();
+    let launch_bytes = std::fs::read(journal.with_extension("json")).unwrap();
+    let (mut second, resumed) = bounds_resume(&fixture, &session);
+    assert_identity_uncertain(&resumed);
+    let duplicate = second.prompt(&session, "ignored", Some("complete"));
+    assert_eq!(message_id(&second.response(duplicate)), id);
+    let idle = second.idle_for(&id);
+    assert_eq!(idle["stopReason"], json!("_oulipoly_native_failed"));
+    assert_eq!(
+        idle["_meta"][resident::NATIVE_TURN_META]["custody"],
+        json!("complete")
+    );
+    let next = second.prompt(&session, "whoami", None);
+    assert_identity_uncertain(&second.response(next));
+    assert!(bounds_read(&dir.join("session.json"))["native_session_uncertain"].is_string());
+    assert!(bounds_read(&input_path)["native_session_uncertain"].is_string());
+    assert_eq!(std::fs::read(&journal).unwrap(), journal_bytes);
+    assert_eq!(
+        std::fs::read(journal.with_extension("json")).unwrap(),
+        launch_bytes
+    );
+    assert_eq!(
+        fixture.runs(),
+        1,
+        "recovery and the blocked input start nothing"
+    );
+    assert!(second.end().success());
+    let (mut reopened, response) = bounds_resume(&fixture, &session);
+    assert_identity_uncertain(&response);
+    let next = reopened.prompt(&session, "whoami", None);
+    assert_identity_uncertain(&reopened.response(next));
+    assert_eq!(fixture.runs(), 1);
+    assert!(reopened.end().success());
+}
+
+// Runs a completed native failure that supplied no SESSION, ends the provider
+// and issues the lagging input snapshot (launch complete, input end lost). It
+// leaves every record the live pass wrote: for a failure with no observed
+// identity those are the session record's flag and the input's stamp, for a
+// known identity there are none. `complete_without_identity` removes them when
+// recovery alone must supply the block.
+fn lagging_fail_turn(fixture: &Fixture, first: &mut Client, session: &str) -> String {
+    let request = first.prompt(session, "fail", Some("complete"));
+    let id = message_id(&first.response(request));
+    assert_eq!(
+        first.idle_for(&id)["stopReason"],
+        json!("_oulipoly_native_failed")
+    );
+    let journal = bounds_journal(fixture, session, &id);
+    assert_eq!(
+        bounds_read(&journal.with_extension("json"))["phase"],
+        json!("complete")
+    );
+    first.child.kill().unwrap();
+    first.child.wait().unwrap();
+    let input_path = bounds_input(fixture, session, &id);
+    let mut input = bounds_read(&input_path);
+    input["phase"] = json!("inserted");
+    input["native_turn"] = Value::Null;
+    input.as_object_mut().unwrap().remove("ended_unix_ms");
+    bounds_write(&input_path, &input);
+    id
 }
 
 // Runs a completed native failure that supplied no SESSION, ends the provider
