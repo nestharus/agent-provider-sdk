@@ -1,0 +1,1045 @@
+{
+  "note": "Synthetic paired specimens, not native execution. Edits apply in order to the named valid target; stream edits target valid.launch_events. remove deletes the named object member or array element; otherwise value replaces/adds it. invalid_admission and invalid_streams fail existing admission; semantic_limits intentionally pass the generic stream validator. Selection is paired, not a schema rejection. Page body digests use compact JSON; canonical text digest uses hello. The completed one-turn page is not a scan-progress page; its flags respect the known SDK producer/host reader relationship, not a full host-processing oracle. Source-read counts are synthetic, not measured.",
+  "valid": {
+    "describe_request": {
+      "contract": "oulipoly.provider/v1",
+      "request_id": "describe-host-extensions",
+      "provider_instance_id": "fixture-account",
+      "host": {
+        "app": "contract-fixture",
+        "env": {
+          "OULIPOLY_HOST_PROMPT_ACCEPTANCE_V1": "1",
+          "OULIPOLY_HOST_LAUNCH_OUTPUT_V1": "1",
+          "OULIPOLY_HOST_SESSION_TURN_PAGES_V1": "1"
+        }
+      },
+      "params": {}
+    },
+    "describe_response": {
+      "contract": "oulipoly.provider/v1",
+      "request_id": "describe-host-extensions",
+      "ok": true,
+      "result": {
+        "provider_id": "fixture",
+        "display_name": "Contract fixture",
+        "contract_versions": [
+          "oulipoly.provider/v1"
+        ],
+        "preferred_contract": "oulipoly.provider/v1",
+        "capabilities": {
+          "launch": true,
+          "policy": false,
+          "quota": false,
+          "session": true,
+          "terminal": false,
+          "rotation": false,
+          "discovery": false,
+          "settings": false,
+          "setup_brain": false,
+          "setup": false,
+          "migration": false,
+          "prompt_acceptance_v1": true,
+          "launch_output_v1": true,
+          "session_turn_pages_v1": true,
+          "future_extension": {
+            "opaque": true
+          }
+        }
+      }
+    },
+    "launch_request": {
+      "contract": "oulipoly.provider/v1",
+      "request_id": "launch-host-extensions",
+      "provider_instance_id": "fixture-account",
+      "host": {
+        "app": "contract-fixture",
+        "env": {
+          "OULIPOLY_HOST_PROMPT_ACCEPTANCE_V1": "1",
+          "OULIPOLY_HOST_LAUNCH_OUTPUT_V1": "1",
+          "OULIPOLY_HOST_SESSION_TURN_PAGES_V1": "1"
+        }
+      },
+      "params": {
+        "settings_id": "fixture",
+        "mode": "headless",
+        "model": {
+          "name": "fixture-model",
+          "inputs": {
+            "prompt": "hello",
+            "named": {}
+          },
+          "provider_args": []
+        },
+        "argv": [
+          "fixture-native"
+        ],
+        "working_directory": "/fixture/project",
+        "stdin": {
+          "encoding": "utf8",
+          "data": "hello"
+        },
+        "session": {
+          "known_provider_session_id": "fixture-session",
+          "start_mode": "resume"
+        },
+        "prompt_acceptance": {
+          "protocol": "oulipoly.prompt_acceptance/v1",
+          "prompt_sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+          "delivery_nonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "output_delivery": {
+          "protocol": "oulipoly.launch_output/v1"
+        }
+      }
+    },
+    "launch_events": [
+      {
+        "contract": "oulipoly.provider/v1",
+        "request_id": "launch-host-extensions",
+        "seq": 1,
+        "time_unix_ms": 1800000000001,
+        "kind": "marker",
+        "name": "oulipoly.prompt_accepted/v1",
+        "value": {
+          "protocol": "oulipoly.prompt_acceptance/v1",
+          "provider_session_id": "fixture-session",
+          "prompt_sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+          "delivery_nonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      {
+        "contract": "oulipoly.provider/v1",
+        "request_id": "launch-host-extensions",
+        "seq": 2,
+        "time_unix_ms": 1800000000002,
+        "kind": "stdout",
+        "data_base64": "SGVs"
+      },
+      {
+        "contract": "oulipoly.provider/v1",
+        "request_id": "launch-host-extensions",
+        "seq": 3,
+        "time_unix_ms": 1800000000003,
+        "kind": "stderr",
+        "data_base64": "V2FybmluZwo="
+      },
+      {
+        "contract": "oulipoly.provider/v1",
+        "request_id": "launch-host-extensions",
+        "seq": 4,
+        "time_unix_ms": 1800000000004,
+        "kind": "stdout",
+        "data_base64": "bG8K"
+      },
+      {
+        "contract": "oulipoly.provider/v1",
+        "request_id": "launch-host-extensions",
+        "seq": 5,
+        "time_unix_ms": 1800000000005,
+        "kind": "marker",
+        "name": "oulipoly.launch_output_complete/v1",
+        "value": {
+          "protocol": "oulipoly.launch_output/v1",
+          "stdout": {
+            "bytes": 6,
+            "sha256": "66a045b452102c59d840ec097d59d9467e13a3f34f6494e539ffd32c1bb35f18"
+          },
+          "stderr": {
+            "bytes": 8,
+            "sha256": "2f2ef88bb0cbd69e4c34c9109cc0f73e7ef3c95798d8b3a09e9dd0819166a06c"
+          },
+          "data_event_count": 3
+        }
+      },
+      {
+        "contract": "oulipoly.provider/v1",
+        "request_id": "launch-host-extensions",
+        "seq": 6,
+        "time_unix_ms": 1800000000006,
+        "kind": "exit",
+        "status": {
+          "kind": "exited",
+          "code": 0
+        },
+        "terminal_signal": {
+          "kind": "clean_exit",
+          "observed_at_unix_ms": 1800000000006
+        },
+        "session": {
+          "provider_session_id": "fixture-session"
+        }
+      }
+    ],
+    "pages_request": {
+      "contract": "oulipoly.provider/v1",
+      "request_id": "pages-host-extensions",
+      "provider_instance_id": "fixture-account",
+      "host": {
+        "app": "contract-fixture",
+        "env": {
+          "OULIPOLY_HOST_PROMPT_ACCEPTANCE_V1": "1",
+          "OULIPOLY_HOST_LAUNCH_OUTPUT_V1": "1",
+          "OULIPOLY_HOST_SESSION_TURN_PAGES_V1": "1"
+        }
+      },
+      "params": {
+        "settings_id": "fixture",
+        "session_id": "fixture-session",
+        "read_protocol": "oulipoly.session_turn_pages/v1",
+        "turn_projection": "canonical_ingest",
+        "start_mode": "beginning",
+        "after_token": null,
+        "snapshot_id": null,
+        "page_token": null,
+        "max_turns": 10,
+        "max_response_bytes": 65536,
+        "max_source_bytes": 1048576,
+        "max_inline_body_bytes": 4096
+      }
+    },
+    "pages_response": {
+      "contract": "oulipoly.provider/v1",
+      "request_id": "pages-host-extensions",
+      "ok": true,
+      "result": {
+        "read_protocol": "oulipoly.session_turn_pages/v1",
+        "provider_instance_id": "fixture-account",
+        "settings_id": "fixture",
+        "session_id": "fixture-session",
+        "turn_projection": "canonical_ingest",
+        "snapshot_id": "fixture-snapshot",
+        "page_index": 0,
+        "page_start_sequence": 0,
+        "turns": [
+          {
+            "session_id": "fixture-session",
+            "turn_id": "fixture-user-turn",
+            "snapshot_sequence": 0,
+            "timestamp": "2026-10-09T00:00:00Z",
+            "role": "user",
+            "parent_turn_id": null,
+            "is_sidechain": false,
+            "is_compaction_boundary": false,
+            "body_state": "inline",
+            "body": [
+              {
+                "type": "text",
+                "text": "hello"
+              }
+            ],
+            "body_bytes": 32,
+            "body_sha256": "0f0fe295ef4aae213788b9539dad9a4ffc34333e769f5e2aa33a66c30e7353ea",
+            "canonical_text_sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+          }
+        ],
+        "page_turn_count": 1,
+        "source_bytes_examined": 120,
+        "scan_progress": false,
+        "snapshot_complete": true,
+        "next_page_token": null,
+        "resume_token": "fixture-resume",
+        "source_final": true,
+        "warnings": []
+      }
+    }
+  },
+  "selection": [
+    {
+      "extension": "prompt_acceptance",
+      "name": "offered_true",
+      "host_env": {
+        "OULIPOLY_HOST_PROMPT_ACCEPTANCE_V1": "1"
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "prompt_acceptance_v1": true
+      },
+      "expect_advertised": true,
+      "expect_selected": true
+    },
+    {
+      "extension": "prompt_acceptance",
+      "name": "absent_env",
+      "host_env": null,
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "prompt_acceptance_v1": true
+      },
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "prompt_acceptance",
+      "name": "no_offer",
+      "host_env": {},
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {},
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "prompt_acceptance",
+      "name": "wrong_value",
+      "host_env": {
+        "OULIPOLY_HOST_PROMPT_ACCEPTANCE_V1": "true"
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "prompt_acceptance_v1": true
+      },
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "prompt_acceptance",
+      "name": "whitespace_is_not_opt_in",
+      "host_env": {
+        "OULIPOLY_HOST_PROMPT_ACCEPTANCE_V1": "1 "
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "prompt_acceptance_v1": true
+      },
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "prompt_acceptance",
+      "name": "offered_false",
+      "host_env": {
+        "OULIPOLY_HOST_PROMPT_ACCEPTANCE_V1": "1"
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "prompt_acceptance_v1": false
+      },
+      "expect_advertised": true,
+      "expect_selected": false
+    },
+    {
+      "extension": "prompt_acceptance",
+      "name": "offered_absent",
+      "host_env": {
+        "OULIPOLY_HOST_PROMPT_ACCEPTANCE_V1": "1"
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {},
+      "expect_advertised": true,
+      "expect_selected": false
+    },
+    {
+      "extension": "prompt_acceptance",
+      "name": "unoffered_advertisement",
+      "host_env": {},
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "prompt_acceptance_v1": true
+      },
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "prompt_acceptance",
+      "name": "unsupported",
+      "host_env": {
+        "OULIPOLY_HOST_PROMPT_ACCEPTANCE_V1": "1"
+      },
+      "provider_supported": [],
+      "capabilities": {},
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "launch_output",
+      "name": "offered_true",
+      "host_env": {
+        "OULIPOLY_HOST_LAUNCH_OUTPUT_V1": "1"
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "launch_output_v1": true
+      },
+      "expect_advertised": true,
+      "expect_selected": true
+    },
+    {
+      "extension": "launch_output",
+      "name": "absent_env",
+      "host_env": null,
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "launch_output_v1": true
+      },
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "launch_output",
+      "name": "no_offer",
+      "host_env": {},
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {},
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "launch_output",
+      "name": "wrong_value",
+      "host_env": {
+        "OULIPOLY_HOST_LAUNCH_OUTPUT_V1": "true"
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "launch_output_v1": true
+      },
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "launch_output",
+      "name": "whitespace_is_not_opt_in",
+      "host_env": {
+        "OULIPOLY_HOST_LAUNCH_OUTPUT_V1": "1 "
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "launch_output_v1": true
+      },
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "launch_output",
+      "name": "offered_false",
+      "host_env": {
+        "OULIPOLY_HOST_LAUNCH_OUTPUT_V1": "1"
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "launch_output_v1": false
+      },
+      "expect_advertised": true,
+      "expect_selected": false
+    },
+    {
+      "extension": "launch_output",
+      "name": "offered_absent",
+      "host_env": {
+        "OULIPOLY_HOST_LAUNCH_OUTPUT_V1": "1"
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {},
+      "expect_advertised": true,
+      "expect_selected": false
+    },
+    {
+      "extension": "launch_output",
+      "name": "unoffered_advertisement",
+      "host_env": {},
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "launch_output_v1": true
+      },
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "launch_output",
+      "name": "unsupported",
+      "host_env": {
+        "OULIPOLY_HOST_LAUNCH_OUTPUT_V1": "1"
+      },
+      "provider_supported": [],
+      "capabilities": {},
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "session_turn_pages",
+      "name": "offered_true",
+      "host_env": {
+        "OULIPOLY_HOST_SESSION_TURN_PAGES_V1": "1"
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "session_turn_pages_v1": true
+      },
+      "expect_advertised": true,
+      "expect_selected": true
+    },
+    {
+      "extension": "session_turn_pages",
+      "name": "absent_env",
+      "host_env": null,
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "session_turn_pages_v1": true
+      },
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "session_turn_pages",
+      "name": "no_offer",
+      "host_env": {},
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {},
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "session_turn_pages",
+      "name": "wrong_value",
+      "host_env": {
+        "OULIPOLY_HOST_SESSION_TURN_PAGES_V1": "true"
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "session_turn_pages_v1": true
+      },
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "session_turn_pages",
+      "name": "whitespace_is_not_opt_in",
+      "host_env": {
+        "OULIPOLY_HOST_SESSION_TURN_PAGES_V1": "1 "
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "session_turn_pages_v1": true
+      },
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "session_turn_pages",
+      "name": "offered_false",
+      "host_env": {
+        "OULIPOLY_HOST_SESSION_TURN_PAGES_V1": "1"
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "session_turn_pages_v1": false
+      },
+      "expect_advertised": true,
+      "expect_selected": false
+    },
+    {
+      "extension": "session_turn_pages",
+      "name": "offered_absent",
+      "host_env": {
+        "OULIPOLY_HOST_SESSION_TURN_PAGES_V1": "1"
+      },
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {},
+      "expect_advertised": true,
+      "expect_selected": false
+    },
+    {
+      "extension": "session_turn_pages",
+      "name": "unoffered_advertisement",
+      "host_env": {},
+      "provider_supported": [
+        1
+      ],
+      "capabilities": {
+        "session_turn_pages_v1": true
+      },
+      "expect_advertised": false,
+      "expect_selected": false
+    },
+    {
+      "extension": "session_turn_pages",
+      "name": "unsupported",
+      "host_env": {
+        "OULIPOLY_HOST_SESSION_TURN_PAGES_V1": "1"
+      },
+      "provider_supported": [],
+      "capabilities": {},
+      "expect_advertised": false,
+      "expect_selected": false
+    }
+  ],
+  "invalid_admission": [
+    {
+      "name": "nonboolean_prompt_acceptance_v1",
+      "target": "/describe_response",
+      "edits": [
+        {
+          "path": "/result/capabilities/prompt_acceptance_v1",
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "name": "nonboolean_launch_output_v1",
+      "target": "/describe_response",
+      "edits": [
+        {
+          "path": "/result/capabilities/launch_output_v1",
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "name": "nonboolean_session_turn_pages_v1",
+      "target": "/describe_response",
+      "edits": [
+        {
+          "path": "/result/capabilities/session_turn_pages_v1",
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "name": "wrong_prompt_protocol",
+      "target": "/launch_request",
+      "edits": [
+        {
+          "path": "/params/prompt_acceptance/protocol",
+          "value": "oulipoly.prompt_acceptance/v0"
+        }
+      ]
+    },
+    {
+      "name": "malformed_prompt_digest",
+      "target": "/launch_request",
+      "edits": [
+        {
+          "path": "/params/prompt_acceptance/prompt_sha256",
+          "value": "not-a-digest"
+        }
+      ]
+    },
+    {
+      "name": "missing_prompt_digest",
+      "target": "/launch_request",
+      "edits": [
+        {
+          "path": "/params/prompt_acceptance/prompt_sha256",
+          "remove": true
+        }
+      ]
+    },
+    {
+      "name": "extra_output_request_field",
+      "target": "/launch_request",
+      "edits": [
+        {
+          "path": "/params/output_delivery/extra",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "wrong_output_protocol",
+      "target": "/launch_request",
+      "edits": [
+        {
+          "path": "/params/output_delivery/protocol",
+          "value": "oulipoly.launch_output/v0"
+        }
+      ]
+    },
+    {
+      "name": "missing_accepted_session",
+      "target": "/launch_events/0",
+      "edits": [
+        {
+          "path": "/value/provider_session_id",
+          "remove": true
+        }
+      ]
+    },
+    {
+      "name": "malformed_accepted_digest",
+      "target": "/launch_events/0",
+      "edits": [
+        {
+          "path": "/value/prompt_sha256",
+          "value": "ABC"
+        }
+      ]
+    },
+    {
+      "name": "extra_accepted_field",
+      "target": "/launch_events/0",
+      "edits": [
+        {
+          "path": "/value/extra",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "missing_output_count",
+      "target": "/launch_events/4",
+      "edits": [
+        {
+          "path": "/value/data_event_count",
+          "remove": true
+        }
+      ]
+    },
+    {
+      "name": "negative_output_bytes",
+      "target": "/launch_events/4",
+      "edits": [
+        {
+          "path": "/value/stdout/bytes",
+          "value": -1
+        }
+      ]
+    },
+    {
+      "name": "malformed_output_digest",
+      "target": "/launch_events/4",
+      "edits": [
+        {
+          "path": "/value/stderr/sha256",
+          "value": "bad"
+        }
+      ]
+    },
+    {
+      "name": "extra_output_channel_field",
+      "target": "/launch_events/4",
+      "edits": [
+        {
+          "path": "/value/stdout/extra",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "wrong_page_protocol",
+      "target": "/pages_request",
+      "edits": [
+        {
+          "path": "/params/read_protocol",
+          "value": "oulipoly.session_turn_pages/v0"
+        }
+      ]
+    },
+    {
+      "name": "missing_page_token",
+      "target": "/pages_request",
+      "edits": [
+        {
+          "path": "/params/page_token",
+          "remove": true
+        }
+      ]
+    },
+    {
+      "name": "invalid_page_start_relation",
+      "target": "/pages_request",
+      "edits": [
+        {
+          "path": "/params/start_mode",
+          "value": "continuation"
+        }
+      ]
+    },
+    {
+      "name": "page_budget_out_of_bounds",
+      "target": "/pages_request",
+      "edits": [
+        {
+          "path": "/params/max_turns",
+          "value": 257
+        }
+      ]
+    },
+    {
+      "name": "wrong_page_result_protocol",
+      "target": "/pages_response",
+      "edits": [
+        {
+          "path": "/result/read_protocol",
+          "value": "oulipoly.session_turn_pages/v0"
+        }
+      ]
+    },
+    {
+      "name": "extra_page_result_field",
+      "target": "/pages_response",
+      "edits": [
+        {
+          "path": "/result/extra",
+          "value": true
+        }
+      ]
+    },
+    {
+      "name": "wrong_accepted_protocol",
+      "target": "/launch_events/0",
+      "edits": [
+        {
+          "path": "/value/protocol",
+          "value": "oulipoly.prompt_acceptance/v0"
+        }
+      ]
+    },
+    {
+      "name": "wrong_output_marker_protocol",
+      "target": "/launch_events/4",
+      "edits": [
+        {
+          "path": "/value/protocol",
+          "value": "oulipoly.launch_output/v0"
+        }
+      ]
+    }
+  ],
+  "invalid_streams": [
+    {
+      "name": "wrong_request_id",
+      "edits": [
+        {
+          "path": "/0/request_id",
+          "value": "other"
+        }
+      ],
+      "expect": "request_id"
+    },
+    {
+      "name": "skipped_sequence",
+      "edits": [
+        {
+          "path": "/1/seq",
+          "value": 9
+        }
+      ],
+      "expect": "sequence"
+    },
+    {
+      "name": "malformed_reserved_value",
+      "edits": [
+        {
+          "path": "/4/value/stdout/sha256",
+          "value": "bad"
+        }
+      ],
+      "expect": "schema"
+    },
+    {
+      "name": "invalid_base64",
+      "edits": [
+        {
+          "path": "/1/data_base64",
+          "value": "***"
+        }
+      ],
+      "expect": "base64"
+    },
+    {
+      "name": "missing_final_exit",
+      "edits": [
+        {
+          "path": "/5",
+          "remove": true
+        }
+      ],
+      "expect": "missing_exit"
+    },
+    {
+      "name": "marker_after_exit",
+      "edits": [
+        {
+          "path": "/4",
+          "value": {
+            "contract": "oulipoly.provider/v1",
+            "request_id": "launch-host-extensions",
+            "seq": 6,
+            "time_unix_ms": 1800000000006,
+            "kind": "exit",
+            "status": {
+              "kind": "exited",
+              "code": 0
+            },
+            "terminal_signal": {
+              "kind": "clean_exit",
+              "observed_at_unix_ms": 1800000000006
+            },
+            "session": {
+              "provider_session_id": "fixture-session"
+            }
+          }
+        },
+        {
+          "path": "/4/seq",
+          "value": 5
+        },
+        {
+          "path": "/5",
+          "value": {
+            "contract": "oulipoly.provider/v1",
+            "request_id": "launch-host-extensions",
+            "seq": 5,
+            "time_unix_ms": 1800000000005,
+            "kind": "marker",
+            "name": "oulipoly.launch_output_complete/v1",
+            "value": {
+              "protocol": "oulipoly.launch_output/v1",
+              "stdout": {
+                "bytes": 6,
+                "sha256": "66a045b452102c59d840ec097d59d9467e13a3f34f6494e539ffd32c1bb35f18"
+              },
+              "stderr": {
+                "bytes": 8,
+                "sha256": "2f2ef88bb0cbd69e4c34c9109cc0f73e7ef3c95798d8b3a09e9dd0819166a06c"
+              },
+              "data_event_count": 3
+            }
+          }
+        },
+        {
+          "path": "/5/seq",
+          "value": 6
+        }
+      ],
+      "expect": "after_exit"
+    }
+  ],
+  "semantic_limits": [
+    {
+      "name": "shape_valid_false_accounting",
+      "edits": [
+        {
+          "path": "/4/value/stdout/sha256",
+          "value": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        {
+          "path": "/4/value/stdout/bytes",
+          "value": 100
+        },
+        {
+          "path": "/4/value/data_event_count",
+          "value": 99
+        }
+      ]
+    },
+    {
+      "name": "mismatched_attestation",
+      "edits": [
+        {
+          "path": "/0/value/delivery_nonce",
+          "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "path": "/0/value/prompt_sha256",
+          "value": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "premature_completion_marker",
+      "edits": [
+        {
+          "path": "/1",
+          "value": {
+            "contract": "oulipoly.provider/v1",
+            "request_id": "launch-host-extensions",
+            "seq": 5,
+            "time_unix_ms": 1800000000005,
+            "kind": "marker",
+            "name": "oulipoly.launch_output_complete/v1",
+            "value": {
+              "protocol": "oulipoly.launch_output/v1",
+              "stdout": {
+                "bytes": 6,
+                "sha256": "66a045b452102c59d840ec097d59d9467e13a3f34f6494e539ffd32c1bb35f18"
+              },
+              "stderr": {
+                "bytes": 8,
+                "sha256": "2f2ef88bb0cbd69e4c34c9109cc0f73e7ef3c95798d8b3a09e9dd0819166a06c"
+              },
+              "data_event_count": 3
+            }
+          }
+        },
+        {
+          "path": "/1/seq",
+          "value": 2
+        },
+        {
+          "path": "/4",
+          "value": {
+            "contract": "oulipoly.provider/v1",
+            "request_id": "launch-host-extensions",
+            "seq": 2,
+            "time_unix_ms": 1800000000002,
+            "kind": "stdout",
+            "data_base64": "SGVs"
+          }
+        },
+        {
+          "path": "/4/seq",
+          "value": 5
+        }
+      ]
+    },
+    {
+      "name": "missing_completion_marker",
+      "edits": [
+        {
+          "path": "/4/name",
+          "value": "fixture.generic"
+        },
+        {
+          "path": "/4/value",
+          "value": null
+        }
+      ]
+    }
+  ]
+}

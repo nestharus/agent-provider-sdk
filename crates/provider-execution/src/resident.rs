@@ -134,7 +134,8 @@ pub const PROVIDER_SESSION_MARKER: &str = "oulipoly.provider_session";
 /// Launch marker reporting that the native turn consumed its input.
 pub const SUBMITTED_USER_TURN_MARKER: &str = "oulipoly.submitted_user_turn";
 /// Launch marker carrying the launch-output accounting.
-pub const LAUNCH_OUTPUT_COMPLETE_MARKER: &str = "oulipoly.launch_output_complete/v1";
+pub const LAUNCH_OUTPUT_COMPLETE_MARKER: &str =
+    agent_provider_contract::host_extensions::launch_output::MARKER_NAME;
 
 use acp::code::{
     INPUT_NOT_INSERTED, INPUT_UNCERTAIN, INVALID_PARAMS, METHOD_NOT_FOUND, NOT_INITIALIZED,
@@ -1957,6 +1958,51 @@ impl Write for TurnSink<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn common_output_marker_is_retained_but_generic_marker_is_not() {
+        // No resident process/native launch or filesystem effects: exercise the
+        // existing sink's marker recognition only, not accounting enforcement.
+        let shared = SessionShared {
+            id: "fixture-session".into(),
+            dir: PathBuf::new(),
+            cwd: PathBuf::new(),
+            record: Mutex::new(Value::Null),
+            inputs: Mutex::new(SessionInputs::default()),
+            stop: AtomicBool::new(false),
+            cancel_epoch: AtomicU64::new(0),
+            closed: AtomicBool::new(false),
+            lock: Mutex::new(None),
+        };
+        let mut sink = TurnSink {
+            shared: &shared,
+            wire: None,
+            message_id: "fixture-input",
+            key: None,
+            buffer: Vec::new(),
+            consumed: false,
+            consumption_seen: false,
+            record_error: None,
+            held: Vec::new(),
+            exit: None,
+            output: None,
+            markers_only: false,
+        };
+        let summary = json!({
+            "protocol": agent_provider_contract::host_extensions::launch_output::PROTOCOL,
+            "stdout": {"bytes":0,"sha256":crate::encoding::sha256_hex(b"")},
+            "stderr": {"bytes":0,"sha256":crate::encoding::sha256_hex(b"")},
+            "data_event_count":0
+        });
+        sink.event(json!({"kind":"marker","name":"fixture.generic","value":summary}));
+        assert!(sink.output.is_none());
+        sink.event(json!({"kind":"marker",
+            "name":agent_provider_contract::host_extensions::launch_output::MARKER_NAME,
+            "value":summary}));
+        assert_eq!(sink.output.as_ref(), Some(&summary));
+        sink.event(json!({"kind":"marker","name":"fixture.generic","value":null}));
+        assert_eq!(sink.output.as_ref(), Some(&summary));
+    }
 
     #[test]
     fn message_ids_ascend_with_fixed_width() {
