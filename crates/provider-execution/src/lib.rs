@@ -8,7 +8,8 @@
 //! exactly replayable event journal, provider/v1 launch-event framing, and
 //! durable filesystem and encoding helpers. [`lifecycle`] composes them into
 //! the shared one-shot launch lifecycle that adapters plug native behavior
-//! into.
+//! into. [`session_pages`] is the common bounded `session.read_turns` paging
+//! engine; adapters plug native source and turn facts into it.
 //!
 //! Native argv, authentication, account and config roots, model aliases, tool
 //! restrictions, session formats, and native event translation stay in
@@ -45,5 +46,7 @@ pub mod lifecycle;
 pub mod process;
 #[cfg(unix)]
 pub mod resident;
+#[cfg(unix)]
+pub mod session_pages;
 #[cfg(unix)]
 pub mod tool_bridge;

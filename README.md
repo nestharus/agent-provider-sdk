@@ -705,6 +705,92 @@ and the deadline are observed at admission checks and poll turns, not
 preemptively. Drain bounds measure silence rather than total time. Linux-tested
 only; `lifecycle` is compiled on Unix.
 
+### Session paging
+
+`session_pages` is the common bounded `session.read_turns` engine for both
+`oulipoly.session_turn_pages/v1` projections, `canonical_ingest` and
+`user_observation`. An adapter implements `PageAdapter` and supplies native
+facts only: a provider state namespace and default data root, account/store
+resolution, ordered source candidates, the session a source's first record
+claims, its native session-id rules, and the projection of one complete
+newline-framed record into a turn (turn id, timestamp, role, text parts and the
+parent/sidechain/compaction facts) plus `source_final`. `read_turns` returns the
+contract `SessionReadTurnsResult` or a contract `ErrorObject`; the adapter frames
+the response and still decides whether to advertise `session_turn_pages_v1`.
+Constructing this engine advertises nothing.
+
+The engine owns request validation against the v1 schema, bounded scanning
+charged against `max_source_bytes`, retention of one unfinished record below
+8388608 bytes, cursor/snapshot binding (provider, account, settings, session,
+projection, nonce and budgets), response fitting with inline-body omission,
+the delivery-marker strip and body digests, and exact read accounting.
+Canonical cursors and retained prefixes live in one admitted durable pool under
+`<data root>/provider-state/<namespace>/session-pages-v1`, guarded by that
+directory's inode lock; interrupted frames and orphaned temporaries stay charged
+and are recovered rather than collected. Observation cursors are HMAC-signed
+tokens over a hashed binding, reconstructed from native source with no staging
+admission; the signing key is published once under `observation-auth-v1` and a
+missing key never re-initializes authority for an issued token. Every response,
+including adapter-supplied fields, is validated against the v1 result schema
+before it is returned. This establishes structural schema acceptance, not
+Runner's additional RFC 3339, per-page unique-id and byte-bound semantics or
+the truth of adapter-supplied native facts.
+
+The v1 page fields have no "unknown" state. An adapter reports a fact it cannot
+supply as `NativeFact::Unavailable`, and the engine refuses the page with the
+adapter's error rather than writing `false` or `null`. Turn ids are whatever the
+adapter derives; byte offsets used as ids are locations, not proved logical
+identities. Root/key preparation can precede refusal. A `source_final` refusal
+can also follow canonical partial staging: the admitted prefix remains charged
+and reusable, but no cursor is issued.
+
+Continuation and resume re-check the bound source: the same device/inode, a
+length that never shrinks (with an unchanged mtime at equal length), the digest
+of the first record, and the digest of up to 64 bytes ending at the cursor's
+resume point. In both projections, a retained prefix is re-read in full from
+native source and verified before assembly with the suffix; canonical also
+checks the staged copy. That read covers the boundary without reading it twice.
+These checks detect replacement, truncation, a rewritten first record and a
+rewrite that changes or shifts the verified boundary bytes. They do not detect
+a rewrite of complete, already-delivered bytes that leaves the first record and
+those boundary bytes unchanged. This is an accepted residual for the unconsumed
+SDK engine. Actual native-store rewriting/stability and unavailable-fact
+behavior remain to be decided before adapter adoption; qualification and stress
+need induced rewrites with canonical-versus-source oracles. Concurrent source
+mutation during a read is not qualified by these fake controls.
+Canonical verification reads share the source quantum. If the retained prefix
+cannot fit, the request refuses deterministically with
+`session_turn_page_budget_too_small`; if verification leaves no room for new
+bytes, an incomplete snapshot also refuses. A fixed continuation budget can
+stall permanently once a retained prefix consumes its quantum minus identity
+metadata. Canonical can therefore ingest fewer record sizes than observation,
+and can refuse on budget before reaching `session_turn_record_ceiling_exceeded`,
+even at the maximum allowed quantum. A resume from a completed snapshot can
+select larger budgets; a continuation is bound to its original budgets. Fresh
+reads with insufficient budgets can reach the same stall. Actual Runner
+budgets, native record sizes and consumer refusal/recovery meanings must be
+established before adapter adoption; real-session stalls reopen these means.
+
+Observation uses the existing `codex_observation_io_v1` resource declaration.
+Here `forward` means physical nonmetadata native bytes read inside the ordinary
+quantum, including complete-boundary verification, irrespective of position;
+it does not mean cursor progress or turn delivery. This explicitly clarifies
+the reference's written resource envelope and differs from its implementation,
+which counts the window starting at the cursor as forward. Only one retained
+prefix native reread is `reconstruction` outside the observation quantum;
+without a partial, reconstruction is zero. `forward` plus `metadata` stays
+within `max_source_bytes`, reconstruction stays below 8388608, and the three
+sum to `source_bytes_examined`. Repeated native reads count on each call.
+Complete-boundary verification thus leaves up to 64 fewer bytes for new data
+in either projection; insufficient budgets refuse loudly rather than exceed
+the quantum. The declaration's name is existing vocabulary, not a provider
+choice. Adoption by the reference adapter must carry this clarified meaning;
+a positional interpretation by a reader reopens it.
+
+These controls use a fake adapter with known fake facts. They are not native
+format, provider-pair, restart or hardware qualification. Linux-tested only;
+`session_pages` is compiled on Unix.
+
 ## Provider memory harness
 
 `provider-memory` measures a complete Linux process tree using
