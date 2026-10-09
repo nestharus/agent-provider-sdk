@@ -20,10 +20,14 @@
 //! Byte offsets are locations, not proved logical identities. A cursor binds
 //! the source's device/inode, its non-decreasing length, the digest of its first
 //! record and a digest of the bytes just before the cursor's resume point;
-//! continuation and resume re-check them before reading forward. These checks
+//! continuation and resume re-check them before reading forward. A retained
+//! prefix is verified in full against native source in both projections before
+//! assembly; canonical also validates its staged copy. Canonical verification
+//! shares the source quantum and refuses when it cannot fit. These checks
 //! are bounded: they detect replacement, truncation, a rewritten first record and
 //! a rewrite that changes or shifts the verified boundary bytes, not a rewrite of
-//! already-paged bytes that leaves both unchanged. See the README's paging
+//! complete, already-delivered bytes that leaves both unchanged. Concurrent
+//! source mutation is not qualified by the fake controls. See the README's paging
 //! section for the accounting of those verification reads.
 //!
 //! This module advertises no capability and selects no reader authority,
@@ -58,7 +62,10 @@ const MAX_TOKEN_BYTES: usize = 4096;
 // Native bytes immediately before a cursor's resume point that the next
 // continuation or resume re-reads and compares before reading forward.
 const ANCHOR_BYTES: u64 = 64;
-// Existing v1 declaration vocabulary, emitted only with its exact arithmetic:
+// Existing v1 resource declaration: forward is physical nonmetadata native
+// I/O inside the ordinary quantum, including complete-boundary verification,
+// not cursor progress. Only one retained-prefix native reread is reconstruction
+// outside the observation quantum; there is none without a partial:
 // forward + metadata <= max_source_bytes, reconstruction < MAX_RECORD_BYTES,
 // and their sum equals source_bytes_examined. The name is recorded vocabulary
 // debt, not a provider choice.
@@ -503,8 +510,9 @@ impl PageStorage {
     }
 }
 
-/// Every native read of one request. `reconstruction` re-reads bytes an
-/// earlier request already examined; only observation declares it separately.
+/// Every native read of one request. Only observation declares reconstruction
+/// separately for one retained-prefix reread. Complete-boundary verification
+/// is forward I/O inside the ordinary quantum in both projections.
 #[derive(Default)]
 struct ReadAccounting {
     metadata: usize,
@@ -763,15 +771,15 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
     }
 
     // Native bytes `[record_start, state.offset)` before forward reading: the
-    // unfinished record, from staging (canonical) or native source
-    // (observation), after the boundary anchor is verified against the source.
+    // unfinished record, verified in full against the current native source.
+    // Canonical also validates the retained staged bytes. Both full-prefix
+    // reads cover the anchor, so it is never read a second time here.
     fn prefix(
         &mut self,
         examined: &mut ReadAccounting,
         quantum: usize,
     ) -> Result<Vec<u8>, ErrorObject> {
         let state = self.state;
-        let observation = self.storage.is_observation();
         let partial = state
             .partial_record
             .as_ref()
@@ -785,20 +793,16 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
             if partial.is_some_and(|(span, _)| anchor.start < span.start) {
                 return Err(stale());
             }
-            // Observation re-reads the whole partial record from native source
-            // below, which covers the anchor; otherwise read the window now.
-            if !(observation && partial.is_some()) {
-                if !observation && len > quantum as u64 {
+            // A whole retained-prefix read below covers the anchor in either
+            // projection; otherwise read the window now.
+            if partial.is_none() {
+                if len > quantum as u64 {
                     return Err(capacity(
                         "Source budget cannot admit the cursor boundary check",
                     ));
                 }
                 let window = self.read_native(anchor.start, len)?;
-                if observation {
-                    examined.reconstruction += window.len();
-                } else {
-                    examined.forward += window.len();
-                }
+                examined.forward += window.len();
                 if sha256_hex(&window) != anchor.sha256 {
                     return Err(stale());
                 }
@@ -811,19 +815,35 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
             PageStorage::Observation { .. } => {
                 let bytes = self.read_native(span.start, len)?;
                 examined.reconstruction += bytes.len();
-                if let Some(anchor) = &state.anchor {
-                    let from = (anchor.start - span.start) as usize;
-                    if sha256_hex(&bytes[from..]) != anchor.sha256 {
-                        return Err(stale());
-                    }
+                bytes
+            }
+            PageStorage::Canonical { root, .. } => {
+                // Never compose an obsolete staged prefix with a native
+                // suffix. This verification is native I/O and must fit the
+                // existing canonical source quantum before it is attempted.
+                if len > quantum as u64 {
+                    return Err(capacity(
+                        "Source budget cannot verify the retained record prefix",
+                    ));
+                }
+                let retained = staging::partial_bytes(root, span, len)?;
+                let bytes = self.read_native(span.start, len)?;
+                examined.forward += bytes.len();
+                if bytes != retained {
+                    return Err(stale());
                 }
                 bytes
             }
-            PageStorage::Canonical { root, .. } => staging::partial_bytes(root, span, len)?,
         };
         if bytes.len() as u64 != len || sha256_hex(&bytes) != span.sha256 || bytes.contains(&b'\n')
         {
             return Err(stale());
+        }
+        if let Some(anchor) = &state.anchor {
+            let from = (anchor.start - span.start) as usize;
+            if sha256_hex(&bytes[from..]) != anchor.sha256 {
+                return Err(stale());
+            }
         }
         Ok(bytes)
     }
@@ -850,12 +870,13 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
             metadata: self.metadata,
             ..ReadAccounting::default()
         };
-        // Canonical verification reads share the source quantum; observation
-        // reconstruction is declared separately and stays outside it.
+        // Complete-boundary verification in either projection and canonical
+        // prefix verification share the source quantum. Only observation's
+        // retained-prefix reconstruction stays outside it.
         let quantum = self.request.budgets.source - self.metadata;
         let mut bytes = self.prefix(&mut examined, quantum)?;
         let quantum = quantum - examined.forward;
-        let anchor_reads = examined.forward;
+        let verification_reads = examined.forward;
         let prefix_len = bytes.len();
         let record_start = state.offset - prefix_len as u64;
         let maximum = (state.stamp.len - state.offset)
@@ -869,7 +890,7 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
             .read_to_end(&mut bytes)
             .map_err(|_| io_error())?;
         let native_read = bytes.len() - prefix_len;
-        examined.forward = anchor_reads + native_read;
+        examined.forward = verification_reads + native_read;
         if native_read as u64 != maximum {
             return Err(stale());
         }
