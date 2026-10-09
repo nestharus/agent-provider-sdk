@@ -9,6 +9,7 @@
 pub mod acp;
 pub mod exploration;
 pub mod generated;
+pub mod host_extensions;
 pub mod launch_stream;
 pub mod live_stream;
 pub mod negotiation;
@@ -35,6 +36,12 @@ pub mod fixtures {
     pub fn contract_v1() -> Value {
         serde_json::from_str(CONTRACT_V1_JSON).expect("embedded contract fixtures are valid JSON")
     }
+
+    /// Paired base host-extension specimens and discriminating selection,
+    /// admission and stream controls. Semantic-limit controls are intentionally
+    /// accepted by the generic stream validator, not invalid wire shapes.
+    pub const HOST_EXTENSIONS_V1_JSON: &str =
+        include_str!("../tests/fixtures/host_extensions/v1.json");
 
     /// Golden common-version selection cases.
     pub const VERSION_SELECTION_JSON: &str =

@@ -147,6 +147,36 @@ consumers must apply the chooser for this cross-field invariant. Providers still
 advertise extension versions only when the request offered them. Golden cases live in `tests/fixtures/negotiation/` (also exported
 through the `contract-test-fixtures` feature).
 
+`host_extensions::{prompt_acceptance, launch_output, session_turn_pages}` is
+the common vocabulary home for those three base v1 extensions: `PROTOCOL`,
+`SELECTOR`, `CAPABILITY`, `FAMILY`, `SUPPORTED_VERSIONS`, and (for launch
+extensions) `MARKER_NAME`. `host_extensions::OPT_IN_VALUE` is exactly `"1"`.
+The families reuse `negotiation::VersionFamily`; offers are request-local
+`host.env` values, not ambient environment. Defined versions are not automatic
+provider advertisements. DTOs and existing wire admission APIs are unchanged.
+SDK execution's resident completion-marker and page-protocol constants retain
+their public names as aliases of this vocabulary. Runner and external adapter
+adoption remain separate; this does not move host trust, mandatory-output,
+session-reader authority or native emission policy into the SDK.
+
+`fixtures::HOST_EXTENSIONS_V1_JSON` (feature `contract-test-fixtures`) exports
+paired describe/launch/page specimens, selection cases, and ordered edit
+vectors for invalid admission/stream controls and intentionally accepted
+semantic-limit controls. The file documents its edit format; focused tests in
+`tests/host_extensions.rs` exercise schema and typed admission, encoding,
+request-local selection, stream ordering and the specimen's actual decoded
+digests/counts. Existing unselected/generic fixtures remain unchanged.
+Specimen coherence is **not** a new validation guarantee:
+`validate_launch_ndjson` checks event shapes, request id, contiguous sequence,
+base64 and final exit, but does not match attestation digest/nonce to a request,
+verify output digest/counts, require a completion marker, or prohibit output
+after that marker before exit. Shape-valid false accounting, mismatched
+attestation and premature completion remain accepted by that generic API.
+Synthetic page read counts are not measured native I/O. These specimens prove
+neither native submission/emission nor host processing, custody, replay,
+recovery, update compatibility or live-provider behavior. No v1 schema bytes,
+wire version, validator semantics or selection policy changed here.
+
 The [`resident-session/v1` extension](crates/provider-contract/contract/extensions/resident-session/README.md)
 (`resident_session` module) is selected by
 `host.env.OULIPOLY_HOST_RESIDENT_SESSION_V1=1` and advertised as

@@ -54,7 +54,8 @@ mod tests;
 pub use staging::StagingLimits;
 
 /// The only read protocol this engine serves.
-pub const READ_PROTOCOL: &str = "oulipoly.session_turn_pages/v1";
+pub const READ_PROTOCOL: &str =
+    agent_provider_contract::host_extensions::session_turn_pages::PROTOCOL;
 /// Records at or above this size are refused rather than skipped. At most one
 /// unfinished record below it is retained between requests.
 pub const MAX_RECORD_BYTES: usize = 8 * 1024 * 1024;
