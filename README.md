@@ -49,6 +49,17 @@ The imported launch schema's intrinsic phrase "request, event, and result
 schemas" names the terminal `exit` event as the launch result; launch has no
 separate result or response envelope.
 
+`SchemaRegistry` compiles each registered schema file/definition pair lazily
+once per process and shares it across registry instances and validation helpers.
+The fixed embedded registry bounds the cache; payloads and unknown operation or
+event names cannot add entries. Concurrent first use shares one compilation per
+pair, including a cached schema-compilation error. Every payload is still
+validated independently with the same sorted errors, DTO admission and describe
+cross-field check. First use retains compilation cost, and compiled validators
+remain in memory for the process lifetime. This is a local implementation cache,
+not negotiated agreement or executable identity; consumer dependency updates and
+runtime activation remain separate.
+
 Downstream hosts and providers should consume the released crate or copy the
 complete versioned snapshot. Private schema edits are unsupported. This contract
 does not own provider execution or Agent Runner's logical session state.
