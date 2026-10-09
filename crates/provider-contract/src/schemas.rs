@@ -4,6 +4,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
+use std::sync::OnceLock;
 
 pub const SCHEMA_DRAFT_2020_12: &str = "https://json-schema.org/draft/2020-12/schema";
 
@@ -250,29 +251,12 @@ impl SchemaRegistry {
         definition: &'static str,
         instance: &Value,
     ) -> Result<(), SchemaValidationError> {
-        let contents = self
-            .schema_by_file(schema_file)
-            .ok_or_else(|| SchemaValidationError::UnknownSchemaFile(schema_file.to_owned()))?;
-        let mut schema = parse_schema(schema_file, contents)?;
-        let common = parse_schema("common.schema.json", COMMON_SCHEMA)?;
-        merge_common_defs_and_rewrite_refs(&mut schema, &common);
-
-        let defs = schema
-            .get("$defs")
-            .cloned()
-            .unwrap_or_else(|| Value::Object(Map::new()));
-        let wrapper = json!({
-            "$schema": SCHEMA_DRAFT_2020_12,
-            "$defs": defs,
-            "$ref": format!("#/$defs/{definition}")
-        });
-        let validator = jsonschema::validator_for(&wrapper).map_err(|error| {
-            SchemaValidationError::SchemaCompile {
-                schema_file,
-                definition,
-                message: error.to_string(),
-            }
-        })?;
+        let validator = definition_validators()
+            .get(&(schema_file, definition))
+            .expect("validation targets come from the embedded registry")
+            .get_or_init(|| self.compile_definition(schema_file, definition))
+            .as_ref()
+            .map_err(Clone::clone)?;
         let mut errors = validator
             .iter_errors(instance)
             .map(|error| error.to_string())
@@ -289,6 +273,69 @@ impl SchemaRegistry {
             })
         }
     }
+
+    fn compile_definition(
+        &self,
+        schema_file: &'static str,
+        definition: &'static str,
+    ) -> Result<jsonschema::Validator, SchemaValidationError> {
+        let contents = self
+            .schema_by_file(schema_file)
+            .ok_or_else(|| SchemaValidationError::UnknownSchemaFile(schema_file.to_owned()))?;
+        let mut schema = parse_schema(schema_file, contents)?;
+        let common = parse_schema("common.schema.json", COMMON_SCHEMA)?;
+        merge_common_defs_and_rewrite_refs(&mut schema, &common);
+
+        let defs = schema
+            .get("$defs")
+            .cloned()
+            .unwrap_or_else(|| Value::Object(Map::new()));
+        let wrapper = json!({
+            "$schema": SCHEMA_DRAFT_2020_12,
+            "$defs": defs,
+            "$ref": format!("#/$defs/{definition}")
+        });
+        jsonschema::validator_for(&wrapper).map_err(|error| SchemaValidationError::SchemaCompile {
+            schema_file,
+            definition,
+            message: error.to_string(),
+        })
+    }
+}
+
+type DefinitionValidators = BTreeMap<
+    (&'static str, &'static str),
+    OnceLock<Result<jsonschema::Validator, SchemaValidationError>>,
+>;
+
+fn definition_validators() -> &'static DefinitionValidators {
+    // Only embedded registry targets allocate slots. Payloads and unknown names
+    // never become cache keys; both compiled validators and compile errors are
+    // shared across registry instances, with initialization per definition.
+    static VALIDATORS: OnceLock<DefinitionValidators> = OnceLock::new();
+    VALIDATORS.get_or_init(|| {
+        let mut validators = BTreeMap::new();
+        for target in SUBCOMMAND_SCHEMAS {
+            for definition in [
+                Some(target.request_def),
+                target.response_def,
+                target.error_response_def,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                validators
+                    .entry((target.schema_file, definition))
+                    .or_insert_with(OnceLock::new);
+            }
+        }
+        for target in LAUNCH_EVENT_SCHEMAS {
+            validators
+                .entry((target.schema_file, target.event_def))
+                .or_insert_with(OnceLock::new);
+        }
+        validators
+    })
 }
 
 pub fn schema_by_file(filename: &str) -> Option<&'static str> {
