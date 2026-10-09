@@ -705,6 +705,60 @@ and the deadline are observed at admission checks and poll turns, not
 preemptively. Drain bounds measure silence rather than total time. Linux-tested
 only; `lifecycle` is compiled on Unix.
 
+### Session paging
+
+`session_pages` is the common bounded `session.read_turns` engine for both
+`oulipoly.session_turn_pages/v1` projections, `canonical_ingest` and
+`user_observation`. An adapter implements `PageAdapter` and supplies native
+facts only: a provider state namespace and default data root, account/store
+resolution, ordered source candidates, the session a source's first record
+claims, its native session-id rules, and the projection of one complete
+newline-framed record into a turn (turn id, timestamp, role, text parts and the
+parent/sidechain/compaction facts) plus `source_final`. `read_turns` returns the
+contract `SessionReadTurnsResult` or a contract `ErrorObject`; the adapter frames
+the response and still decides whether to advertise `session_turn_pages_v1`.
+Constructing this engine advertises nothing.
+
+The engine owns request validation against the v1 schema, bounded scanning
+charged against `max_source_bytes`, retention of one unfinished record below
+8388608 bytes, cursor/snapshot binding (provider, account, settings, session,
+projection, nonce and budgets), response fitting with inline-body omission,
+the delivery-marker strip and body digests, and exact read accounting.
+Canonical cursors and retained prefixes live in one admitted durable pool under
+`<data root>/provider-state/<namespace>/session-pages-v1`, guarded by that
+directory's inode lock; interrupted frames and orphaned temporaries stay charged
+and are recovered rather than collected. Observation cursors are HMAC-signed
+tokens over a hashed binding, reconstructed from native source with no staging
+admission; the signing key is published once under `observation-auth-v1` and a
+missing key never re-initializes authority for an issued token. Every response,
+including adapter-supplied fields, is validated against the v1 result schema
+before it is returned.
+
+The v1 page fields have no "unknown" state. An adapter reports a fact it cannot
+supply as `NativeFact::Unavailable`, and the engine refuses the page with the
+adapter's error rather than writing `false` or `null`. Turn ids are whatever the
+adapter derives; byte offsets used as ids are locations, not proved logical
+identities.
+
+Continuation and resume re-check the bound source: the same device/inode, a
+length that never shrinks (with an unchanged mtime at equal length), the digest
+of the first record, and the digest of up to 64 bytes ending at the cursor's
+resume point. A retained observation prefix is re-read and its digest checked.
+These checks detect replacement, truncation, a rewritten first record and a
+rewrite that changes or shifts the verified boundary bytes. They do not detect
+a rewrite of already-paged bytes that leaves the first record and those boundary
+bytes unchanged; that would need an unbounded re-read.
+Canonical boundary re-reads share the source quantum. Observation declares them
+with the retained-prefix re-read as `reconstruction` in the existing
+`codex_observation_io_v1` warning, whose arithmetic is unchanged: `forward` plus
+`metadata` stays within `max_source_bytes`, `reconstruction` stays below
+8388608, and the three sum to `source_bytes_examined`. The declaration's name
+is existing vocabulary, not a provider choice.
+
+These controls use a fake adapter with known fake facts. They are not native
+format, provider-pair, restart or hardware qualification. Linux-tested only;
+`session_pages` is compiled on Unix.
+
 ## Provider memory harness
 
 `provider-memory` measures a complete Linux process tree using
