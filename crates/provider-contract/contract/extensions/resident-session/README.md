@@ -66,11 +66,26 @@ Readable interrupted evidence without an observed native session identity
 reports `-32012` and blocks new input when native work cannot be excluded.
 Valid complete launch custody without observed identity is blocked the same way
 whether its receipt replays or the replay errors; the error remains the original
-input's failure. A chosen create id remains a candidate, not observed identity or
-permission to probe create/resume. Known session-record or journal identity still recovers,
-and known duplicate insertion ACKs remain available. A justified pre-start
-refusal or validated prepared custody without consumption permits fresh work;
-actor discharge and insertion ACK alone do not prove no native effects.
+input's failure. A live turn that settles its own custody without an observed
+identity blocks later input the same way and keeps its own result. A chosen
+create id remains a candidate, not observed identity or permission to probe
+create/resume. Identity is known only once an observed provider-session marker
+has reached the session record: a record's identity, or a journal marker that
+interrupted-journal recovery or a successful receipt replay delivers, still
+recovers, but a complete-custody replay that errors before delivering events
+cannot deliver the journal's marker, so the session reports `-32012` there.
+Known duplicate insertion ACKs remain available. A justified pre-start refusal,
+validated prepared custody without consumption, or the lifecycle's SDK-private
+proof in a valid complete launch record (settled preparation, an adapter-settled
+spawn failure, the gate's failed `exec` of the configured program) permits fresh
+work, live or after recovery; actor discharge, insertion ACK, missing
+consumption, a nonzero exit, complete custody, a wrapper's failed inner command
+and a complete record without that proof do not prove no native effects. A
+decided block is also kept on the settled input's own record and restored on
+reopen, so a failed session-record write does not lose it; the turn then ends
+`_oulipoly_turn_failed` with `native_session_record_failed`, keeping its known
+native status and `complete` custody when the launch returned its result. No
+path clears the block.
 Unsettled custody cannot produce an ended record or successful close; close
 releases its session lock and worker. Consumption evidence with a failed
 insertion store is unknown (`-32011`), without a consumption ACK. Duplicate ACKs

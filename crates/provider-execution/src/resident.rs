@@ -38,9 +38,16 @@
 //!   the state root and answers its id. The native session id is learned from
 //!   the first turn's `oulipoly.provider_session` marker, recorded, and resumed
 //!   by later turns. An adapter-chosen create id is only a candidate until
-//!   observed in that marker. Interrupted work without a known native identity
-//!   blocks new input and reports uncertainty; actor discharge is not proof
-//!   that no native work happened.
+//!   observed in that marker. Interrupted work, a complete launch record
+//!   recovered, or a live turn that settled its own custody, without a known
+//!   native identity blocks new input and reports uncertainty; actor discharge
+//!   is not proof that no native work happened. Only positive evidence that no
+//!   native program ran exempts a turn: a refusal before any launch record, the
+//!   lifecycle's no-native proof in a valid complete launch record, or (in
+//!   recovery) validated prepared custody without consumption. The block is also
+//!   kept on the settled input's own record and restored on reopen, so a failed
+//!   session-record write, reported as the turn's `native_session_record_failed`
+//!   failure beside its known native outcome, does not lose it.
 //! * `session/prompt` accepts text content only. The input is durably
 //!   recorded with a fresh ascending `messageId` before its native turn
 //!   starts. Turns of one session run one at a time in arrival order. The
@@ -696,6 +703,22 @@ impl<T: ResidentTurns> Endpoint<T> {
                     .insert(key.to_owned(), input.message_id().to_owned());
             }
             inputs.by_id.insert(input.message_id().to_owned(), input);
+        }
+        // A settled input is not revisited, but an identity block decided for
+        // it is restored even if its session-record write failed.
+        let mut record = record;
+        if record["native_session_uncertain"].is_null() {
+            if let Some(reason) = inputs
+                .by_id
+                .values()
+                .filter(|input| input.value["native_session_uncertain"].is_string())
+                .min_by_key(|input| input.message_id().to_owned())
+                .map(|input| input.value["native_session_uncertain"].clone())
+            {
+                record["native_session_uncertain"] = reason;
+                // The input record stays the durable evidence if this fails.
+                let _ = publish_json(&dir, "session.json", &record);
+            }
         }
         let shared = self.open(id, dir, cwd, record, inputs, lock);
         settle_unfinished(&*self.turns, &shared);
@@ -1415,7 +1438,7 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
     // Recovery settles the recorded actor before calling any adapter admission
     // logic. Adapters may validate current policy before entering the lifecycle.
     let mut complete_custody = false;
-    let mut result = if wire.is_none() {
+    let result = if wire.is_none() {
         match crate::lifecycle::reconcile_recorded_launch(
             &request.state_root,
             &custody::request_key(None, &request.request_id),
@@ -1493,22 +1516,80 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
             None
         };
     }
+    // A fresh local attempt with neither consumption nor durable launch/journal
+    // evidence can be refused before start. Lost recovery evidence cannot.
+    let not_started = fresh && !sink.consumption_seen && no_launch_evidence(shared, &input);
+    let launch_complete = read_json(
+        &request.state_root.join(format!(
+            "{}.json",
+            custody::request_key(None, &request.request_id)
+        )),
+        custody::LAUNCH_STATE_MAX_BYTES,
+    )
+    .is_ok_and(|state| {
+        state["phase"] == json!(custody::PHASE_COMPLETE)
+            && state["actor_id"].is_null()
+            && state["incarnation"].is_null()
+    });
+    let identity_unobserved = || {
+        shared.record.lock().unwrap_or_else(|e| e.into_inner())["native_session_id"]
+            .as_str()
+            .is_none_or(str::is_empty)
+    };
+    // The lifecycle's positive proof, kept only in a complete launch record
+    // written after the gate process is gone, that the configured native
+    // program never ran. Its absence proves nothing.
+    let native_not_run = || {
+        crate::lifecycle::recorded_native_not_run(
+            &request.state_root,
+            &custody::request_key(None, &request.request_id),
+        )
+    };
     // Complete launch custody proves completion/replay, not the identity of
     // native work. Recovery may replay its receipt, or report its replay error,
-    // but must not start a later turn with an unobserved identity. No binary
+    // but must not start a later turn with an unobserved identity unless the
+    // validated complete record proves that no native program ran. No binary
     // or permanent journal gate.
     if (reconciled || recovered_complete)
         && uncertainty.is_none()
         && !no_native_start
-        && shared.record.lock().unwrap_or_else(|e| e.into_inner())["native_session_id"]
-            .as_str()
-            .is_none_or(str::is_empty)
+        && identity_unobserved()
+        && !native_not_run()
     {
         uncertainty = Some(
             "interrupted native work may have occurred without an observed session identity".into(),
         );
     }
-    if let Some(reason) = uncertainty {
+    // The same obligation holds for a live turn that settled its own custody:
+    // resident launches must report the native session, and a turn that may
+    // have run native work without doing so cannot authorize later work. Only
+    // positive evidence that nothing ran is exempt: a refusal before any launch
+    // evidence, or the lifecycle's recorded proof (settled preparation, a
+    // settled spawn failure, the gate's failed `exec` of the configured
+    // program). Missing consumption, a nonzero exit, an absent `exit`, complete
+    // custody or a wrapper's failed inner command prove no such thing. An
+    // incomplete live launch is settled by recovery above this arm.
+    if wire.is_some()
+        && uncertainty.is_none()
+        && match &result {
+            Ok(_) => true,
+            Err(failure) => {
+                matches!(
+                    failure.kind,
+                    TurnFailureKind::Failed | TurnFailureKind::Cancelled
+                ) && launch_complete
+            }
+        }
+        && !not_started
+        && identity_unobserved()
+        && !native_not_run()
+    {
+        uncertainty = Some(
+            "native work may have occurred in a completed turn without an observed session identity"
+                .into(),
+        );
+    }
+    if let Some(reason) = &uncertainty {
         let mut record = shared.record.lock().unwrap_or_else(|e| e.into_inner());
         let mut updated = record.clone();
         if evidence_error.is_some() {
@@ -1524,13 +1605,16 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
             ));
         }
     }
-    if let Some(error) = &sink.record_error {
-        result = Err(TurnFailure {
+    // A record failure on a failed launch keeps its earlier meaning: custody
+    // that is not complete stays unsettled, so recovery can retry the record.
+    let result = match (&sink.record_error, result) {
+        (Some(error), Err(_)) => Err(TurnFailure {
             kind: TurnFailureKind::Failed,
             code: "native_session_record_failed".into(),
             message: error.clone(),
-        });
-    }
+        }),
+        (_, result) => result,
+    };
     let consumed = sink.consumed;
     let consumption_seen = sink.consumption_seen;
     let exit = sink.exit.take();
@@ -1545,23 +1629,8 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
     {
         input = current.clone();
     }
-    // A fresh local attempt with neither consumption nor durable launch/journal
-    // evidence can be refused before start. Lost recovery evidence cannot.
-    let not_started = fresh && !consumption_seen && no_launch_evidence(shared, &input);
-    let launch_complete = read_json(
-        &request.state_root.join(format!(
-            "{}.json",
-            custody::request_key(None, &request.request_id)
-        )),
-        custody::LAUNCH_STATE_MAX_BYTES,
-    )
-    .is_ok_and(|state| {
-        state["phase"] == json!(custody::PHASE_COMPLETE)
-            && state["actor_id"].is_null()
-            && state["incarnation"].is_null()
-    });
     let mut native_turn = json!({"request_id":request.request_id});
-    let stop_reason = match (&result, &exit) {
+    let mut stop_reason = match (&result, &exit) {
         (Ok(_), Some(exit)) => {
             native_turn["custody"] = json!("complete");
             native_turn["status"] = exit["status"].clone();
@@ -1605,6 +1674,13 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
             }
         }
     };
+    // After a launch that returned its result, a session-record failure is
+    // the SDK's turn failure, not the native program's: the known native
+    // outcome and complete custody above stay reported beside it.
+    if let (Some(error), Ok(_)) = (&sink.record_error, &result) {
+        native_turn["failure"] = json!({"code":"native_session_record_failed","message":error});
+        stop_reason = "_oulipoly_turn_failed";
+    }
     if let Some(error) = evidence_error {
         if sink.record_error.is_some() {
             let failure_message = native_turn["failure"]["message"]
@@ -1638,6 +1714,13 @@ fn run<T: ResidentTurns>(turns: &T, shared: &SessionShared, wire: Option<&Wire>,
     input.value["consumption_seen"] = json!(consumption_seen);
     if settled {
         input.value["ended_unix_ms"] = json!(now_unix_ms());
+        // The block also travels with this input's own terminal record, so a
+        // failed session-record write cannot lose it once the input settles:
+        // reopen skips settled inputs but restores their recorded block. An
+        // unsettled input is derived again by recovery instead.
+        if let Some(reason) = &uncertainty {
+            input.value["native_session_uncertain"] = json!(reason);
+        }
     } else {
         input.value.as_object_mut().unwrap().remove("ended_unix_ms");
     }

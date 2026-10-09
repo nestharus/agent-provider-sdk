@@ -39,6 +39,11 @@ pub const LAUNCH_STATE_MAX_BYTES: usize = 64 * 1024;
 pub const PHASE_PREPARED: &str = "prepared";
 pub const PHASE_RUNNING: &str = "running";
 pub const PHASE_COMPLETE: &str = "complete";
+/// SDK-private key added to a complete state record when the lifecycle
+/// observed that the configured native program never ran. [`LaunchState`]
+/// ignores it, so builds without it read the record unchanged; its absence
+/// proves nothing.
+pub(crate) const NATIVE_NOT_RUN: &str = "native_not_run";
 
 #[derive(Debug)]
 pub enum CustodyError {
@@ -189,9 +194,34 @@ impl RequestCustody {
     /// Does not validate transitions or field combinations. A directory-sync
     /// error can occur after replacement; failure does not imply no publication.
     pub fn write_state(&self, state: &LaunchState) -> Result<(), CustodyError> {
+        self.write_record(state)
+    }
+
+    /// Writes `state` with [`NATIVE_NOT_RUN`]. Only the lifecycle calls this,
+    /// with complete state, when it observed that the native program never ran.
+    pub(crate) fn write_state_native_not_run(
+        &self,
+        state: &LaunchState,
+    ) -> Result<(), CustodyError> {
+        let mut record = serde_json::to_value(state)
+            .map_err(|error| CustodyError::StateWrite(error.to_string()))?;
+        record[NATIVE_NOT_RUN] = json!(true);
+        self.write_record(&record)
+    }
+
+    /// Whether the state record carries [`NATIVE_NOT_RUN`]. Unreadable or
+    /// absent evidence is `false`; the caller validates the record itself.
+    pub(crate) fn native_not_run(&self) -> bool {
+        crate::durable_fs::read_file_bounded(&self.state_path(), LAUNCH_STATE_MAX_BYTES)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+            .is_some_and(|record| record[NATIVE_NOT_RUN] == json!(true))
+    }
+
+    fn write_record(&self, record: &impl Serialize) -> Result<(), CustodyError> {
         let path = self.state_path();
         let mut temporary = tempfile::NamedTempFile::new_in(&self.root)?;
-        serde_json::to_writer(&mut temporary, state)
+        serde_json::to_writer(&mut temporary, record)
             .map_err(|error| CustodyError::StateWrite(error.to_string()))?;
         temporary.as_file().sync_all()?;
         temporary.persist(&path).map_err(|error| error.error)?;

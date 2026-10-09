@@ -45,6 +45,14 @@
 //!   ([`crate::process::ExecObserver`]). The adapter decides its meaning in
 //!   [`LaunchAdapter::start_failed`]. Native exit statuses are never read as
 //!   start failures.
+//! - The complete state record of a launch whose native program the lifecycle
+//!   observed never running (adapter-settled preparation, a gate spawn failure
+//!   the adapter settles, or a failed `exec` the gate reports, settled or not)
+//!   also carries an SDK-private key outside [`LaunchState`]'s fields. It is
+//!   written only with the complete record, after the gate process is gone. A
+//!   configured wrapper whose own `exec` succeeded has run, whatever its inner
+//!   command did. A record without the key, written by an earlier build or
+//!   by any other completion, proves nothing about native effects.
 //! - Hooks, filesystem operations and host writes run synchronously; stop
 //!   requests are observed at admission checks and poll turns.
 //! - Drain bounds measure silence, not total time: a native group that keeps
@@ -769,7 +777,7 @@ where
                 accounting: DataAccounting::default(),
             };
             if let Some(terminal) = adapter.start_failed(&failure, &mut sink)? {
-                return complete(&launch_custody, state, sink, &terminal).map_err(Into::into);
+                return complete(&launch_custody, state, sink, &terminal, true).map_err(Into::into);
             }
             // Leave the same evidence as before the hook existed: prepared
             // state without an actor or journal, which requires reconciliation.
@@ -823,13 +831,15 @@ where
             break None;
         }
     };
+    // The gate's own report: `exec` of the configured program failed.
+    let exec_failed = matches!(start, Some(ExecStart::Failed(_)));
     if let Some(ExecStart::Failed(error)) = start {
         let failure = StartFailure::Exec(error);
         if let Some(terminal) = adapter.start_failed(&failure, &mut sink)? {
             // Only the gate ran; its diagnostic output is not native output.
             child.terminate();
             drop(receive);
-            return complete(&launch_custody, state, sink, &terminal).map_err(Into::into);
+            return complete(&launch_custody, state, sink, &terminal, true).map_err(Into::into);
         }
     }
     let input: Option<JoinHandle<io::Result<()>>> = stdin.map(|bytes| {
@@ -918,7 +928,7 @@ where
         }
     }
     let terminal = adapter.finish(NativeOutcome { status, stopped }, &mut sink)?;
-    complete(&launch_custody, state, sink, &terminal).map_err(Into::into)
+    complete(&launch_custody, state, sink, &terminal, exec_failed).map_err(Into::into)
 }
 
 fn settle<W: Write>(
@@ -940,7 +950,7 @@ fn settle<W: Write>(
     for event in events {
         sink.event(event)?;
     }
-    complete(launch_custody, state, sink, &terminal)
+    complete(launch_custody, state, sink, &terminal, true)
 }
 
 fn complete<W: Write>(
@@ -948,6 +958,7 @@ fn complete<W: Write>(
     mut state: LaunchState,
     mut sink: EventSink<'_, W>,
     terminal: &Terminal,
+    native_not_run: bool,
 ) -> Result<i32, LifecycleError> {
     sink.exit(terminal)?;
     let receipt = sink.events.seal()?;
@@ -957,6 +968,27 @@ fn complete<W: Write>(
     state.exit_code = Some(terminal.exit_code);
     state.actor_id = None;
     state.incarnation = None;
-    launch_custody.write_state(&state)?;
+    if native_not_run {
+        launch_custody.write_state_native_not_run(&state)?;
+    } else {
+        launch_custody.write_state(&state)?;
+    }
     Ok(terminal.exit_code)
+}
+
+/// Whether this request's complete launch record positively shows that the
+/// lifecycle observed its native program never running. Held custody, a
+/// missing, unreadable, invalid, incomplete or key-less record, or a journal
+/// that no longer matches its receipt all answer `false`.
+pub(crate) fn recorded_native_not_run(state_root: &std::path::Path, key: &str) -> bool {
+    let Ok(launch_custody) = RequestCustody::acquire(state_root, key) else {
+        return false;
+    };
+    let Ok(Some(state)) = launch_custody.load_state() else {
+        return false;
+    };
+    validate_recorded_state(&state).is_ok()
+        && state.is_complete()
+        && launch_custody.native_not_run()
+        && custody::replay_journal(&launch_custody.journal_path(), &state, &mut io::sink()).is_ok()
 }

@@ -566,11 +566,37 @@ does not change the pinned v1 snapshot.
   custody is treated the same way whether its receipt replays or its replay
   errors (current-policy refusal, changed request digest, lost or mismatched
   journal): completion proves neither identity nor absence of native effects,
-  and the replay error stays the original input's own failure. A preselected create UUID
+  and the replay error stays the original input's own failure. A live turn that
+  settles its own custody the same way, with no observed identity, blocks later
+  input too; the turn keeps its own result. Only positive evidence that no
+  native program ran exempts a turn: live, a refusal before any launch record;
+  live or in recovery, the lifecycle's no-native key in a valid complete launch
+  record whose journal still matches its receipt (settled preparation, a
+  settled spawn failure, the gate's failed `exec` of the configured program);
+  in recovery, validated prepared custody without consumption. Missing
+  consumption, a nonzero exit, complete custody, a wrapper's failed inner
+  command, or a complete record without that key (as earlier builds wrote) are
+  not that evidence; a crash before the complete record is published leaves
+  ordinary incomplete custody. A preselected create UUID
   remains a candidate; neither insertion ACK nor actor discharge promotes it
-  to known identity or authorizes a probing create/resume. Known session-record
-  and journal identities still recover exactly, and duplicate insertion ACKs
-  remain available without native replay. Native create/resume selection is bound and persisted at
+  to known identity or authorizes a probing create/resume. Identity is known
+  only once an observed provider-session marker has reached the session record.
+  A session record's identity, or a journal marker that the interrupted-journal
+  recovery or a successful receipt replay delivers, recovers exactly; a
+  complete-custody replay that errors before delivering events cannot deliver
+  the journal's marker, so a lagging record is not repaired from a journal that
+  holds the identity and the session reports `-32012`. Duplicate insertion ACKs
+  remain available without native replay. The block is written to the session
+  record before the input's own settlement and also to the settled input's
+  terminal record; reopen restores it from that record, so a failed session-record
+  write does not lose it once the input settled (an input that does not settle
+  is reconciled again instead). That write failure is the SDK's own turn
+  failure: the idle reports `_oulipoly_turn_failed` with failure
+  `native_session_record_failed`, and when the launch returned its result, the
+  same report keeps `complete` custody, native status, terminal signal and
+  output accounting. The original ACK and receipt stand and the input is never
+  run again. The block has no clearing path.
+  Native create/resume selection is bound and persisted at
   dispatch from the preceding settled session state, so queued turns continue
   it. Native-session publication errors surface as failures; incomplete custody
   stays unsettled, without an ended record or idle completion. Immediate
@@ -659,7 +685,13 @@ instance and request ID, and the durable record keeps its seven fields
 (`digest`, `phase`, `actor_id`, `incarnation`, `exit_code`, `journal_sha256`,
 `journal_len`), so a compatible rebuild that keeps an adapter's digest inputs
 replays and reconciles earlier records; completed records are replayed as
-their original bytes, never reinterpreted. Host output should be
+their original bytes, never reinterpreted. When the lifecycle itself observed
+that the configured native program never ran (adapter-settled preparation, a
+gate spawn failure the adapter settles, or the gate's failed `exec`, settled or
+not), the complete record also carries an SDK-private key that those seven
+fields ignore. It is written only with the complete record, after the gate
+process is gone; a wrapper whose own `exec` succeeded has run whatever its
+inner command did, and a record without the key proves nothing. Host output should be
 `BoundedOutput`. A failure before completion leaves incomplete evidence (or
 none, after an admission refusal) and terminates the native group while
 unwinding; recovery after provider loss happens on the next retry of the same
