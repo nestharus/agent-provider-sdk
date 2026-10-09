@@ -2872,17 +2872,18 @@ impl Drop for WritableOnDrop {
 
 // The same holds when recovery decides the block: the session directory
 // refuses the record write while the input directory still accepts settlement.
+// The setup removed the live pass's flag and input stamp, so the input stamp
+// the recovery pass writes is the only durable carrier left for the reopen
+// below, and the reopen's restoration has nothing else to copy. The control
+// would stop discriminating if the reopen found the flag in `session.json`
+// (the denied write succeeded) or a stamp left from the live pass.
 fn recovered_uncertainty_publication_failure_survives_reopen() {
     use std::os::unix::fs::PermissionsExt;
     let fixture = Fixture::new();
     let mut first = fixture.start();
     let session = first.open(&fixture.cwd());
     let dir = bounds_dir(&fixture, &session);
-    let session_before = bounds_read(&dir.join("session.json"));
     let id = complete_without_identity(&fixture, &mut first, &session);
-    // The lagging snapshot also predates any block the live turn recorded,
-    // so only recovery decides it here.
-    bounds_write(&dir.join("session.json"), &session_before);
     let writable = WritableOnDrop(dir.clone());
     std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o500)).unwrap();
     let (mut second, resumed) = bounds_resume(&fixture, &session);
@@ -3007,29 +3008,13 @@ fn completed_journal_without_identity_blocks_recovery() {
     let mut first = fixture.start();
     let session = first.open(&fixture.cwd());
     // This fake ran and consumed the input, but supplied no SESSION marker.
-    let request = first.prompt(&session, "fail", Some("complete"));
-    let id = message_id(&first.response(request));
-    assert_eq!(
-        first.idle_for(&id)["stopReason"],
-        json!("_oulipoly_native_failed")
-    );
-    let input_path = bounds_input(&fixture, &session, &id);
-    let mut input = bounds_read(&input_path);
+    // Issued durable snapshot lag: launch completion survived, input end and
+    // every live record of the block did not. This selects exact completed
+    // replay, not actor reconciliation.
+    let id = complete_without_identity(&fixture, &mut first, &session);
     let journal = bounds_journal(&fixture, &session, &id);
     let journal_bytes = std::fs::read(&journal).unwrap();
     let launch_bytes = std::fs::read(journal.with_extension("json")).unwrap();
-    assert_eq!(
-        bounds_read(&journal.with_extension("json"))["phase"],
-        json!("complete")
-    );
-    first.child.kill().unwrap();
-    first.child.wait().unwrap();
-    // Issued durable snapshot lag: launch completion survived, input end did
-    // not. This selects exact completed replay, not actor reconciliation.
-    input["phase"] = json!("inserted");
-    input["native_turn"] = Value::Null;
-    input.as_object_mut().unwrap().remove("ended_unix_ms");
-    bounds_write(&input_path, &input);
     let (mut second, resumed) = bounds_resume(&fixture, &session);
     assert_identity_uncertain(&resumed);
     let duplicate = second.prompt(&session, "ignored", Some("complete"));
@@ -3169,8 +3154,17 @@ fn complete_replay_error_with_known_identity_continues() {
 }
 
 // Runs a completed native failure that supplied no SESSION, ends the provider
-// and issues the lagging input snapshot (launch complete, input end lost).
+// and issues the lagging snapshot of a crash that preceded every live record
+// of the block: the launch completed, but neither the input's end nor the live
+// pass's session-record flag nor its input stamp survived. The live pass wrote
+// both carriers, so they are removed here: the session record returns to its
+// pre-turn bytes and the input loses its own stamp. The provider process that
+// held the in-memory flag is dead. Only the recovery pass can then derive, and
+// durably carry, the identity block. A caller's assertions would pass without
+// recovery if `session.json` kept the flag or the input kept its stamp.
 fn complete_without_identity(fixture: &Fixture, first: &mut Client, session: &str) -> String {
+    let record_path = bounds_dir(fixture, session).join("session.json");
+    let record_before = bounds_read(&record_path);
     let request = first.prompt(session, "fail", Some("complete"));
     let id = message_id(&first.response(request));
     assert_eq!(
@@ -3188,8 +3182,19 @@ fn complete_without_identity(fixture: &Fixture, first: &mut Client, session: &st
     let mut input = bounds_read(&input_path);
     input["phase"] = json!("inserted");
     input["native_turn"] = Value::Null;
-    input.as_object_mut().unwrap().remove("ended_unix_ms");
+    let fields = input.as_object_mut().unwrap();
+    fields.remove("ended_unix_ms");
+    fields.remove("native_session_uncertain");
     bounds_write(&input_path, &input);
+    bounds_write(&record_path, &record_before);
+    assert!(
+        bounds_read(&record_path)["native_session_uncertain"].is_null(),
+        "no session-record carrier of the identity block remains"
+    );
+    assert!(
+        bounds_read(&input_path)["native_session_uncertain"].is_null(),
+        "no input carrier of the identity block remains"
+    );
     id
 }
 
