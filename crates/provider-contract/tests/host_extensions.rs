@@ -393,6 +393,40 @@ fn coherent_specimen_digests_counts_and_correlations_are_not_validator_guarantee
 }
 
 #[test]
+fn positive_page_flags_are_coherent_but_not_a_wire_admission_guarantee() {
+    let fixture = golden();
+    let registry = SchemaRegistry::new();
+    let response = &fixture["valid"]["pages_response"];
+    let admitted = registry
+        .decode_response::<SessionReadTurns>(&bytes(response))
+        .unwrap();
+    let page = &admitted.value().result;
+    assert_eq!(page.turns.len(), 1);
+    assert_eq!(page.page_turn_count, 1);
+    assert!(page.snapshot_complete);
+    assert!(page.next_page_token.is_none());
+    assert!(page.resume_token.is_some());
+    // SDK session_pages::page_result and the current host reader only permit
+    // scan_progress for empty, incomplete pages. This is a synthetic specimen,
+    // not an engine-produced page or proof that the host processed it.
+    assert!(!page.scan_progress);
+
+    // Preserve the known contradictory combination as a one-field control:
+    // wire/typed admission still accepts it, unlike the producer/host relation.
+    let mut contradictory = response.clone();
+    contradictory["result"]["scan_progress"] = json!(true);
+    let admitted = registry
+        .decode_response::<SessionReadTurns>(&bytes(&contradictory))
+        .unwrap();
+    let counterexample = &admitted.value().result;
+    let mut expected = page.clone();
+    expected.scan_progress = true;
+    assert_eq!(*counterexample, expected);
+    assert!(counterexample.scan_progress);
+    assert!(!counterexample.turns.is_empty() || counterexample.snapshot_complete);
+}
+
+#[test]
 fn stream_controls_discriminate_existing_enforcement_and_explicit_semantic_limits() {
     let fixture = golden();
     for case in fixture["invalid_streams"].as_array().unwrap() {

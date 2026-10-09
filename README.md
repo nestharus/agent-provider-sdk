@@ -172,7 +172,12 @@ base64 and final exit, but does not match attestation digest/nonce to a request,
 verify output digest/counts, require a completion marker, or prohibit output
 after that marker before exit. Shape-valid false accounting, mismatched
 attestation and premature completion remain accepted by that generic API.
-Synthetic page read counts are not measured native I/O. These specimens prove
+The positive completed one-turn page has `scan_progress: false`, consistent
+with the known SDK producer/current host reader's empty, incomplete scan-progress
+condition. A focused one-field counterexample retains the contradictory flag
+combination to show that wire/typed admission alone does not enforce that relation.
+This is still a synthetic page, not an engine-produced trace or a full host-semantic
+oracle. Synthetic page read counts are not measured native I/O. These specimens prove
 neither native submission/emission nor host processing, custody, replay,
 recovery, update compatibility or live-provider behavior. No v1 schema bytes,
 wire version, validator semantics or selection policy changed here.

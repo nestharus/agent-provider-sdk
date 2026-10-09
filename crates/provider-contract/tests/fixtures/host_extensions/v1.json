@@ -1,5 +1,5 @@
 {
-  "note": "Synthetic paired specimens, not native execution. Edits apply in order to the named valid target; stream edits target valid.launch_events. remove deletes the named object member or array element; otherwise value replaces/adds it. invalid_admission and invalid_streams fail existing admission; semantic_limits intentionally pass the generic stream validator. Selection is paired, not a schema rejection. Page body digests use compact JSON; canonical text digest uses hello. Source-read counts are synthetic, not measured.",
+  "note": "Synthetic paired specimens, not native execution. Edits apply in order to the named valid target; stream edits target valid.launch_events. remove deletes the named object member or array element; otherwise value replaces/adds it. invalid_admission and invalid_streams fail existing admission; semantic_limits intentionally pass the generic stream validator. Selection is paired, not a schema rejection. Page body digests use compact JSON; canonical text digest uses hello. The completed one-turn page is not a scan-progress page; its flags respect the known SDK producer/host reader relationship, not a full host-processing oracle. Source-read counts are synthetic, not measured.",
   "valid": {
     "describe_request": {
       "contract": "oulipoly.provider/v1",
@@ -234,7 +234,7 @@
         ],
         "page_turn_count": 1,
         "source_bytes_examined": 120,
-        "scan_progress": true,
+        "scan_progress": false,
         "snapshot_complete": true,
         "next_page_token": null,
         "resume_token": "fixture-resume",
