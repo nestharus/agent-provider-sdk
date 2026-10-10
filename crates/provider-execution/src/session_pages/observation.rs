@@ -96,6 +96,8 @@ pub(super) fn load(
         return Err(stale());
     }
     Ok(Cursor {
+        canonical_format: None,
+        verification: None,
         kind: compact.kind,
         binding: binding.clone(),
         budgets: compact.budgets,

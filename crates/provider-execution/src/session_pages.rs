@@ -23,8 +23,8 @@
 //! continuation and resume re-check them before reading forward. A retained
 //! prefix is verified in full against native source in both projections before
 //! assembly; canonical also validates its staged copy. Canonical verification
-//! shares the source quantum and refuses when it cannot fit. These checks
-//! are bounded: they detect replacement, truncation, a rewritten first record and
+//! shares the source quantum and may span calls before forward assembly.
+//! These checks are bounded: they detect replacement, truncation, a rewritten first record and
 //! a rewrite that changes or shifts the verified boundary bytes, not a rewrite of
 //! complete, already-delivered bytes that leaves both unchanged. Concurrent
 //! source mutation is not qualified by the fake controls. See the README's paging
@@ -56,8 +56,9 @@ pub use staging::StagingLimits;
 /// The only read protocol this engine serves.
 pub const READ_PROTOCOL: &str =
     agent_provider_contract::host_extensions::session_turn_pages::PROTOCOL;
-/// Records at or above this size are refused rather than skipped. At most one
-/// unfinished record below it is retained between requests.
+/// A newline-framed record may reach this size; an unfinished record at this
+/// ceiling is refused rather than skipped. At most one unfinished record below
+/// it is retained between requests.
 pub const MAX_RECORD_BYTES: usize = 8 * 1024 * 1024;
 const MAX_TOKEN_BYTES: usize = 4096;
 // Native bytes immediately before a cursor's resume point that the next
@@ -279,7 +280,17 @@ struct Span {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
+struct PrefixVerification {
+    /// Number of retained bytes compared to native source under this stamp.
+    checked: u64,
+    stamp: Stamp,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 struct Cursor {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    canonical_format: Option<u32>,
     kind: String,
     binding: Binding,
     budgets: Budgets,
@@ -291,6 +302,8 @@ struct Cursor {
     page: u64,
     sequence: u64,
     partial_record: Option<Span>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    verification: Option<PrefixVerification>,
     anchor: Option<Span>,
 }
 
@@ -611,7 +624,7 @@ pub fn read_turns_with_limits<A: PageAdapter + ?Sized>(
         let admission = staging::Admission::acquire(&root)?;
         PageStorage::Canonical {
             root,
-            prefix: format!("{namespace}-stp1-"),
+            prefix: format!("{namespace}-stp2-"),
             admission,
             limits,
         }
@@ -622,6 +635,17 @@ pub fn read_turns_with_limits<A: PageAdapter + ?Sized>(
         .or(p.after_token.as_ref())
         .map(|token| storage.load(token, &binding))
         .transpose()?;
+    // A relabelled old canonical digest must not decode as this format.
+    // Observation serialization stays unchanged and carries neither field.
+    if old.as_ref().is_some_and(|old| {
+        if observation {
+            old.canonical_format.is_some() || old.verification.is_some()
+        } else {
+            old.canonical_format != Some(2)
+        }
+    }) {
+        return Err(stale());
+    }
     if old.as_ref().is_some_and(|old| old.binding != binding) {
         return Err(stale());
     }
@@ -678,6 +702,7 @@ pub fn read_turns_with_limits<A: PageAdapter + ?Sized>(
         );
         let (partial_record, anchor) = old.map_or((None, None), |s| (s.partial_record, s.anchor));
         Cursor {
+            canonical_format: (!observation).then_some(2),
             kind: "page".into(),
             binding,
             budgets: request.budgets.clone(),
@@ -688,6 +713,7 @@ pub fn read_turns_with_limits<A: PageAdapter + ?Sized>(
             page: 0,
             sequence: 0,
             partial_record,
+            verification: None,
             anchor,
         }
     };
@@ -698,6 +724,7 @@ pub fn read_turns_with_limits<A: PageAdapter + ?Sized>(
         state: &state,
         file: &mut file,
         metadata,
+        current: &current,
     };
     let outcome = if p.start_mode == SessionTurnPageStartMode::Tail {
         scan.tail(&current)?
@@ -725,6 +752,7 @@ struct Scan<'a, A: PageAdapter + ?Sized> {
     state: &'a Cursor,
     file: &'a mut File,
     metadata: usize,
+    current: &'a Stamp,
 }
 
 impl<A: PageAdapter + ?Sized> Scan<'_, A> {
@@ -779,7 +807,8 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
         &mut self,
         examined: &mut ReadAccounting,
         quantum: usize,
-    ) -> Result<Vec<u8>, ErrorObject> {
+        next: &mut Cursor,
+    ) -> Result<Option<Vec<u8>>, ErrorObject> {
         let state = self.state;
         let partial = state
             .partial_record
@@ -810,7 +839,10 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
             }
         }
         let Some((span, len)) = partial else {
-            return Ok(Vec::new());
+            if state.verification.is_some() {
+                return Err(stale());
+            }
+            return Ok(Some(Vec::new()));
         };
         let bytes = match &*self.storage {
             PageStorage::Observation { .. } => {
@@ -819,21 +851,41 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
                 bytes
             }
             PageStorage::Canonical { root, .. } => {
-                // Never compose an obsolete staged prefix with a native
-                // suffix. This verification is native I/O and must fit the
-                // existing canonical source quantum before it is attempted.
-                if len > quantum as u64 {
-                    return Err(capacity(
-                        "Source budget cannot verify the retained record prefix",
-                    ));
-                }
+                // The staged copy is not trusted as native evidence. Compare
+                // every byte before assembly, carrying only the checked length
+                // across bounded calls. A changed source stamp invalidates that
+                // progress (including append), so the comparison restarts.
                 let retained = staging::partial_bytes(root, span, len)?;
-                let bytes = self.read_native(span.start, len)?;
-                examined.forward += bytes.len();
-                if bytes != retained {
+                if retained.len() as u64 != len
+                    || sha256_hex(&retained) != span.sha256
+                    || retained.contains(&b'\n')
+                {
                     return Err(stale());
                 }
-                bytes
+                let prior = state.verification.as_ref();
+                if prior.is_some_and(|v| v.checked > len) {
+                    return Err(stale());
+                }
+                let checked = prior
+                    .filter(|v| v.stamp == *self.current)
+                    .map_or(0, |v| v.checked);
+                let amount = (len - checked).min(quantum as u64);
+                if amount == 0 && checked < len {
+                    return Err(capacity("Source budget cannot advance prefix verification"));
+                }
+                let bytes = self.read_native(span.start + checked, amount)?;
+                examined.forward += bytes.len();
+                if bytes != retained[checked as usize..(checked + amount) as usize] {
+                    return Err(stale());
+                }
+                next.verification = Some(PrefixVerification {
+                    checked: checked + amount,
+                    stamp: self.current.clone(),
+                });
+                if checked + amount < len {
+                    return Ok(None);
+                }
+                retained
             }
         };
         if bytes.len() as u64 != len || sha256_hex(&bytes) != span.sha256 || bytes.contains(&b'\n')
@@ -846,7 +898,7 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
                 return Err(stale());
             }
         }
-        Ok(bytes)
+        Ok(Some(bytes))
     }
 
     fn read_native(&mut self, start: u64, len: u64) -> Result<Vec<u8>, ErrorObject> {
@@ -875,7 +927,29 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
         // prefix verification share the source quantum. Only observation's
         // retained-prefix reconstruction stays outside it.
         let quantum = self.request.budgets.source - self.metadata;
-        let mut bytes = self.prefix(&mut examined, quantum)?;
+        let mut next = state.clone();
+        let prefix = self.prefix(&mut examined, quantum, &mut next)?;
+        // Even a completed verification can consume the entire allowance. Its
+        // durable checked length lets the next unchanged call read forward.
+        if prefix.is_none() || (examined.forward == quantum && state.offset < state.stamp.len) {
+            if !next
+                .verification
+                .as_ref()
+                .is_some_and(|v| v.checked > 0 && next.verification != state.verification)
+            {
+                return Err(capacity(
+                    "Source budget cannot advance past the cursor boundary",
+                ));
+            }
+            return Ok(Outcome {
+                next,
+                turns: Vec::new(),
+                examined,
+                complete: false,
+                framed_checkpoint: None,
+            });
+        }
+        let mut bytes = prefix.expect("completed verification");
         let quantum = quantum - examined.forward;
         let verification_reads = examined.forward;
         let prefix_len = bytes.len();
@@ -895,7 +969,6 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
         if native_read as u64 != maximum {
             return Err(stale());
         }
-        let mut next = state.clone();
         let mut turns = Vec::new();
         let mut consumed = 0;
         for line in bytes.split_inclusive(|b| *b == b'\n') {
@@ -931,6 +1004,7 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
                 let mut candidate = next.clone();
                 candidate.offset = end;
                 candidate.partial_record = None;
+                candidate.verification = None;
                 candidate.anchor = anchor(record_start, &bytes, end, None);
                 turns.push(turn.clone());
                 let complete = end == state.stamp.len;
@@ -951,6 +1025,7 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
             consumed += line.len();
             next.offset = end;
             next.partial_record = None;
+            next.verification = None;
             next.anchor = anchor(record_start, &bytes, end, None);
         }
         let mut complete = next.offset == state.stamp.len;
@@ -966,6 +1041,7 @@ impl<A: PageAdapter + ?Sized> Scan<'_, A> {
             next.offset = record_start + bytes.len() as u64;
             next.anchor = anchor(record_start, &bytes, next.offset, Some(start));
             next.partial_record = Some(partial);
+            next.verification = None;
             // EOF coverage does not project an unfinished record; a later
             // append supplies its suffix.
             complete = next.offset == state.stamp.len;
@@ -1172,7 +1248,13 @@ fn page_result<A: PageAdapter + ?Sized>(
         turns: turns.to_vec(),
         page_turn_count: turns.len() as u64,
         source_bytes_examined: examined.total() as u64,
-        scan_progress: !complete && turns.is_empty() && next.offset > state.offset,
+        scan_progress: !complete
+            && turns.is_empty()
+            && (next.offset > state.offset
+                || next
+                    .verification
+                    .as_ref()
+                    .is_some_and(|v| v.checked > 0 && next.verification != state.verification)),
         snapshot_complete: complete,
         next_page_token: (!complete).then(|| token.clone()),
         resume_token: complete.then_some(token),
