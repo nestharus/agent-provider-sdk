@@ -59,13 +59,18 @@ the task worktree and branch when the work is complete.
   and require reconciliation for incomplete work. Identity used to recover a
   specific actor has a different purpose from provider compatibility.
 
-Current Runner integration uses fixed-v1 validation and capability agreement.
 The SDK's `negotiation` module selects common contract and host-selected
-extension versions, and providers advertise an extension version only when the
-request's host offered it; Runner's host-side adoption of that selection and
-automatic refreshed agreement after replacement remain unfinished. Do not
-advertise a second contract wire version before the host can select a common
-supported version. The shared one-shot launch lifecycle lives in
+extension versions; providers advertise an extension version only when the
+request's host offered it.
+
+Runner's registered native-root path uses SDK contract and host-selected
+extension version selection with fresh schema/capability agreement per
+invocation, reassessing a replacement on the next invocation. The ordinary
+provider registry remains on fixed-v1 validation and capability agreement;
+artifact-currentness checks invalidate cached describes/endpoints and trigger a
+fresh describe, not common-version selection. Do not advertise a second contract
+wire version before the host can select a common supported version. The shared
+one-shot launch lifecycle lives in
 `agent-provider-execution::lifecycle`; adapters plug native behavior into it
 rather than reimplementing its ordering. The resident ACP v2 endpoint
 (`agent-provider-execution::resident`) runs every resident turn through that

@@ -66,9 +66,14 @@ necessary; different snapshots are not automatically compatible. The snapshot
 is aligned with Agent Runner's current host copy plus the host-selected
 `resident_session_v1` capability (see `UPSTREAM.md`); a host must adopt those
 describe and common bytes before selecting that capability. This policy does
-not qualify cross-build replay or updates. Current Runner integration uses
-fixed-v1 validation and capability agreement; `negotiation` provides
-common-version selection, but Runner's host-side adoption and automatic
-refreshed agreement after replacement remain unfinished. Do not advertise a
-second contract wire version before the host can select a common supported
-version; extension versions are advertised only when the host offered them.
+not qualify cross-build replay or updates.
+
+Runner's registered native-root path uses SDK contract and host-selected
+extension version selection with fresh schema/capability agreement per
+invocation, reassessing a replacement on the next invocation. The ordinary
+provider registry remains on fixed-v1 validation and capability agreement;
+artifact-currentness checks invalidate cached describes/endpoints and trigger a
+fresh describe, not common-version selection. The SDK's `negotiation` module
+provides common-version selection. Do not advertise a second contract wire
+version before the host can select a common supported version; extension
+versions are advertised only when the host offered them.
