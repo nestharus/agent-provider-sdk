@@ -1,0 +1,395 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oulipoly:incident:v1",
+  "title": "Oulipoly Incident v1",
+  "description": "Provider-neutral, bounded infrastructure incident claims: incident reports with typed process/provider resource evidence and claimed severity, scope and cause; collector receipts and key conflicts; recovery verification checks; and recovery authorization records resting on a complete passing verification. A companion of oulipoly.session_control/v3: identities, logical links, actor evidence, disclosure markers and repetition meaning are imported from it, and pause/resume remains its input_hold/input_release. Selected by peer advertisement of oulipoly.incident/v1, not by provider describe, CLI, binary, package or source identity. It is not a provider/v1 subcommand or a second host/provider protocol. Records are claims: validating one does not establish that its producer told the truth, that a cause is real, that an issuer holds authority, or that any action may proceed. Contract refusals are incident_unavailable diagnostics. Structural schema and the adjacent README normative semantic rules together define conformance; raw schema validation alone is insufficient.",
+  "$defs": {
+    "Protocol": { "const": "oulipoly.incident/v1" },
+    "ProtocolId": {
+      "description": "A protocol identifier named by a schema-agreement check.",
+      "type": "string",
+      "pattern": "^[\\x21-\\x7e]{1,128}$"
+    },
+    "Epoch": {
+      "description": "Incident epoch chosen by the coordinator. A strictly greater epoch of the same incident supersedes a lesser one.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "Count": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "Sha256": {
+      "description": "A lowercase SHA-256 content digest.",
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "Severity": {
+      "description": "Ordered severity label of a claim: notice < degraded < critical. A label, not a classification, an escalation or a policy.",
+      "enum": ["notice", "degraded", "critical"]
+    },
+    "Scope": {
+      "description": "What a claim is about. logical names a root/child/work/input link; account, provider, host and component name opaque host-owned groupings; fleet is everything. The SDK knows containment only along the logical chain and for fleet; any other cross-level relation is undetermined host topology.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "level": { "const": "logical" },
+            "subject": { "$ref": "../session-control/v3.schema.json#/$defs/LogicalRef" }
+          },
+          "required": ["level", "subject"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "level": { "enum": ["account", "provider", "host", "component"] },
+            "ref": { "$ref": "../session-control/v3.schema.json#/$defs/HostRef" }
+          },
+          "required": ["level", "ref"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "level": { "const": "fleet" } },
+          "required": ["level"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Selector": {
+      "description": "A reading filter over reports: claimed severity at least at_least and claimed scope contained by one of scopes. Not a subscription, broadcast, target expansion or authority.",
+      "type": "object",
+      "properties": {
+        "at_least": { "$ref": "#/$defs/Severity" },
+        "scopes": { "type": "array", "minItems": 1, "maxItems": 16, "items": { "$ref": "#/$defs/Scope" } }
+      },
+      "required": ["at_least", "scopes"],
+      "additionalProperties": false
+    },
+    "Cause": {
+      "description": "The reporter's claimed cause. Each definite cause needs its minimum observed evidence in the same report (README). unknown is always admissible and is the reading for SIGKILL alone, RSS, pressure, process absence or hierarchical counters.",
+      "enum": ["unknown", "exit", "signal", "oom_kill", "provider_condition", "component_failure"]
+    },
+    "EvidenceType": {
+      "enum": [
+        "process_exit",
+        "process_signal",
+        "process_absent",
+        "cgroup_membership",
+        "memory_event",
+        "resource_sample",
+        "provider_condition",
+        "component_witness"
+      ]
+    },
+    "Window": {
+      "description": "A bounded host observation window. Not an ordering clock or causal evidence.",
+      "type": "object",
+      "properties": {
+        "start_unix_ms": { "$ref": "../session-control/v3.schema.json#/$defs/UnixMilliseconds" },
+        "end_unix_ms": { "$ref": "../session-control/v3.schema.json#/$defs/UnixMilliseconds" }
+      },
+      "required": ["start_unix_ms", "end_unix_ms"],
+      "additionalProperties": false
+    },
+    "Withheld": {
+      "description": "Why an evidence item's content is absent: redacted (known and withheld) or missing with a reason. Neither is a negative observation.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "state": { "const": "redacted" } },
+          "required": ["state"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": { "const": "missing" },
+            "reason": { "$ref": "../session-control/v3.schema.json#/$defs/MissingReason" }
+          },
+          "required": ["state", "reason"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Evidence": {
+      "description": "One typed process/provider resource observation. Actor identity uses session_control ActorEvidence; process items name an os_process actor and provider items a provider_session actor. Each item claims only its own fact.",
+      "oneOf": [
+        {
+          "description": "The actor exited normally with this code.",
+          "type": "object",
+          "properties": {
+            "type": { "const": "process_exit" },
+            "actor": { "$ref": "../session-control/v3.schema.json#/$defs/ActorEvidence" },
+            "exit_code": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 }
+          },
+          "required": ["type", "actor", "exit_code"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The actor was terminated by this signal. Claims the signal number only, not its sender or reason.",
+          "type": "object",
+          "properties": {
+            "type": { "const": "process_signal" },
+            "actor": { "$ref": "../session-control/v3.schema.json#/$defs/ActorEvidence" },
+            "signal": { "type": "integer", "minimum": 1, "maximum": 64 }
+          },
+          "required": ["type", "actor", "signal"],
+          "additionalProperties": false
+        },
+        {
+          "description": "A probe found no process for the actor identity. Not an exit, a cause or the end of any other actor.",
+          "type": "object",
+          "properties": {
+            "type": { "const": "process_absent" },
+            "actor": { "$ref": "../session-control/v3.schema.json#/$defs/ActorEvidence" }
+          },
+          "required": ["type", "actor"],
+          "additionalProperties": false
+        },
+        {
+          "description": "The actor was a member of this leaf cgroup.",
+          "type": "object",
+          "properties": {
+            "type": { "const": "cgroup_membership" },
+            "actor": { "$ref": "../session-control/v3.schema.json#/$defs/ActorEvidence" },
+            "cgroup": { "$ref": "../session-control/v3.schema.json#/$defs/DisclosedRef" }
+          },
+          "required": ["type", "actor", "cgroup"],
+          "additionalProperties": false
+        },
+        {
+          "description": "A cgroup memory event counter delta over a window. local counts this cgroup only; hierarchical includes descendants.",
+          "type": "object",
+          "properties": {
+            "type": { "const": "memory_event" },
+            "cgroup": { "$ref": "../session-control/v3.schema.json#/$defs/DisclosedRef" },
+            "counter": { "enum": ["high", "max", "oom", "oom_kill"] },
+            "counting": { "enum": ["local", "hierarchical"] },
+            "delta": { "$ref": "#/$defs/Count" },
+            "window": { "$ref": "#/$defs/Window" }
+          },
+          "required": ["type", "cgroup", "counter", "counting", "delta", "window"],
+          "additionalProperties": false
+        },
+        {
+          "description": "One resource sample: rss_bytes in bytes; *_pressure_some_avg10 in hundredths of a percent (0-10000). A sample attributes no cause.",
+          "type": "object",
+          "properties": {
+            "type": { "const": "resource_sample" },
+            "actor": { "$ref": "../session-control/v3.schema.json#/$defs/ActorEvidence" },
+            "resource": {
+              "enum": ["rss_bytes", "memory_pressure_some_avg10", "cpu_pressure_some_avg10", "io_pressure_some_avg10"]
+            },
+            "value": { "$ref": "#/$defs/Count" }
+          },
+          "required": ["type", "resource", "value"],
+          "additionalProperties": false
+        },
+        {
+          "description": "A provider-neutral provider condition, as the host or adapter reported it.",
+          "type": "object",
+          "properties": {
+            "type": { "const": "provider_condition" },
+            "actor": { "$ref": "../session-control/v3.schema.json#/$defs/ActorEvidence" },
+            "condition": {
+              "enum": ["auth", "quota", "rate_limited", "service_unavailable", "invalid_input", "unsupported_capability", "timeout"]
+            }
+          },
+          "required": ["type", "condition"],
+          "additionalProperties": false
+        },
+        {
+          "description": "A witness of a shared component's state. A claim, not an authority.",
+          "type": "object",
+          "properties": {
+            "type": { "const": "component_witness" },
+            "component": { "$ref": "../session-control/v3.schema.json#/$defs/DisclosedRef" },
+            "state": { "enum": ["healthy", "degraded", "failed"] }
+          },
+          "required": ["type", "component", "state"],
+          "additionalProperties": false
+        },
+        {
+          "description": "An evidence item of this type exists but its content is withheld.",
+          "type": "object",
+          "properties": {
+            "type": { "const": "withheld" },
+            "evidence": { "$ref": "#/$defs/EvidenceType" },
+            "disclosure": { "$ref": "#/$defs/Withheld" }
+          },
+          "required": ["type", "evidence", "disclosure"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ReportFields": {
+      "type": "object",
+      "properties": {
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "report_key": { "$ref": "../session-control/v3.schema.json#/$defs/RequestKey" },
+        "reporter": { "$ref": "../session-control/v3.schema.json#/$defs/HostRef" },
+        "subject": { "$ref": "../session-control/v3.schema.json#/$defs/LogicalRef" },
+        "severity": { "$ref": "#/$defs/Severity" },
+        "scope": { "$ref": "#/$defs/Scope" },
+        "cause": { "$ref": "#/$defs/Cause" },
+        "evidence": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/Evidence" } },
+        "detail": { "$ref": "../session-control/v3.schema.json#/$defs/DisclosedText" },
+        "observed_at_unix_ms": { "$ref": "../session-control/v3.schema.json#/$defs/UnixMilliseconds" }
+      },
+      "required": ["protocol", "report_key", "reporter", "subject", "severity", "scope", "cause", "evidence", "observed_at_unix_ms"]
+    },
+    "ReportContent": {
+      "description": "A complete report embedded in a conflict, without its record kind.",
+      "$ref": "#/$defs/ReportFields",
+      "unevaluatedProperties": false
+    },
+    "Report": {
+      "description": "A reporter's bounded typed incident observation: claimed severity, scope and cause with evidence. Not a classification, a hold, a pause or a request. detail is observer-only text that no rule reads.",
+      "$ref": "#/$defs/ReportFields",
+      "properties": { "kind": { "const": "report" } },
+      "required": ["kind"],
+      "unevaluatedProperties": false
+    },
+    "ReportReceipt": {
+      "description": "A collector received the report; durable is its retention claim. Not confirmation, classification, agreement with the claimed severity or scope, a hold or an authorization.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "report_receipt" },
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "report_key": { "$ref": "../session-control/v3.schema.json#/$defs/RequestKey" },
+        "reporter": { "$ref": "../session-control/v3.schema.json#/$defs/HostRef" },
+        "collector": { "$ref": "../session-control/v3.schema.json#/$defs/HostRef" },
+        "durable": { "type": "boolean" },
+        "observed_at_unix_ms": { "$ref": "../session-control/v3.schema.json#/$defs/UnixMilliseconds" }
+      },
+      "required": ["kind", "protocol", "report_key", "reporter", "collector", "durable", "observed_at_unix_ms"],
+      "additionalProperties": false
+    },
+    "ReportConflict": {
+      "description": "Answer to a changed submission under an already used report key, carrying both complete reports. The original is preserved; the submission is neither a retry nor a new report.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "report_conflict" },
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "submitted": { "$ref": "#/$defs/ReportContent" },
+        "original": { "$ref": "#/$defs/ReportContent" },
+        "collector": { "$ref": "../session-control/v3.schema.json#/$defs/HostRef" },
+        "observed_at_unix_ms": { "$ref": "../session-control/v3.schema.json#/$defs/UnixMilliseconds" }
+      },
+      "required": ["kind", "protocol", "submitted", "original", "collector", "observed_at_unix_ms"],
+      "additionalProperties": false
+    },
+    "IncidentRef": {
+      "description": "One incident and epoch, as opaque coordinator values.",
+      "type": "object",
+      "properties": {
+        "incident": { "$ref": "../session-control/v3.schema.json#/$defs/HostRef" },
+        "epoch": { "$ref": "#/$defs/Epoch" }
+      },
+      "required": ["incident", "epoch"],
+      "additionalProperties": false
+    },
+    "Check": {
+      "description": "One recovery verification check: what was checked (subject) and its result. digest is required for a passed artifact_digest check, optional for a failed one and absent otherwise.",
+      "type": "object",
+      "properties": {
+        "check": { "enum": ["reproduction", "canary", "artifact_digest", "schema_agreement", "custody"] },
+        "subject": { "$ref": "../session-control/v3.schema.json#/$defs/DisclosedRef" },
+        "result": { "enum": ["passed", "failed", "not_run", "unknown"] },
+        "digest": { "$ref": "#/$defs/Sha256" }
+      },
+      "required": ["check", "subject", "result"],
+      "additionalProperties": false
+    },
+    "VerificationFields": {
+      "type": "object",
+      "properties": {
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "verifier": { "$ref": "../session-control/v3.schema.json#/$defs/HostRef" },
+        "incident": { "$ref": "#/$defs/IncidentRef" },
+        "scope": { "$ref": "#/$defs/Scope" },
+        "checks": { "type": "array", "minItems": 1, "maxItems": 16, "items": { "$ref": "#/$defs/Check" } },
+        "observed_at_unix_ms": { "$ref": "../session-control/v3.schema.json#/$defs/UnixMilliseconds" }
+      },
+      "required": ["protocol", "verifier", "incident", "scope", "checks", "observed_at_unix_ms"]
+    },
+    "VerificationContent": {
+      "description": "A complete verification embedded as an authorization's proof, without its record kind.",
+      "$ref": "#/$defs/VerificationFields",
+      "unevaluatedProperties": false
+    },
+    "Verification": {
+      "description": "A verifier's claimed recovery checks for one incident epoch and scope. It may report failures. Proof, not authority.",
+      "$ref": "#/$defs/VerificationFields",
+      "properties": { "kind": { "const": "verification" } },
+      "required": ["kind"],
+      "unevaluatedProperties": false
+    },
+    "Issuer": {
+      "description": "The coordinator that claims to issue an authorization and the fence it claims to hold. Opaque equality values; carrying them makes a stale issuer detectable, it does not fence anything.",
+      "type": "object",
+      "properties": {
+        "coordinator": { "$ref": "../session-control/v3.schema.json#/$defs/HostRef" },
+        "fence": { "$ref": "../session-control/v3.schema.json#/$defs/HostRef" }
+      },
+      "required": ["coordinator", "fence"],
+      "additionalProperties": false
+    },
+    "RecoveryAuthorization": {
+      "description": "An issuer's claim that it authorized resuming input admission for a scope, resting on a complete passing verification of the same incident epoch. It covers only session_control input_release requests within its scope. It is not a request, an acknowledgment, a settlement, a same-incarnation recover or a replay, and it grants nothing by existing.",
+      "type": "object",
+      "properties": {
+        "kind": { "const": "recovery_authorization" },
+        "protocol": { "$ref": "#/$defs/Protocol" },
+        "authorization_key": { "$ref": "../session-control/v3.schema.json#/$defs/RequestKey" },
+        "issuer": { "$ref": "#/$defs/Issuer" },
+        "incident": { "$ref": "#/$defs/IncidentRef" },
+        "scope": { "$ref": "#/$defs/Scope" },
+        "proof": { "$ref": "#/$defs/VerificationContent" },
+        "observed_at_unix_ms": { "$ref": "../session-control/v3.schema.json#/$defs/UnixMilliseconds" }
+      },
+      "required": ["kind", "protocol", "authorization_key", "issuer", "incident", "scope", "proof", "observed_at_unix_ms"],
+      "additionalProperties": false
+    },
+    "Record": {
+      "description": "One incident record.",
+      "oneOf": [
+        { "$ref": "#/$defs/Report" },
+        { "$ref": "#/$defs/ReportReceipt" },
+        { "$ref": "#/$defs/ReportConflict" },
+        { "$ref": "#/$defs/Verification" },
+        { "$ref": "#/$defs/RecoveryAuthorization" }
+      ]
+    },
+    "RecordKind": {
+      "enum": ["report", "report_receipt", "report_conflict", "verification", "recovery_authorization"]
+    },
+    "Offer": {
+      "description": "One peer's oulipoly.incident/v1 capability offer: the record kinds it can produce or read and the evidence types it can produce or read. At least one record kind is offered.",
+      "type": "object",
+      "properties": {
+        "records": { "type": "array", "minItems": 1, "maxItems": 5, "uniqueItems": true, "items": { "$ref": "#/$defs/RecordKind" } },
+        "evidence": { "type": "array", "maxItems": 8, "uniqueItems": true, "items": { "$ref": "#/$defs/EvidenceType" } }
+      },
+      "required": ["records", "evidence"],
+      "additionalProperties": false
+    },
+    "Advertisement": {
+      "description": "A peer's protocol offers. Unknown, older and newer entries are ignored; the v1 entry must be a strict Offer.",
+      "type": "object",
+      "maxProperties": 32,
+      "propertyNames": { "pattern": "^[\\x21-\\x7e]{1,128}$" }
+    },
+    "IncidentUnavailable": {
+      "description": "Explicit incident capability diagnostic. Observer-only: not a control, a hold, a provider error response, a launch event, launch unavailability or a completion outcome.",
+      "type": "object",
+      "properties": {
+        "diagnostic": { "const": "incident_unavailable" },
+        "reason": { "enum": ["no_common_version", "invalid_advertisement", "no_common_capability", "invalid_record", "protocol_violation"] },
+        "detail": { "type": "string", "maxLength": 512 }
+      },
+      "required": ["diagnostic", "reason"],
+      "additionalProperties": false
+    }
+  }
+}

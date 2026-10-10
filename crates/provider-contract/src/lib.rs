@@ -10,6 +10,7 @@ pub mod acp;
 pub mod exploration;
 pub mod generated;
 pub mod host_extensions;
+pub mod incident;
 pub mod launch_stream;
 pub mod live_stream;
 pub mod negotiation;
@@ -69,6 +70,9 @@ pub mod fixtures {
     /// trace, current-state relation and settlement-reading vectors.
     pub const SESSION_CONTROL_V2_JSON: &str =
         include_str!("../tests/fixtures/session_control/v3.json");
+    /// Golden incident/v1 payloads, cause-evidence, proof, coverage,
+    /// containment, selector, selection, agreement and repetition vectors.
+    pub const INCIDENT_V1_JSON: &str = include_str!("../tests/fixtures/incident/v1.json");
 
     pub fn invalid_contract_v1() -> Value {
         serde_json::from_str(INVALID_CONTRACT_V1_JSON)
