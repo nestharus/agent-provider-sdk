@@ -831,7 +831,8 @@ Continuation and resume re-check the bound source: the same device/inode, a
 length that never shrinks (with an unchanged mtime at equal length), the digest
 of the first record, and the digest of up to 64 bytes ending at the cursor's
 resume point. In both projections, a retained prefix is re-read in full from
-native source and verified before assembly with the suffix; canonical also
+native source and verified before assembly with the suffix (canonical can spread
+that comparison across calls); canonical also
 checks the staged copy. That read covers the boundary without reading it twice.
 These checks detect replacement, truncation, a rewritten first record and a
 rewrite that changes or shifts the verified boundary bytes. They do not detect
@@ -841,18 +842,30 @@ SDK engine. Actual native-store rewriting/stability and unavailable-fact
 behavior remain to be decided before adapter adoption; qualification and stress
 need induced rewrites with canonical-versus-source oracles. Concurrent source
 mutation during a read is not qualified by these fake controls.
-Canonical verification reads share the source quantum. If the retained prefix
-cannot fit, the request refuses deterministically with
-`session_turn_page_budget_too_small`; if verification leaves no room for new
-bytes, an incomplete snapshot also refuses. A fixed continuation budget can
-stall permanently once a retained prefix consumes its quantum minus identity
-metadata. Canonical can therefore ingest fewer record sizes than observation,
-and can refuse on budget before reaching `session_turn_record_ceiling_exceeded`,
-even at the maximum allowed quantum. A resume from a completed snapshot can
-select larger budgets; a continuation is bound to its original budgets. Fresh
-reads with insufficient budgets can reach the same stall. Actual Runner
-budgets, native record sizes and consumer refusal/recovery meanings must be
-established before adapter adoption; real-session stalls reopen these means.
+Canonical verification reads share `max_source_bytes` with metadata and forward
+reads. A retained prefix can exceed one quantum: the engine compares its staged
+bytes to native source across calls, persisting the checked length in an opaque
+canonical cursor. A verification-only incomplete page reports `scan_progress`
+only after actual charged comparison work; no turn or assembled body is emitted
+until the entire retained prefix has matched. If verification uses the whole
+allowance, the next unchanged call can read forward. Extending the retained
+prefix resets verification for that new prefix. A change in the source's
+size/mtime stamp between verification visits restarts the full comparison; it
+is not evidence substituting for that comparison. Thus an unchanged source with
+sufficient metadata, response and staging admission can drain a framed record
+across finite calls without increasing caller budgets. Total catch-up work is
+not single-pass: a growing prefix may be checked repeatedly.
+
+The private canonical token prefix is now `<namespace>-stp2-`; old `stp1` tokens
+are refused, not decoded or migrated. The public read protocol, schema,
+`PageAdapter`, observation tokens and accounting remain unchanged. Verification
+progress is durable under the existing cursor-pack publication/admission rules;
+all retained prefixes and cursor frames (including obsolete/orphaned content)
+remain charged to the existing finite pool. Admission exhaustion and insufficient
+metadata/work/response allowance are deterministic non-retryable refusals, not
+successful stalls. The unchanged record ceiling still applies. These checks do
+not establish a coherent concurrent-source snapshot, every historical rewrite,
+or actual provider recovery/stress qualification.
 
 Observation uses the existing `codex_observation_io_v1` resource declaration.
 Here `forward` means physical nonmetadata native bytes read inside the ordinary

@@ -31,6 +31,7 @@ fn files(root: &Path) -> Vec<(PathBuf, Vec<u8>)> {
 
 fn seed_cursor() -> Cursor {
     Cursor {
+        canonical_format: Some(2),
         kind: "resume".into(),
         binding: Binding {
             provider: "p".into(),
@@ -58,6 +59,7 @@ fn seed_cursor() -> Cursor {
         page: 0,
         sequence: 0,
         partial_record: None,
+        verification: None,
         anchor: None,
     }
 }

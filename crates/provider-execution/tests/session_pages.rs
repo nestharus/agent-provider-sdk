@@ -417,7 +417,7 @@ fn both_projections_page_replay_and_complete_with_native_turn_ids() {
     assert!(second["resume_token"]
         .as_str()
         .unwrap()
-        .starts_with("fake-notes-stp1-"));
+        .starts_with("fake-notes-stp2-"));
 
     let mut o = f.observation_params();
     o["max_source_bytes"] = json!(1_048_576);
@@ -933,14 +933,19 @@ fn canonical_retained_prefix_verification_shares_the_actual_source_quantum() {
     );
     assert_eq!(no_growth["turns"], json!([]));
     f.append_raw(&record.as_bytes()[prefix_len..]);
-    let retained = files(&f.state());
     for quantum in [prefix_len - 1, prefix_len] {
         next["max_source_bytes"] = json!(f.header_len() + quantum);
-        let error = f.try_read(&next).unwrap_err();
-        assert_eq!(error.code, "session_turn_page_budget_too_small");
-        assert!(!error.retryable);
-        assert_eq!(f.code(&next), error.code);
-        assert_eq!(files(&f.state()), retained);
+        let progress = f.read(&next);
+        assert_eq!(progress["source_bytes_examined"], f.header_len() + quantum);
+        assert_eq!(progress["scan_progress"], true);
+        assert_eq!(progress["turns"], json!([]));
+        let (turns, end) = drain(&f, &continuation(&next, &progress), 8);
+        assert_eq!(end["snapshot_complete"], true);
+        assert_eq!(turns.len(), 1);
+        assert_eq!(
+            turns[0]["canonical_text_sha256"],
+            sha256_hex("a".repeat(500).as_bytes())
+        );
     }
     next["max_source_bytes"] = json!(f.header_len() + prefix_len + 1);
     let progress = f.read(&next);
@@ -1062,8 +1067,8 @@ fn record_ceiling_refuses_deterministically_and_never_skips() {
         let f = Fixture::new();
         f.append_raw(padding(size).as_bytes());
         f.append("u-after", "user", "after");
-        // Canonical full-prefix verification can stall before this ceiling.
-        // Keep its specific ceiling oracle on observation, where reachable.
+        // Observation uses its distinct reconstruction accounting here;
+        // canonical ceiling neighbors have separate charged controls.
         let mut p = f.observation_params();
         p["max_source_bytes"] = json!(1048576);
         let mut request = p.clone();
@@ -1094,25 +1099,20 @@ fn record_ceiling_refuses_deterministically_and_never_skips() {
 }
 
 #[test]
-fn canonical_maximum_quantum_stalls_before_the_record_ceiling() {
+fn canonical_maximum_quantum_reaches_the_record_ceiling_boundary() {
     let f = Fixture::new();
     f.append_raw(padding(MAX_RECORD).as_bytes());
-    f.append("u-after", "user", "must not be skipped to");
+    f.append("u-after", "user", "must arrive after the large nonturn");
     let mut p = f.params();
     p["max_source_bytes"] = json!(MAX_RECORD);
     let first = f.read(&p);
     assert_eq!(first["source_bytes_examined"], MAX_RECORD);
     assert_eq!(first["snapshot_complete"], false);
     assert_eq!(first["turns"], json!([]));
-    let checkpoint = files(&f.state());
-    let next = continuation(&p, &first);
-    let error = f.try_read(&next).unwrap_err();
-    // D2 accepts budget refusal here: even the largest allowed quantum is
-    // consumed by the retained-prefix verification before framing can finish.
-    assert_eq!(error.code, "session_turn_page_budget_too_small");
-    assert!(!error.retryable);
-    assert_eq!(f.code(&next), error.code);
-    assert_eq!(files(&f.state()), checkpoint);
+    let (turns, end) = drain(&f, &continuation(&p, &first), 8);
+    assert_eq!(turns.len(), 1);
+    assert_eq!(turns[0]["turn_id"], "u-after");
+    assert_eq!(end["snapshot_complete"], true);
 }
 
 #[test]
@@ -1474,4 +1474,263 @@ fn common_engine_source_carries_no_provider_native_constants() {
             }
         }
     }
+}
+
+#[test]
+fn canonical_multiquantum_body_keeps_exact_digests_order_and_replay() {
+    let f = Fixture::new();
+    let head = json!({"fake":"head","sid":ID,"pad":""});
+    let overhead = head.to_string().len() + 1;
+    let mut head = head;
+    head["pad"] = json!("h".repeat(22_030 - overhead));
+    fs::write(&f.path, format!("{head}\n")).unwrap();
+    assert_eq!(f.header_len(), 22_030);
+    let text = "a\\\"\r\n".repeat(250_000);
+    f.append("u-big", "user", &text);
+    f.append("a-following", "agent", "following");
+    let original = fs::read(&f.path).unwrap();
+    let (turns, end) = drain(&f, &f.params(), 16);
+    assert_eq!(turns.len(), 2);
+    assert_eq!(turns[0]["turn_id"], "u-big");
+    assert_eq!(turns[0]["snapshot_sequence"], 0);
+    assert_eq!(turns[0]["body_state"], "omitted_oversize");
+    #[derive(serde::Serialize)]
+    struct Chunk<'a> {
+        #[serde(rename = "type")]
+        kind: &'a str,
+        text: &'a str,
+    }
+    let body = serde_json::to_vec(&[Chunk {
+        kind: "text",
+        text: &text,
+    }])
+    .unwrap();
+    assert_eq!(turns[0]["body_bytes"], body.len());
+    assert_eq!(turns[0]["body_sha256"], sha256_hex(&body));
+    assert_eq!(
+        turns[0]["canonical_text_sha256"],
+        sha256_hex(text.replace("\r\n", "\n").trim().as_bytes())
+    );
+    assert_eq!(turns[1]["turn_id"], "a-following");
+    assert_eq!(turns[1]["snapshot_sequence"], 1);
+    assert_eq!(turns[1]["body"][0]["text"], "following");
+    assert_eq!(end["snapshot_complete"], true);
+    assert_eq!(fs::read(&f.path).unwrap(), original);
+    assert!(files(&f.state()).iter().all(|(path, bytes)| !path
+        .extension()
+        .is_some_and(|ext| ext == "part")
+        || bytes.len() < MAX_RECORD));
+}
+
+// Start a 900-byte retained prefix at incomplete EOF, then resume with a
+// 300-byte native quantum. The first verification visit cannot finish it.
+fn verifying_prefix() -> (Fixture, Value, Value, String) {
+    let f = Fixture::new();
+    let record = format!("{}\n", message("u-big", "user", &"a".repeat(1200)));
+    f.append_raw(&record.as_bytes()[..900]);
+    let mut p = f.params();
+    p["max_source_bytes"] = json!(f.header_len() + 1000);
+    let end = f.read(&p);
+    assert_eq!(end["snapshot_complete"], true);
+    f.append_raw(&record.as_bytes()[900..]);
+    let mut request = resume(&p, &end);
+    request["max_source_bytes"] = json!(f.header_len() + 300);
+    let page = f.read(&request);
+    assert_eq!(page["turns"], json!([]));
+    assert_eq!(page["scan_progress"], true);
+    assert_eq!(page["source_bytes_examined"], f.header_len() + 300);
+    (f, request, page, record)
+}
+
+#[test]
+fn canonical_verification_progress_survives_process_restart_and_publication_refusal() {
+    let (f, request, page, _) = verifying_prefix();
+    let next = continuation(&request, &page);
+    let before = files(&f.state());
+    let error = f
+        .try_read_with(
+            &f.request(&next),
+            StagingLimits {
+                bytes: 0,
+                objects: 0,
+            },
+        )
+        .unwrap_err();
+    assert_eq!(error.code, "session_turn_staging_capacity_exceeded");
+    assert!(!error.retryable);
+    assert_eq!(files(&f.state()), before);
+    let progress = subprocess(&f, &next);
+    assert_eq!(progress, f.read(&next));
+    assert_eq!(progress["source_bytes_examined"], f.header_len() + 300);
+    assert_eq!(progress["scan_progress"], true);
+    assert_eq!(progress["turns"], json!([]));
+    assert_ne!(page["next_page_token"], progress["next_page_token"]);
+    let (turns, end) = drain(&f, &continuation(&request, &progress), 32);
+    assert_eq!(turns.len(), 1);
+    assert_eq!(turns[0]["body"][0]["text"], "a".repeat(1200));
+    assert_eq!(end["snapshot_complete"], true);
+}
+
+#[test]
+fn canonical_multicall_verification_rejects_rewrite_replacement_and_staged_corruption() {
+    use std::io::{Seek, SeekFrom};
+    for mutation in ["checked", "unchecked", "replacement", "staged"] {
+        let (f, request, page, record) = verifying_prefix();
+        let next = continuation(&request, &page);
+        match mutation {
+            "checked" | "unchecked" => {
+                let at = if mutation == "checked" {
+                    record.find(&"a".repeat(100)).unwrap()
+                } else {
+                    650
+                };
+                let mut file = fs::OpenOptions::new().write(true).open(&f.path).unwrap();
+                file.seek(SeekFrom::Start((f.header_len() + at) as u64))
+                    .unwrap();
+                file.write_all(b"b").unwrap();
+                drop(file);
+                // Growth makes the old same-length mtime refusal inapplicable.
+                // Checked-byte progress must reset, and content must refuse.
+                f.append_raw(b"\n");
+            }
+            "replacement" => {
+                let copy = f.path.with_extension("replacement");
+                fs::copy(&f.path, &copy).unwrap();
+                fs::rename(copy, &f.path).unwrap();
+            }
+            "staged" => {
+                let path = files(&f.state())
+                    .into_iter()
+                    .find(|(p, _)| p.extension().is_some_and(|ext| ext == "part"))
+                    .unwrap()
+                    .0;
+                let mut bytes = fs::read(&path).unwrap();
+                bytes[200] ^= 1;
+                fs::write(path, bytes).unwrap();
+            }
+            _ => unreachable!(),
+        }
+        let before = files(&f.state());
+        let mut request = next;
+        let mut refused = false;
+        for _ in 0..8 {
+            match f.try_read(&request) {
+                Ok(page) => {
+                    assert_eq!(
+                        page["turns"],
+                        json!([]),
+                        "must not deliver incorrect assembly"
+                    );
+                    assert_eq!(page["snapshot_complete"], false);
+                    assert_eq!(page["scan_progress"], true);
+                    request = continuation(&request, &page);
+                }
+                Err(error) => {
+                    assert_eq!(error.code, "session_turn_page_token_stale", "{mutation}");
+                    assert!(!error.retryable);
+                    assert_eq!(f.code(&request), error.code);
+                    refused = true;
+                    break;
+                }
+            }
+        }
+        assert!(refused, "{mutation}");
+        if mutation != "unchecked" {
+            assert_eq!(files(&f.state()), before);
+        }
+    }
+}
+
+#[test]
+fn canonical_refuses_old_cursor_namespace_and_zero_work_allowance() {
+    let f = Fixture::new();
+    f.append("u-1", "user", "first");
+    f.append("u-2", "user", "next");
+    let p = f.params();
+    let first = f.read(&p);
+    let mut next = continuation(&p, &first);
+    next["page_token"] = json!(next["page_token"]
+        .as_str()
+        .unwrap()
+        .replace("-stp2-", "-stp1-"));
+    assert_eq!(f.code(&next), "session_turn_page_token_stale");
+    // Synthetic old-format issued state: the exact v1 cursor shape lacks
+    // canonical_format and verification. Even prefix relabelling must refuse.
+    let token = first["next_page_token"].as_str().unwrap();
+    let digest = token.strip_prefix("fake-notes-stp2-").unwrap();
+    let pack = f.state().join(format!("cursors-{}.pack", &digest[..2]));
+    let bytes = fs::read(&pack).unwrap();
+    let frame = bytes
+        .split(|b| *b == b'\n')
+        .find(|line| line.starts_with(digest.as_bytes()))
+        .unwrap();
+    let mut old: Value = serde_json::from_slice(&frame[65..]).unwrap();
+    old.as_object_mut().unwrap().remove("canonical_format");
+    old.as_object_mut().unwrap().remove("verification");
+    let old = serde_json::to_vec(&old).unwrap();
+    let old_digest = sha256_hex(&old);
+    let old_pack = f.state().join(format!("cursors-{}.pack", &old_digest[..2]));
+    fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(old_pack)
+        .unwrap()
+        .write_all(format!("{old_digest} {}\n", String::from_utf8(old).unwrap()).as_bytes())
+        .unwrap();
+    next["page_token"] = json!(format!("fake-notes-stp1-{old_digest}"));
+    assert_eq!(f.code(&next), "session_turn_page_token_stale");
+    next["page_token"] = json!(format!("fake-notes-stp2-{old_digest}"));
+    assert_eq!(f.code(&next), "session_turn_page_token_stale");
+    let mut insufficient = p;
+    insufficient["max_source_bytes"] = json!(f.header_len());
+    let error = f.try_read(&insufficient).unwrap_err();
+    assert_eq!(error.code, "session_turn_page_budget_too_small");
+    assert!(!error.retryable);
+}
+
+#[test]
+fn canonical_completed_verification_is_invalidated_before_suffix_assembly() {
+    use std::io::{Seek, SeekFrom};
+    let (f, request, mut page, record) = verifying_prefix();
+    for _ in 0..2 {
+        page = f.read(&continuation(&request, &page));
+        assert_eq!(page["turns"], json!([]));
+        assert_eq!(page["scan_progress"], true);
+        assert_eq!(page["source_bytes_examined"], f.header_len() + 300);
+    }
+    // All 900 retained bytes have now been compared. Before the next visit
+    // can use them, change an already-checked interior byte and grow the file.
+    let at = record.find(&"a".repeat(100)).unwrap();
+    let mut file = fs::OpenOptions::new().write(true).open(&f.path).unwrap();
+    file.seek(SeekFrom::Start((f.header_len() + at) as u64))
+        .unwrap();
+    file.write_all(b"b").unwrap();
+    drop(file);
+    f.append_raw(b"\n");
+    let before = files(&f.state());
+    assert_eq!(
+        f.code(&continuation(&request, &page)),
+        "session_turn_page_token_stale"
+    );
+    assert_eq!(files(&f.state()), before);
+}
+
+#[test]
+fn canonical_oversized_record_refuses_at_unchanged_ceiling_without_skipping() {
+    let f = Fixture::new();
+    f.append_raw(padding(MAX_RECORD + 1).as_bytes());
+    f.append("u-after", "user", "must never arrive");
+    let mut p = f.params();
+    p["max_source_bytes"] = json!(MAX_RECORD);
+    let first = f.read(&p);
+    let second = f.read(&continuation(&p, &first));
+    assert_eq!(second["turns"], json!([]));
+    assert_eq!(second["scan_progress"], true);
+    let request = continuation(&p, &second);
+    let before = files(&f.state());
+    let error = f.try_read(&request).unwrap_err();
+    assert_eq!(error.code, "session_turn_record_ceiling_exceeded");
+    assert!(!error.retryable);
+    assert_eq!(f.code(&request), error.code);
+    assert_eq!(files(&f.state()), before);
 }
