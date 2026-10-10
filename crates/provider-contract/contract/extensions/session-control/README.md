@@ -478,5 +478,7 @@ They do not establish any of the following:
 - adoption by the root discovery/control face, or runtime behaviour.
 
 Incident reports, typed resource evidence, severity and scope, and recovery
-authorization or proof are not defined here. They belong to a later bounded
-contract slice with the incident ledger, witness and coordinator work.
+authorization or proof are not defined here. The companion
+[`incident/v1`](../incident/README.md) contract defines them over this
+vocabulary's identities, evidence, disclosure and repetition meaning; it adds
+no hold, acknowledgment or settlement meaning.

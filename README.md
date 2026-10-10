@@ -344,8 +344,8 @@ broker, provider and PTY capture coverage remain future host work.
 - **Not established.** Capture, the broker, endpoints and sockets, enforcement
   of visibility, truthful origin labelling and runtime non-blocking behaviour
   are host work this SDK has not qualified, including for Agent Runner's
-  consumer. Control claims live in `session-control/v3`; incident DTOs are not
-  yet defined.
+  consumer. Control claims live in `session-control/v3` and incident claims in
+  `incident/v1`.
 
 The [`session-control/v3` contract](crates/provider-contract/contract/extensions/session-control/README.md)
 (`session_control` module) is the one provider-neutral vocabulary of root
@@ -387,8 +387,45 @@ source consumers must select and adopt v3; v1/v2 records are not retained.
 - **Not established.** Records are claims: validation does not prove producer
   truth, authorization, enforcement, durability, lineage warrant or custody.
   Root authority, discovery indexing, durable control intent and execution
-  stay with Agent Runner. Incident reports, evidence severity/scope and
-  recovery authorization remain later work.
+  stay with Agent Runner. Incident reports, evidence, severity/scope and
+  recovery authorization are the companion `incident/v1` contract below.
+
+The [`incident/v1` contract](crates/provider-contract/contract/extensions/incident/README.md)
+(`incident` module) is the provider-neutral vocabulary of infrastructure
+incident claims. It is a companion of session-control v3: it imports that
+contract's root, logical-link, actor-evidence, disclosure and repetition
+definitions rather than copying them, and it adds no hold, acknowledgment or
+settlement meaning. Pause and resume stay `input_hold`/`input_release`.
+- **What it covers.** Reports with claimed severity (`notice` < `degraded` <
+  `critical`), scope (logical link, opaque account/provider/host/component
+  grouping, or fleet) and cause, carrying typed process exit/signal/absence,
+  cgroup membership, memory event, resource sample, provider condition and
+  component witness evidence, or a withheld item of a named type. Collector
+  receipts and key conflicts. Recovery verifications with reproduction,
+  canary, artifact digest, schema agreement and custody checks. Recovery
+  authorization records.
+- **Evidence minimums.** A claimed cause needs its own observed evidence in the
+  report: `oom_kill` needs SIGKILL on an exact process, that process's leaf
+  cgroup and a positive local `oom_kill` delta of that cgroup. SIGKILL alone,
+  RSS, pressure, absence, hierarchical counters and withheld items stay
+  `unknown`.
+- **Authorization.** An authorization is admissible only on a `complete`
+  proof of the same incident epoch whose scope contains its own; a failure is
+  not outweighed by a pass. It covers only session-control `input_release`
+  requests within its scope, never hold, cancel, close or `recover`, and a
+  greater epoch supersedes it. Coverage is a reading, not permission.
+- **Readings.** Scope containment is known along the logical chain, by
+  equality within one opaque level and for fleet; other cross-level relations
+  are `undetermined`. Selectors read reports by severity threshold and scope.
+  Report and authorization repetition reuse session control's
+  `same_request`/`key_conflict`/`distinct` meaning.
+- **Selection.** Optional, by bounded advertisement; record kinds and evidence
+  types intersect. Refusals are observer-only `incident_unavailable`
+  diagnostics, never control, provider launch or completion outcomes.
+- **Not established.** Records are claims. Classification, deduplication,
+  escalation, target expansion, broadcast, fencing, the incident state machine
+  and every recovery effect stay with Agent Runner and its coordinator. No
+  producer or consumer exists yet.
 
 The independently versioned
 [`terminal-unavailable/v1` extension](crates/provider-contract/contract/extensions/terminal-unavailable/README.md)

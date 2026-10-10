@@ -457,7 +457,9 @@ for subscribers; the follower uses the declared channels. Directory paging
 beyond 32 entries is not defined.
 
 Those belong to the capture, broker, subscription and conformance work.
-Incident reports and recovery authorization are not defined here. Control
+Incident reports and recovery authorization are not defined here; see
+[`incident/v1`](../incident/README.md). Raw live output never enters an
+incident report. Control
 claims, including input hold/release acknowledgements, are defined by
 [`session-control/v3`](../session-control/README.md); a live-stream
 `ControlFact` stays report-only.
